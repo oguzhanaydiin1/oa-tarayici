@@ -75,6 +75,13 @@ jobs:
 
       - run: flutter pub get
 
+      - name: Sürüm bilgisi
+        continue-on-error: true
+        run: bash scripts/ozetle.sh surumler bash -c "flutter --version; flutter pub outdated"
+
+      - name: Eklenti düzeltmesi
+        run: bash scripts/eklenti_duzelt.sh
+
       - name: Derle
         # Deneme sürümü: Flutter'ın hata ayıklama anahtarıyla imzalanır, Play Store'a yüklenemez.
         run: bash scripts/ozetle.sh android flutter build apk --release
