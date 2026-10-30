@@ -1,8 +1,15 @@
 name: Derle
 
-# main'e her gönderimde Windows exe ve Android apk derlenir ve
-# pubspec.yaml'daki sürüm numarasıyla (ör. v0.1.0) Releases sayfasına deneme sürümü olarak eklenir.
+# main'e her gönderimde Windows (kurulum programı + zip) ve Android (apk) derlenir ve
+# pubspec.yaml'daki sürüm numarasıyla (ör. v0.6.0) Releases sayfasına deneme sürümü olarak eklenir.
 # Aynı numarayla tekrar derlenirse dosyalar güncellenir; yeni sürüm için pubspec.yaml'da version'ı artır.
+# Uygulama, Releases'taki en yeni sürüme bakarak kendini günceller.
+#
+# Android imzası: Settings → Secrets and variables → Actions'a
+#   ANDROID_KEYSTORE_BASE64  (imza anahtarı dosyasının base64'ü)
+#   ANDROID_KEYSTORE_PASSWORD
+# eklenirse her sürüm aynı anahtarla imzalanır; yoksa test anahtarıyla imzalanır ve
+# Android yeni sürümü eskisinin üzerine kurmaz.
 on:
   push:
     branches: [main]
@@ -20,6 +27,12 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Sürüm numarası
+        id: ver
+        shell: bash
+        run: |
+          echo "v=$(grep '^version:' pubspec.yaml | sed 's/version: *//; s/+.*//')" >> "$GITHUB_OUTPUT"
+
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -31,6 +44,9 @@ jobs:
 
       - run: flutter pub get
 
+      - name: Uygulama ikonu
+        run: dart run flutter_launcher_icons
+
       - name: Kod analizi (bilgi için, derlemeyi durdurmaz)
         continue-on-error: true
         shell: bash
@@ -38,22 +54,27 @@ jobs:
 
       - name: Derle
         shell: bash
-        run: bash scripts/ozetle.sh windows flutter build windows --release -v
+        run: bash scripts/ozetle.sh windows flutter build windows --release -v --dart-define=APP_VERSION=${{ steps.ver.outputs.v }}
 
-      - name: Paketle
+      - name: Paketle (zip)
         shell: pwsh
         run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath OA-Tarayici-Windows.zip
+
+      - name: Kurulum programı
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
+          & $iscc "/DAppVersion=${{ steps.ver.outputs.v }}" installer\oa_tarayici.iss
+          if ($LASTEXITCODE -ne 0) { Write-Output "::error title=kurulum::Inno Setup derlenemedi"; exit 1 }
+          Copy-Item dist\OA-Tarayici-Kurulum.exe .
 
       - uses: actions/upload-artifact@v4
         with:
           name: OA-Tarayici-Windows
-          path: OA-Tarayici-Windows.zip
-
-      - name: Sürüm numarası
-        id: ver
-        shell: bash
-        run: |
-          echo "v=$(grep '^version:' pubspec.yaml | sed 's/version: *//; s/+.*//')" >> "$GITHUB_OUTPUT"
+          path: |
+            OA-Tarayici-Kurulum.exe
+            OA-Tarayici-Windows.zip
 
       - name: Sürüme ekle
         uses: softprops/action-gh-release@v2
@@ -62,13 +83,21 @@ jobs:
           name: OA Tarayıcı ${{ steps.ver.outputs.v }} (deneme)
           target_commitish: ${{ github.sha }}
           prerelease: true
-          files: OA-Tarayici-Windows.zip
+          files: |
+            OA-Tarayici-Kurulum.exe
+            OA-Tarayici-Windows.zip
 
   android:
     name: Android (.apk)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+
+      - name: Sürüm numarası
+        id: ver
+        shell: bash
+        run: |
+          echo "v=$(grep '^version:' pubspec.yaml | sed 's/version: *//; s/+.*//')" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-java@v5
         with:
@@ -80,10 +109,27 @@ jobs:
           channel: stable
           cache: true
 
+      - name: İmza anahtarı
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PW: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ] && [ -n "$KEYSTORE_PW" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/oa.jks"
+            echo "OA_KEYSTORE_PATH=$RUNNER_TEMP/oa.jks" >> "$GITHUB_ENV"
+            echo "OA_KEYSTORE_PASSWORD=$KEYSTORE_PW" >> "$GITHUB_ENV"
+            echo "Sabit imza anahtarı kullanılacak"
+          fi
+
       - name: Platform klasörünü hazırla
-        run: bash scripts/platform_hazirla.sh android
+        run: |
+          bash scripts/platform_hazirla.sh android
+          python3 scripts/android_ayarla.py
 
       - run: flutter pub get
+
+      - name: Uygulama ikonu
+        run: dart run flutter_launcher_icons
 
       - name: Sürüm bilgisi
         continue-on-error: true
@@ -93,8 +139,7 @@ jobs:
         run: bash scripts/eklenti_duzelt.sh
 
       - name: Derle
-        # Deneme sürümü: Flutter'ın hata ayıklama anahtarıyla imzalanır, Play Store'a yüklenemez.
-        run: bash scripts/ozetle.sh android flutter build apk --release
+        run: bash scripts/ozetle.sh android flutter build apk --release --dart-define=APP_VERSION=${{ steps.ver.outputs.v }}
 
       - name: Yeniden adlandır
         run: cp build/app/outputs/flutter-apk/app-release.apk OA-Tarayici-Android.apk
@@ -103,12 +148,6 @@ jobs:
         with:
           name: OA-Tarayici-Android
           path: OA-Tarayici-Android.apk
-
-      - name: Sürüm numarası
-        id: ver
-        shell: bash
-        run: |
-          echo "v=$(grep '^version:' pubspec.yaml | sed 's/version: *//; s/+.*//')" >> "$GITHUB_OUTPUT"
 
       - name: Sürüme ekle
         uses: softprops/action-gh-release@v2

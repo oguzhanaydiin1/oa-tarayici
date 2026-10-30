@@ -3,13 +3,14 @@
 OA Labs'in Windows ve Android tarayıcısı. Flutter + `flutter_inappwebview`: sayfaları Windows'ta
 WebView2 (Edge motoru), Android'de Android WebView çizer; arayüz OA Labs tasarım sistemiyle yazılır.
 
-> Durum: deneme sürümü (0.5.2). Derlenen dosyalar imzasız.
+> Durum: deneme sürümü (0.6.0). Derlenen dosyalar imzasız.
 
 ## İndir ve dene
 
 Her `main` gönderiminde GitHub Actions iki dosya derler: **Actions** sekmesi → son "Derle" çalışması → sayfanın altındaki *Artifacts*.
 
-- **OA-Tarayici-Windows** (zip): aç, `oa_tarayici.exe`'yi çalıştır. Kurulum gerekmez. Klasördeki diğer dosyalar exe'nin yanında kalmalı.
+- **OA-Tarayici-Kurulum.exe**: Windows kurulum programı (yönetici izni istemez). Kurunca OA Tarayıcı, Ayarlar → Varsayılan uygulamalar'da tarayıcı olarak seçilebilir.
+- **OA-Tarayici-Windows** (zip): kurmadan denemek için; aç, `oa_tarayici.exe`'yi çalıştır. Klasördeki diğer dosyalar exe'nin yanında kalmalı.
   Windows imzasız olduğu için uyarı verirse: "Ek bilgi" → "Yine de çalıştır".
   Windows 10'da WebView2 Runtime yoksa Microsoft'tan ücretsiz kurulur (Windows 11'de hazırdır).
 - **OA-Tarayici-Android** (apk): telefona at ve aç. "Bilinmeyen kaynaklardan yükleme" izni ister.
@@ -17,6 +18,11 @@ Her `main` gönderiminde GitHub Actions iki dosya derler: **Actions** sekmesi �
 Aynı dosyalar **Releases** sayfasına da `pubspec.yaml`daki sürüm numarasıyla (ör. v0.1.0) deneme sürümü olarak eklenir. Yeni sürüm çıkarmak için `version` satırını artırmak yeterli.
 
 ## Özellikler
+- İndirme yöneticisi: ilerleme, İndirilenler listesi (Ctrl+J), bitince aç; Android'de telefonun İndirilenler klasörüne
+- Sekmeler uygulama kapanıp açılınca geri gelir; kapatılan sekmeyi geri aç (Ctrl+Shift+T)
+- Varsayılan tarayıcı olabilir: Android'de bağlantılar OA Tarayıcı'da açılabilir; Windows kurulumu tarayıcı olarak kaydeder
+- Uygulama ikonu (OA işareti) ve kendini güncelleme: yeni sürüm çıkınca haber verir, tek dokunuşla indirip kurar
+- OA Radyo: gezinirken radyo dinle; popüler Türk istasyonları, arama, favoriler, alt çubuğun üstünde mini çalar
 - Reklam ve izleyici engelleme: reklam ağlarına ve izleyicilere giden istekler engellenir (Android'de web motorunun içerik engelleyicisi, Windows'ta istek kontrolü), sayfadaki reklam kutuları gizlenir; site bazında kapatılabilir
 - Tablo: hızlı erişimde sitelerin ikonları, "Düzenle" ile sürükleyip sıralama, başlangıç sayfası arka planları (OA desenleri ya da kendi fotoğrafın)
 - Akıllı adres çubuğu: hesap makinesi (`125*18`), birim (`10 km`, `30 c kaç f`), döviz (`100 dolar`, `50 euro kaç tl`; Avrupa Merkez Bankası kurları, frankfurter.dev)
@@ -48,6 +54,12 @@ Aynı dosyalar **Releases** sayfasına da `pubspec.yaml`daki sürüm numarasıyl
 - `lib/reader.dart`, `assets/readability.js`, `assets/reader.js` — okuma modu (Readability: Apache 2.0, Mozilla)
 - `lib/wallpaper.dart` — başlangıç sayfası arka planları
 - `lib/qr_page.dart` — QR / barkod okuyucu (Android)
+- `lib/downloads.dart` — indirme yöneticisi (background_downloader)
+- `lib/radio.dart`, `assets/hls.min.js` — OA Radyo çalar (Radio Browser, OA Radyo'nun ek istasyonları)
+- `lib/updater.dart` — GitHub sürümlerinden güncelleme denetimi
+- `scripts/android_ayarla.py` — Android tarayıcı kaydı, kurulum izni, sabit imza
+- `installer/oa_tarayici.iss` — Windows kurulum programı (Inno Setup)
+- `assets/icon/` — uygulama ikonu
 - `lib/oa_theme.dart` — OA Labs renkleri, fontları (Bricolage Grotesque, DM Sans) ve bileşen stilleri
 - `scripts/platform_hazirla.sh` — `windows/` ve `android/` klasörlerini üretir; internet izni, uygulama adı, pencere başlığı
 - `docs/onizleme.html` — arayüzün tarayıcıda açılan önizlemesi
@@ -64,7 +76,5 @@ flutter build apk --release
 ```
 
 ## Sıradakiler
-- İndirme yöneticisi
-- Uygulama ikonu
-- Kurulum programı ve OA Labs güncelleme sistemi (`latest.json`)
-- Android için gerçek imza anahtarı
+- Android'de arka planda radyo (bildirimde çalar)
+- Windows'ta tek pencere: bağlantılar açık pencerede yeni sekme olarak açılsın

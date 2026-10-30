@@ -12,7 +12,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'account.dart';
 import 'account_sheet.dart';
+import 'package:app_links/app_links.dart';
+
 import 'adblock.dart';
+import 'downloads.dart';
+import 'radio.dart';
+import 'updater.dart';
 import 'oa_theme.dart';
 import 'qr_page.dart';
 import 'reader.dart';
@@ -22,8 +27,13 @@ import 'start_mobile.dart';
 import 'start_page.dart';
 import 'wallpaper.dart';
 
-Future<void> main() async {
+/// Windows'ta tarayıcı olarak bir bağlantıyla açılınca adres argüman olarak gelir.
+String? _launchUrl;
+
+Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
+  _launchUrl = args.firstWhere((a) => a.startsWith('http'), orElse: () => '');
+  if (_launchUrl!.isEmpty) _launchUrl = null;
   // Ekranın tamamına çiz: saatin olduğu üst şerit ve alttaki çizgi bölgesini uygulama boyar.
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   // Tema seçimini açılışta oku; yanlış temada bir an görünmesin.
@@ -160,6 +170,14 @@ class _BrowserPageState extends State<BrowserPage> {
 
   SharedPreferences? _prefs;
   final OAAccount _account = OAAccount();
+  final Downloads _downloads = Downloads();
+  final RadioPlayer _radio = RadioPlayer();
+  AppLinks? _appLinks;
+  StreamSubscription<Uri>? _linkSub;
+  Timer? _sessionTimer;
+
+  /// Son kapatılan sekmeler (geri açmak için), en yenisi sonda.
+  final List<Map<String, String>> _closedTabs = [];
   List<QuickLink> _quick = List.of(kDefaultQuickLinks);
 
   // Reklam engelleme
@@ -207,7 +225,13 @@ class _BrowserPageState extends State<BrowserPage> {
   void initState() {
     super.initState();
     _tabs.add(TabData());
-    _loadStorage();
+    _loadStorage().then((_) {
+      _restoreSession();
+      _listenLinks();
+      Future.delayed(const Duration(seconds: 6), () => _checkUpdate());
+    });
+    _downloads.addListener(_onAccount);
+    _radio.addListener(_onAccount);
     _account.addListener(_onAccount);
     _account.load().then((_) {
       _account.syncToWebView();
@@ -289,6 +313,10 @@ class _BrowserPageState extends State<BrowserPage> {
   void dispose() {
     _account.removeListener(_onAccount);
     _account.dispose();
+    _downloads.removeListener(_onAccount);
+    _radio.removeListener(_onAccount);
+    _linkSub?.cancel();
+    _sessionTimer?.cancel();
     _syncTimer?.cancel();
     _debounce?.cancel();
     _urlCtl.dispose();
@@ -302,6 +330,8 @@ class _BrowserPageState extends State<BrowserPage> {
 
   Future<void> _loadStorage() async {
     _prefs = await SharedPreferences.getInstance();
+    await _downloads.init(_prefs!);
+    await _radio.init(_prefs!);
     setState(() {
       _bookmarks = _decode(_prefs!.getStringList('bookmarks'));
       _history = _decode(_prefs!.getStringList('history'));
@@ -846,6 +876,7 @@ class _BrowserPageState extends State<BrowserPage> {
   void _addHistory(TabData t) {
     if (t.incognito || t.url.isEmpty || t.url == 'about:blank') return;
     _pushHistory({'title': t.displayTitle, 'url': t.url});
+    _saveSessionSoon();
   }
 
   void _toast(String text) {
@@ -874,6 +905,7 @@ class _BrowserPageState extends State<BrowserPage> {
       _urlCtl.text = _addressText(t);
       _showSuggestions = false;
     });
+    _saveSessionSoon();
   }
 
   void _disposeTab(TabData t) {
@@ -885,7 +917,13 @@ class _BrowserPageState extends State<BrowserPage> {
   }
 
   void _closeTab(int i) {
-    _disposeTab(_tabs[i]);
+    final closing = _tabs[i];
+    if (!closing.incognito && !closing.showStart && closing.url.isNotEmpty) {
+      _closedTabs.add({'url': closing.url, 'title': closing.displayTitle});
+      if (_closedTabs.length > 10) _closedTabs.removeAt(0);
+    }
+    _disposeTab(closing);
+    _saveSessionSoon();
     setState(() {
       if (_tabs.length == 1) {
         _tabs
@@ -911,6 +949,173 @@ class _BrowserPageState extends State<BrowserPage> {
       _urlCtl.text = _addressText(_tab);
       _showSuggestions = false;
     });
+    _saveSessionSoon();
+  }
+
+  void _reopenClosedTab() {
+    if (_closedTabs.isEmpty) {
+      _toast('Kapatılan sekme yok');
+      return;
+    }
+    final t = _closedTabs.removeLast();
+    _addTab(url: t['url']);
+  }
+
+  // ---------------------------------------------------------------- Oturum (sekmeleri geri yükleme)
+
+  /// Açık sekmeler (gizli sekmeler hariç) kaydedilir; uygulama yeniden açılınca geri gelir.
+  void _saveSessionSoon() {
+    _sessionTimer?.cancel();
+    _sessionTimer = Timer(const Duration(milliseconds: 600), _saveSession);
+  }
+
+  void _saveSession() {
+    final tabs = [
+      for (final t in _tabs)
+        if (!t.incognito && !t.showStart && t.url.startsWith('http'))
+          {'url': t.url, 'title': t.displayTitle}
+    ];
+    final current = _tabs[_current];
+    final idx = current.incognito || current.showStart
+        ? -1
+        : tabs.indexWhere((m) => m['url'] == current.url);
+    _prefs?.setString('session', jsonEncode({'tabs': tabs, 'current': idx}));
+  }
+
+  void _restoreSession() {
+    try {
+      final raw = _prefs?.getString('session');
+      if (raw == null) return;
+      final j = jsonDecode(raw) as Map;
+      final list = (j['tabs'] as List).whereType<Map>().toList();
+      if (list.isEmpty) return;
+      setState(() {
+        for (final m in list) {
+          final url = m['url'].toString();
+          _tabs.add(TabData()
+            ..showStart = false
+            ..webStarted = true
+            ..pendingUrl = url
+            ..url = url
+            ..title = m['title']?.toString() ?? '');
+        }
+        // İlk (boş) başlangıç sekmesi kalsın; kaldığın sekme açılsın.
+        final cur = j['current'] is int ? j['current'] as int : -1;
+        _current = cur >= 0 && cur < list.length ? cur + 1 : 0;
+        _urlCtl.text = _addressText(_tab);
+      });
+    } catch (_) {}
+  }
+
+  // ---------------------------------------------------------------- Dışarıdan gelen bağlantılar
+
+  /// Başka bir uygulamada bir bağlantıya dokununca (varsayılan tarayıcıysak) ya da Windows'ta
+  /// bağlantıyla açılınca adres yeni sekmede açılır.
+  void _listenLinks() {
+    if (_launchUrl != null) {
+      _addTab(url: _launchUrl);
+      _launchUrl = null;
+    }
+    if (!Platform.isAndroid) return;
+    try {
+      _appLinks = AppLinks();
+      _appLinks!.getInitialLink().then((u) {
+        if (u != null && u.scheme.startsWith('http')) _addTab(url: u.toString());
+      });
+      _linkSub = _appLinks!.uriLinkStream.listen((u) {
+        if (u.scheme.startsWith('http') && mounted) _addTab(url: u.toString());
+      });
+    } catch (_) {}
+  }
+
+  // ---------------------------------------------------------------- Güncelleme
+
+  Future<void> _checkUpdate({bool manual = false}) async {
+    if (!manual) {
+      final last = DateTime.tryParse(_prefs?.getString('update_checked') ?? '');
+      if (last != null && DateTime.now().difference(last) < const Duration(hours: 12)) return;
+    }
+    _prefs?.setString('update_checked', DateTime.now().toIso8601String());
+    UpdateInfo? info;
+    try {
+      info = await Updater.check();
+    } catch (_) {
+      if (manual) _toast('Güncelleme denetlenemedi. İnternet bağlantını kontrol et.');
+      return;
+    }
+    if (!mounted) return;
+    if (info == null) {
+      if (manual) _toast('OA Tarayıcı güncel ($appVersion)');
+      return;
+    }
+    final u = info;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        duration: const Duration(seconds: 12),
+        content: Text('OA Tarayıcı ${u.version} hazır'),
+        action: SnackBarAction(
+          label: 'Güncelle',
+          textColor: OAColors.accent,
+          onPressed: () => _installUpdate(u),
+        ),
+      ));
+  }
+
+  Future<void> _installUpdate(UpdateInfo u) async {
+    _toast('Güncelleme indiriliyor…');
+    await _downloads.start(u.assetUrl, suggestedName: u.assetName, openWhenDone: true, keepPrivate: true);
+  }
+
+  // ---------------------------------------------------------------- İndirmeler ve radyo
+
+  Future<void> _download(String url, {String? name, required TabData from}) async {
+    if (!url.startsWith('http')) {
+      _toast('Bu dosya türü indirilemiyor');
+      return;
+    }
+    final headers = <String, String>{};
+    try {
+      final cookies = await CookieManager.instance().getCookies(url: WebUri(url));
+      if (cookies.isNotEmpty) headers['Cookie'] = cookies.map((c) => '${c.name}=${c.value}').join('; ');
+      if (from.url.startsWith('http')) headers['Referer'] = from.url;
+    } catch (_) {}
+    final item = await _downloads.start(url, suggestedName: name, headers: headers);
+    if (item == null || !mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        content: Text('İndiriliyor: ${item.name}'),
+        action: SnackBarAction(label: 'İndirilenler', textColor: OAColors.accent, onPressed: _showDownloads),
+      ));
+  }
+
+  void _showDownloads() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => DownloadsSheet(downloads: _downloads, onToast: _toast),
+    );
+  }
+
+  void _showRadio() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => RadioSheet(radio: _radio),
+    );
+  }
+
+  void _showAbout() {
+    showAboutDialog(
+      context: context,
+      applicationName: 'OA Tarayıcı',
+      applicationVersion: appVersion,
+      applicationIcon: const OAMark(size: 44),
+      applicationLegalese: '© 2026 OA Labs · Oğuzhan Aydın',
+    );
   }
 
   // ---------------------------------------------------------------- Gezinme
@@ -1191,6 +1396,8 @@ class _BrowserPageState extends State<BrowserPage> {
       child: CallbackShortcuts(
         bindings: {
           SingleActivator(LogicalKeyboardKey.keyT, control: true): () => _addTab(),
+          SingleActivator(LogicalKeyboardKey.keyT, control: true, shift: true): _reopenClosedTab,
+          SingleActivator(LogicalKeyboardKey.keyJ, control: true): _showDownloads,
           SingleActivator(LogicalKeyboardKey.keyW, control: true): () =>
               _closeTab(_current),
           SingleActivator(LogicalKeyboardKey.keyL, control: true): () =>
@@ -1248,6 +1455,7 @@ class _BrowserPageState extends State<BrowserPage> {
             onSearch: _startEditing,
             onCustomize: _showCustomize,
             onAccount: _openAccount,
+            onRadio: _showRadio,
             onAdblock: _showAdblockSettings,
             onQr: Platform.isAndroid ? _scanQr : null,
             adblockOn: _adblockOn,
@@ -1301,6 +1509,7 @@ class _BrowserPageState extends State<BrowserPage> {
         children: [
           _buildTabBar(),
           _buildToolbar(),
+          RadioMiniBar(radio: _radio, onOpen: _showRadio),
           _buildProgress(),
           Expanded(
             child: Stack(
@@ -1491,6 +1700,14 @@ class _BrowserPageState extends State<BrowserPage> {
               PopupMenuDivider(),
               PopupMenuItem(value: 'bookmarks', child: Text('Yer imleri')),
               PopupMenuItem(value: 'history', child: Text('Geçmiş')),
+              PopupMenuItem(
+                  value: 'downloads',
+                  child: Text(_downloads.activeCount > 0
+                      ? 'İndirilenler (${_downloads.activeCount} sürüyor)'
+                      : 'İndirilenler')),
+              if (_closedTabs.isNotEmpty)
+                PopupMenuItem(value: 'reopen', child: Text('Kapatılan sekmeyi geri aç (Ctrl+Shift+T)')),
+              PopupMenuItem(value: 'radio', child: Text('OA Radyo')),
               if (!_tab.showStart && _quick.length < kMaxQuickLinks)
                 PopupMenuItem(value: 'quick', child: Text('Bu sayfayı hızlı erişime ekle')),
               if (!_tab.showStart) ...[
@@ -1502,6 +1719,8 @@ class _BrowserPageState extends State<BrowserPage> {
               PopupMenuItem(value: 'adblock', child: Text('Reklam engelleme')),
               PopupMenuItem(value: 'engine', child: Text('Arama motoru')),
               PopupMenuItem(value: 'theme', child: Text('Görünüm: koyu / açık')),
+              PopupMenuItem(value: 'update', child: Text('Güncellemeleri denetle')),
+              PopupMenuItem(value: 'about', child: Text('Hakkında')),
               PopupMenuItem(
                   value: 'account',
                   child: Text(_account.signedIn ? 'Hesabım' : 'OA Labs hesabıyla giriş yap')),
@@ -1546,6 +1765,16 @@ class _BrowserPageState extends State<BrowserPage> {
         _scanQr();
       case 'wallpaper':
         _showWallpaperPicker();
+      case 'downloads':
+        _showDownloads();
+      case 'radio':
+        _showRadio();
+      case 'reopen':
+        _reopenClosedTab();
+      case 'update':
+        _checkUpdate(manual: true);
+      case 'about':
+        _showAbout();
       case 'sync':
         _syncNow().then((_) => _toast('Eşitlendi'));
       case 'quick':
@@ -1595,6 +1824,7 @@ class _BrowserPageState extends State<BrowserPage> {
               ],
             ),
           ),
+          if (!_editing) RadioMiniBar(radio: _radio, onOpen: _showRadio),
           _buildProgress(),
           _buildBottomBar(),
         ],
@@ -2002,6 +2232,11 @@ class _BrowserPageState extends State<BrowserPage> {
               Divider(height: 16),
               item(Icons.star_border, 'Yer imleri', 'bookmarks'),
               item(Icons.history, 'Geçmiş', 'history'),
+              item(Icons.download_outlined,
+                  _downloads.activeCount > 0 ? 'İndirilenler (${_downloads.activeCount} sürüyor)' : 'İndirilenler',
+                  'downloads'),
+              if (_closedTabs.isNotEmpty) item(Icons.restore, 'Kapatılan sekmeyi geri aç', 'reopen'),
+              item(Icons.radio_outlined, 'OA Radyo', 'radio'),
               if (Platform.isAndroid) item(Icons.qr_code_scanner, 'QR kod okut', 'qr'),
               if (!_tab.showStart) ...[
                 item(Icons.chrome_reader_mode_outlined, 'Okuma modu', 'reader'),
@@ -2015,6 +2250,8 @@ class _BrowserPageState extends State<BrowserPage> {
               item(Icons.search, 'Arama motoru: ${_engine.name}', 'engine'),
               item(Icons.wallpaper_outlined, 'Başlangıç sayfası arka planı', 'wallpaper'),
               if (_account.signedIn) item(Icons.sync, 'Şimdi eşitle', 'sync'),
+              item(Icons.system_update_outlined, 'Güncellemeleri denetle', 'update'),
+              item(Icons.info_outline, 'Hakkında · $appVersion', 'about'),
               item(OAColors.isDark ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
                   'Görünüm: ${switch (themeModeNotifier.value) { ThemeMode.dark => 'Koyu', ThemeMode.light => 'Açık', ThemeMode.system => 'Sistem' }}',
                   'theme'),
@@ -2441,10 +2678,8 @@ class _BrowserPageState extends State<BrowserPage> {
         if (u != null) _addTab(url: u.toString(), incognito: t.incognito);
         return false;
       },
-      onDownloadStartRequest: (c, req) {
-        // TODO: indirme yöneticisi (flutter_downloader / dio)
-        _toast('İndirme henüz desteklenmiyor: ${req.suggestedFilename ?? req.url}');
-      },
+      onDownloadStartRequest: (c, req) =>
+          _download(req.url.toString(), name: req.suggestedFilename, from: t),
     );
   }
 

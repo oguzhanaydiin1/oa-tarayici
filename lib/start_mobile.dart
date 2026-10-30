@@ -31,6 +31,7 @@ class MobileStartPage extends StatefulWidget {
     required this.onSearch,
     required this.onCustomize,
     required this.onAccount,
+    required this.onRadio,
     required this.onAdblock,
     required this.adblockOn,
     required this.signedIn,
@@ -52,6 +53,7 @@ class MobileStartPage extends StatefulWidget {
   final VoidCallback onSearch;
   final VoidCallback onCustomize;
   final VoidCallback onAccount;
+  final VoidCallback onRadio;
   final VoidCallback onAdblock;
   final VoidCallback? onQr;
   final bool adblockOn;
@@ -78,7 +80,7 @@ class _MobileStartPageState extends State<MobileStartPage> {
   }
 
   List<Promo> get _promos => [
-        Promo('radyo', 'OA Radyo', 'Türkiye’nin ve dünyanın radyoları tek uygulamada.', 'R',
+        Promo('radyo', 'OA Radyo', 'Gezinirken radyo dinle. Dokun, istasyonunu seç.', 'R',
             OAColors.amber, OAColors.amberInk,
             url: 'https://oalabs.dev/radyo/'),
         const Promo('harrier', 'Harrier Cleaner', 'Bilgisayarını derli toplu ve hızlı tutar.', 'H',
@@ -292,7 +294,9 @@ class _MobileStartPageState extends State<MobileStartPage> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
       child: InkWell(
         borderRadius: BorderRadius.circular(22),
-        onTap: () => p.url == null ? widget.onAccount() : widget.onGo(p.url!),
+        onTap: () => p.id == 'radyo'
+            ? widget.onRadio()
+            : (p.url == null ? widget.onAccount() : widget.onGo(p.url!)),
         child: Stack(
           children: [
             Padding(
