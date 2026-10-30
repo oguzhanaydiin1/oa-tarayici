@@ -779,7 +779,7 @@ class _BrowserPageState extends State<BrowserPage> {
                 const Divider(height: 24),
                 SwitchListTile(
                   value: _suggestOn,
-                  activeColor: OAColors.amberInk,
+                  activeThumbColor: OAColors.amberInk,
                   activeTrackColor: OAColors.amber,
                   title: const Text('Yazarken öneri göster',
                       style: TextStyle(fontWeight: FontWeight.w600)),

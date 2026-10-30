@@ -14,7 +14,8 @@ permissions:
 jobs:
   windows:
     name: Windows (.exe)
-    runs-on: windows-latest
+    # windows-latest artık Visual Studio 2026 kullanıyor; flutter_inappwebview_windows onunla derlenmiyor (STL1011).
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v5
 
