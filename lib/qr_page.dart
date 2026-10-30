@@ -12,10 +12,8 @@ class QrPage extends StatefulWidget {
 }
 
 class _QrPageState extends State<QrPage> {
-  final _controller = MobileScannerController(
-    detectionSpeed: DetectionSpeed.noDuplicates,
-    formats: const [BarcodeFormat.all],
-  );
+  // formats boş: bütün QR ve barkod türleri okunur.
+  final _controller = MobileScannerController(detectionSpeed: DetectionSpeed.noDuplicates);
   bool _done = false;
 
   @override
@@ -36,6 +34,45 @@ class _QrPageState extends State<QrPage> {
     }
   }
 
+  /// Kamera ya da okuyucu hatası: genel mesaj yerine ne olduğunu Türkçe söyler,
+  /// altında da teknik ayrıntıyı gösterir (sorunu bulmak için).
+  Widget _error(MobileScannerException e) {
+    final text = switch (e.errorCode) {
+      MobileScannerErrorCode.permissionDenied =>
+        'Kamera izni verilmedi. Telefonun Ayarlar → Uygulamalar → OA Tarayıcı → İzinler bölümünden kamerayı aç.',
+      MobileScannerErrorCode.unsupported => 'Bu telefonda kamerayla kod okuma desteklenmiyor.',
+      _ => 'Kamera açıldı ama kod okuyucu başlatılamadı.',
+    };
+    final detail = [e.errorCode.name, e.errorDetails?.code, e.errorDetails?.message]
+        .whereType<String>()
+        .where((s) => s.isNotEmpty)
+        .join(' · ');
+    return ColoredBox(
+      color: Colors.black,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, color: Colors.white, size: 36),
+              const SizedBox(height: 14),
+              Text(text,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white, fontSize: 16, height: 1.5)),
+              if (detail.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                SelectableText(detail,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.white70, fontSize: 12)),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -46,6 +83,7 @@ class _QrPageState extends State<QrPage> {
           MobileScanner(
             controller: _controller,
             onDetect: _onDetect,
+            errorBuilder: (context, error) => _error(error),
           ),
           // Hedef çerçevesi
           Center(

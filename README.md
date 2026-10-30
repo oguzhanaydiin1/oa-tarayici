@@ -3,7 +3,7 @@
 OA Labs'in Windows ve Android tarayıcısı. Flutter + `flutter_inappwebview`: sayfaları Windows'ta
 WebView2 (Edge motoru), Android'de Android WebView çizer; arayüz OA Labs tasarım sistemiyle yazılır.
 
-> Durum: deneme sürümü (0.5.1). Derlenen dosyalar imzasız.
+> Durum: deneme sürümü (0.5.2). Derlenen dosyalar imzasız.
 
 ## İndir ve dene
 

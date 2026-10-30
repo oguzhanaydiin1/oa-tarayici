@@ -1,7 +1,7 @@
 name: oa_tarayici
 description: OA Tarayıcı — OA Labs tasarım sistemiyle Windows ve Android tarayıcı taslağı.
 publish_to: 'none'
-version: 0.5.1+8
+version: 0.5.2+9
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -16,7 +16,7 @@ dependencies:
   flutter_secure_storage: ^9.2.4
   file_picker: ^8.1.7
   path_provider: ^2.1.5
-  mobile_scanner: ^6.0.10
+  mobile_scanner: ^7.4.2
 
 dev_dependencies:
   flutter_test:
