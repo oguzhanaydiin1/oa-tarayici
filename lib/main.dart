@@ -18,6 +18,7 @@ import 'qr_page.dart';
 import 'reader.dart';
 import 'search.dart';
 import 'smart.dart';
+import 'start_mobile.dart';
 import 'start_page.dart';
 import 'wallpaper.dart';
 
@@ -162,7 +163,8 @@ class _BrowserPageState extends State<BrowserPage> {
   Set<String> _adblockAllow = {};
 
   // Başlangıç sayfası arka planı ve okuma modu yazı boyu
-  String _wallpaperId = 'none';
+  String _wallpaperId = 'glow';
+  Set<String> _hiddenPromos = {};
   String? _wallpaperPath;
   int _readerSize = 19;
 
@@ -303,7 +305,8 @@ class _BrowserPageState extends State<BrowserPage> {
       _suggestOn = _prefs!.getBool('suggest') ?? true;
       _adblockOn = _prefs!.getBool('adblock') ?? true;
       _adblockAllow = (_prefs!.getStringList('adblock_allow') ?? []).toSet();
-      _wallpaperId = _prefs!.getString('wallpaper') ?? 'none';
+      _wallpaperId = _prefs!.getString('wallpaper') ?? 'glow';
+      _hiddenPromos = (_prefs!.getStringList('promo_hidden') ?? []).toSet();
       _wallpaperPath = _prefs!.getString('wallpaper_path');
       _readerSize = _prefs!.getInt('reader_size') ?? 19;
       DateTime t(String k) =>
@@ -1217,7 +1220,32 @@ class _BrowserPageState extends State<BrowserPage> {
       children: [
         if (t.webStarted) Offstage(offstage: t.showStart, child: _buildWebView(t)),
         if (t.webStarted && !t.showStart && t.covering) _loadingCover(t),
-        if (t.showStart)
+        if (t.showStart && compact)
+          MobileStartPage(
+            incognito: t.incognito,
+            engineName: _engine.name,
+            quickLinks: _quick,
+            onGo: (input) => _go(input),
+            onQuickAction: _onQuickAction,
+            onQuickAdd: () => _editQuick(null),
+            onQuickReorder: _reorderQuick,
+            onSearch: _startEditing,
+            onCustomize: _showCustomize,
+            onAccount: _openAccount,
+            onAdblock: _showAdblockSettings,
+            onQr: Platform.isAndroid ? _scanQr : null,
+            adblockOn: _adblockOn,
+            signedIn: _account.signedIn,
+            userName: _account.user?.name,
+            hiddenPromos: _hiddenPromos,
+            onHidePromo: (id) {
+              setState(() => _hiddenPromos.add(id));
+              _prefs?.setStringList('promo_hidden', _hiddenPromos.toList());
+            },
+            wallpaperId: _wallpaperId,
+            wallpaperPath: _wallpaperPath,
+          )
+        else if (t.showStart)
           StartPage(
             incognito: t.incognito,
             engineName: _engine.name,
@@ -1525,9 +1553,10 @@ class _BrowserPageState extends State<BrowserPage> {
       value: oaSystemOverlay(OAColors.palette, statusBackground: band),
       child: Column(
         children: [
+          // Başlangıç sayfasında arka plan saatin olduğu şeridin altına kadar uzanır.
           AnimatedContainer(
             duration: const Duration(milliseconds: 180),
-            height: MediaQuery.paddingOf(context).top,
+            height: _tab.showStart && !_editing ? 0 : MediaQuery.paddingOf(context).top,
             color: band,
           ),
           Expanded(
@@ -1629,10 +1658,13 @@ class _BrowserPageState extends State<BrowserPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _editing ? _mobileAddressEditor() : _mobileAddressPill(),
+              if (_editing)
+                _mobileAddressEditor()
+              else if (!_tab.showStart)
+                _mobileAddressPill(),
               if (!_editing) ...[
-                SizedBox(height: 4),
-                _mobileActions(),
+                if (!_tab.showStart) SizedBox(height: 4),
+                _tab.showStart ? _mobileStartActions() : _mobileActions(),
               ] else
                 SizedBox(height: 8),
             ],
@@ -1759,6 +1791,93 @@ class _BrowserPageState extends State<BrowserPage> {
           child: Text('İptal', style: TextStyle(fontSize: 16)),
         ),
       ],
+    );
+  }
+
+  /// Başlangıç sayfasındaki alt sıra: arama sayfadaki kutuda olduğundan adres çubuğu yok.
+  Widget _mobileStartActions() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceAround,
+      children: [
+        IconButton(
+          tooltip: 'İleri',
+          icon: const Icon(Icons.arrow_forward_ios, size: 22),
+          onPressed: _canForward ? _forward : null,
+        ),
+        IconButton(
+          tooltip: 'Ara',
+          icon: const Icon(Icons.search, size: 26),
+          onPressed: _startEditing,
+        ),
+        IconButton(
+          tooltip: 'Menü',
+          icon: const Icon(Icons.menu, size: 26),
+          onPressed: _showMobileMenu,
+        ),
+        IconButton(
+          tooltip: 'Yer imleri',
+          icon: const Icon(Icons.bookmarks_outlined, size: 24),
+          onPressed: () => _onMenu('bookmarks'),
+        ),
+        IconButton(
+          tooltip: 'Sekmeler',
+          onPressed: _showTabSwitcher,
+          icon: Container(
+            width: 24,
+            height: 24,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              border: Border.all(color: OAColors.text2, width: 2),
+              borderRadius: BorderRadius.circular(7),
+            ),
+            child: Text(
+              _tabs.length > 99 ? '99+' : '${_tabs.length}',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: OAColors.text2),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Başlangıç sayfasının sağ üstündeki "Özelleştir" düğmesi.
+  void _showCustomize() {
+    showModalBottomSheet(
+      context: context,
+      useSafeArea: true,
+      builder: (ctx) {
+        Widget item(IconData icon, String label, VoidCallback onTap) => ListTile(
+              leading: Icon(icon),
+              title: Text(label, style: const TextStyle(fontSize: 16)),
+              onTap: () {
+                Navigator.pop(ctx);
+                onTap();
+              },
+            );
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(8, 16, 8, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Text('Özelleştir', style: oaDisplay(22)),
+              ),
+              item(Icons.wallpaper_outlined, 'Arka plan', _showWallpaperPicker),
+              item(OAColors.isDark ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
+                  'Görünüm: koyu / açık', _showThemeSettings),
+              item(Icons.search, 'Arama motoru: ${_engine.name}', _showSearchSettings),
+              item(Icons.add_box_outlined, 'Hızlı erişime site ekle', () => _editQuick(null)),
+              if (_hiddenPromos.isNotEmpty)
+                item(Icons.view_carousel_outlined, 'Gizlenen kartları geri getir', () {
+                  setState(() => _hiddenPromos.clear());
+                  _prefs?.setStringList('promo_hidden', []);
+                }),
+            ],
+          ),
+        );
+      },
     );
   }
 
