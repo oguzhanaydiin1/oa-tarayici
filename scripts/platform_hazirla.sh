@@ -28,6 +28,10 @@ if [[ -f "$MANIFEST" ]]; then
   if ! grep -q 'android.permission.INTERNET' "$MANIFEST"; then
     sed -i '0,/<application/s||<uses-permission android:name="android.permission.INTERNET"/>\n    <application|' "$MANIFEST"
   fi
+  # Kamera (QR kod okuma). İzin, QR ekranı ilk açıldığında sorulur.
+  if ! grep -q 'android.permission.CAMERA' "$MANIFEST"; then
+    sed -i '0,/<application/s||<uses-permission android:name="android.permission.CAMERA"/>\n    <uses-feature android:name="android.hardware.camera" android:required="false"/>\n    <application|' "$MANIFEST"
+  fi
   # Uygulama adı ve http:// sitelerine izin
   sed -i 's/android:label="oa_tarayici"/android:label="OA Tarayıcı"/' "$MANIFEST"
   if ! grep -q 'usesCleartextTraffic' "$MANIFEST"; then

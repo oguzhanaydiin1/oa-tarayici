@@ -198,6 +198,25 @@ class OAAccount extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ---------------------------------------------------------------- Eşitleme
+
+  /// Sunucudaki eşitlenmiş koleksiyonlar: { "bookmarks": SyncItem, "quick": SyncItem }.
+  /// Sunucu eşitlemeyi henüz desteklemiyorsa (eski sürüm) null döner.
+  Future<Map<String, SyncItem>?> pullSync() async {
+    if (_token == null) return null;
+    final r = await _call('/v1/me/sync');
+    return r['ok'] == true ? SyncItem.parseAll(r['items']) : null;
+  }
+
+  /// Yerel koleksiyonları gönderir; sunucu daha yenisini tutuyorsa onu döndürür.
+  Future<Map<String, SyncItem>?> pushSync(Map<String, SyncItem> items) async {
+    if (_token == null) return null;
+    final r = await _call('/v1/me/sync', {
+      'items': {for (final e in items.entries) e.key: e.value.toJson()},
+    });
+    return r['ok'] == true ? SyncItem.parseAll(r['items']) : null;
+  }
+
   /// Uygulamadaki oturumu tarayıcının içindeki oalabs.dev'e aktarır.
   Future<void> syncToWebView() async {
     final t = _token;
@@ -237,5 +256,26 @@ class OAAccount extends ChangeNotifier {
         await refresh(notify: notify);
       }
     } catch (_) {}
+  }
+}
+
+/// Eşitlenen bir koleksiyon: son değişiklik zamanı ve içerik.
+class SyncItem {
+  const SyncItem(this.updated, this.data);
+  final DateTime updated;
+  final List<dynamic> data;
+
+  Map<String, dynamic> toJson() => {'updated': updated.toUtc().toIso8601String(), 'data': data};
+
+  static Map<String, SyncItem> parseAll(Object? j) {
+    final out = <String, SyncItem>{};
+    if (j is! Map) return out;
+    j.forEach((k, v) {
+      if (v is Map && v['data'] is List) {
+        final t = DateTime.tryParse(v['updated']?.toString() ?? '');
+        if (t != null) out[k.toString()] = SyncItem(t, v['data'] as List);
+      }
+    });
+    return out;
   }
 }

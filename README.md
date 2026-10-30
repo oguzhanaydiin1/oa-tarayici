@@ -3,7 +3,7 @@
 OA Labs'in Windows ve Android tarayıcısı. Flutter + `flutter_inappwebview`: sayfaları Windows'ta
 WebView2 (Edge motoru), Android'de Android WebView çizer; arayüz OA Labs tasarım sistemiyle yazılır.
 
-> Durum: deneme sürümü (0.3.1). Derlenen dosyalar imzasız.
+> Durum: deneme sürümü (0.4.0). Derlenen dosyalar imzasız.
 
 ## İndir ve dene
 
@@ -17,6 +17,12 @@ Her `main` gönderiminde GitHub Actions iki dosya derler: **Actions** sekmesi �
 Aynı dosyalar **Releases** sayfasına da `pubspec.yaml`daki sürüm numarasıyla (ör. v0.1.0) deneme sürümü olarak eklenir. Yeni sürüm çıkarmak için `version` satırını artırmak yeterli.
 
 ## Özellikler
+- Reklam ve izleyici engelleme: reklam ağlarına ve izleyicilere giden istekler engellenir (Android'de web motorunun içerik engelleyicisi, Windows'ta istek kontrolü), sayfadaki reklam kutuları gizlenir; site bazında kapatılabilir
+- Tablo: hızlı erişimde sitelerin ikonları, "Düzenle" ile sürükleyip sıralama, başlangıç sayfası arka planları (OA desenleri ya da kendi fotoğrafın)
+- Akıllı adres çubuğu: hesap makinesi (`125*18`), birim (`10 km`, `30 c kaç f`), döviz (`100 dolar`, `50 euro kaç tl`; Avrupa Merkez Bankası kurları, frankfurter.dev)
+- Okuma modu (Mozilla Readability) ve "Türkçeye çevir" (Google Çeviri)
+- Telefonda: aşağı çekip yenile, adres çubuğunda sağa-sola kaydırıp sekme değiştir, QR kod / barkod okut
+- OA hesabıyla eşitleme: yer imleri ve hızlı erişim cihazlar arasında taşınır (sunucu: radyo-app `/v1/me/sync`)
 - OA Labs hesabıyla giriş: sitedeki üyelikle aynı (e-postaya gelen kodla, şifresiz). Oturum cihazın güvenli deposunda saklanır ve tarayıcının içindeki oalabs.dev'e de aktarılır; sitede giriş yapılırsa uygulama da öğrenir
 - Koyu / açık tema (ya da sistemi izle). DuckDuckGo sonuçları da seçilen temada açılır
 - Hızlı erişim düzenlenebilir: telefonda basılı tut, bilgisayarda sağ tıkla → Düzenle / Kaldır / Yeni sekmede aç; "Ekle" kutusu, menüde "Bu sayfayı hızlı erişime ekle"
@@ -35,6 +41,11 @@ Aynı dosyalar **Releases** sayfasına da `pubspec.yaml`daki sürüm numarasıyl
 - `lib/start_page.dart` — OA başlangıç sayfası ve hızlı erişim
 - `lib/account.dart`, `lib/account_sheet.dart` — OA Labs üyeliği (api.oalabs.dev) ve giriş ekranı
 - `lib/search.dart` — arama motorları ve öneri adresleri
+- `lib/adblock.dart` — engelleme listesi ve kuralları
+- `lib/smart.dart` — hesap makinesi, birim ve döviz cevapları
+- `lib/reader.dart`, `assets/readability.js`, `assets/reader.js` — okuma modu (Readability: Apache 2.0, Mozilla)
+- `lib/wallpaper.dart` — başlangıç sayfası arka planları
+- `lib/qr_page.dart` — QR / barkod okuyucu (Android)
 - `lib/oa_theme.dart` — OA Labs renkleri, fontları (Bricolage Grotesque, DM Sans) ve bileşen stilleri
 - `scripts/platform_hazirla.sh` — `windows/` ve `android/` klasörlerini üretir; internet izni, uygulama adı, pencere başlığı
 - `docs/onizleme.html` — arayüzün tarayıcıda açılan önizlemesi

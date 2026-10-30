@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'oa_theme.dart';
+import 'wallpaper.dart';
 
 /// Başlangıç sayfasındaki hızlı erişim kutusu. Kullanıcı ekler, düzenler, kaldırır.
 class QuickLink {
@@ -37,6 +38,56 @@ const kMaxQuickLinks = 12;
 
 enum QuickAction { open, openNewTab, edit, remove }
 
+/// Sitenin ikonu: önce sitenin kendi büyük ikonu (apple-touch-icon), yoksa Google'ın ikon
+/// servisi, o da yoksa baş harf. İkonlar yalnız başlangıç sayfasındaki siteler için istenir.
+class SiteIcon extends StatelessWidget {
+  const SiteIcon({super.key, required this.url, required this.letter, this.bg, this.fg, this.size = 40});
+  final String url;
+  final String letter;
+  final Color? bg;
+  final Color? fg;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final host = Uri.tryParse(url)?.host ?? '';
+    final fallback = Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: bg ?? OAColors.surface2,
+        borderRadius: BorderRadius.circular(size * 0.28),
+      ),
+      child: Text(letter, style: oaDisplay(size * 0.42, color: fg ?? OAColors.text2)),
+    );
+    // OA uygulamalarının renkli kutuları marka rengini korur.
+    if (bg != null || host.isEmpty) return fallback;
+    Widget img(String src, Widget onError) => Image.network(
+          src,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          filterQuality: FilterQuality.medium,
+          errorBuilder: (_, __, ___) => onError,
+          frameBuilder: (_, child, frame, sync) =>
+              frame == null && !sync ? fallback : child,
+        );
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(size * 0.28),
+      child: Container(
+        width: size,
+        height: size,
+        color: OAColors.surface2,
+        child: img(
+          'https://$host/apple-touch-icon.png',
+          img('https://www.google.com/s2/favicons?domain=$host&sz=64', fallback),
+        ),
+      ),
+    );
+  }
+}
+
 /// OA başlangıç sayfası: yeni sekmede ve ana sayfa düğmesinde açılır.
 class StartPage extends StatefulWidget {
   const StartPage({
@@ -48,8 +99,12 @@ class StartPage extends StatefulWidget {
     required this.onGo,
     required this.onQuickAction,
     required this.onQuickAdd,
+    required this.onQuickReorder,
     required this.onChangeEngine,
+    required this.onWallpaper,
     required this.compact,
+    this.wallpaperId = 'none',
+    this.wallpaperPath,
     this.userFirstName,
   });
 
@@ -60,7 +115,11 @@ class StartPage extends StatefulWidget {
   final void Function(String input) onGo;
   final void Function(QuickAction action, int index) onQuickAction;
   final VoidCallback onQuickAdd;
+  final void Function(int from, int to) onQuickReorder;
   final VoidCallback onChangeEngine;
+  final VoidCallback onWallpaper;
+  final String wallpaperId;
+  final String? wallpaperPath;
   final String? userFirstName;
 
   /// Telefon düzeni: arama alanı yerine alttaki adres çubuğu kullanılır.
@@ -72,6 +131,7 @@ class StartPage extends StatefulWidget {
 
 class _StartPageState extends State<StartPage> {
   final _ctl = TextEditingController();
+  bool _arranging = false;
 
   @override
   void dispose() {
@@ -100,9 +160,11 @@ class _StartPageState extends State<StartPage> {
             ? 'Merhaba ${widget.userFirstName}'
             : 'OA Tarayıcı';
 
-    return ColoredBox(
-      color: OAColors.bg,
-      child: SingleChildScrollView(
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        WallpaperLayer(id: widget.wallpaperId, photoPath: widget.wallpaperPath),
+        SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(
             compact ? 20 : 24, compact ? 40 : 56, compact ? 20 : 24, 48),
         child: Center(
@@ -142,16 +204,31 @@ class _StartPageState extends State<StartPage> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Expanded(child: Text('Hızlı erişim', style: oaDisplay(22))),
-                    Text(
-                      compact ? 'Düzenlemek için basılı tut' : 'Düzenlemek için sağ tıkla',
-                      style: TextStyle(color: OAColors.faint, fontSize: 13),
-                    ),
+                    if (widget.quickLinks.length > 1 || _arranging)
+                      TextButton.icon(
+                        onPressed: () => setState(() => _arranging = !_arranging),
+                        icon: Icon(_arranging ? Icons.check : Icons.drag_indicator, size: 18),
+                        label: Text(_arranging ? 'Bitti' : 'Düzenle'),
+                      ),
                   ],
                 ),
-                const SizedBox(height: 14),
+                Padding(
+                  padding: const EdgeInsets.only(top: 2, bottom: 12),
+                  child: Text(
+                    _arranging
+                        ? (compact
+                            ? 'Kutuyu basılı tutup sürükleyerek yerini değiştir. Dokununca düzenlenir.'
+                            : 'Kutuyu sürükleyerek yerini değiştir. Tıklayınca düzenlenir.')
+                        : (compact
+                            ? 'Bir kutuyu basılı tutarak düzenleyebilir ya da kaldırabilirsin.'
+                            : 'Bir kutuya sağ tıklayarak düzenleyebilir ya da kaldırabilirsin.'),
+                    style: TextStyle(color: OAColors.faint, fontSize: 13),
+                  ),
+                ),
                 _grid([
-                  for (var i = 0; i < widget.quickLinks.length; i++) _quickTile(i),
-                  if (widget.quickLinks.length < kMaxQuickLinks) _addTile(),
+                  for (var i = 0; i < widget.quickLinks.length; i++)
+                    _arranging ? _arrangeTile(i) : _quickTile(i),
+                  if (widget.quickLinks.length < kMaxQuickLinks && !_arranging) _addTile(),
                 ]),
                 const SizedBox(height: 40),
                 Text('Yer imleri', style: oaDisplay(22)),
@@ -190,10 +267,25 @@ class _StartPageState extends State<StartPage> {
           ),
         ),
       ),
+        Positioned(
+          top: 8,
+          right: 8,
+          child: SafeArea(
+            child: IconButton(
+              tooltip: 'Arka plan',
+              icon: const Icon(Icons.wallpaper_outlined),
+              style: IconButton.styleFrom(
+                backgroundColor: OAColors.surface.withValues(alpha: 0.7),
+              ),
+              onPressed: widget.onWallpaper,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _quickTile(int i) {
+  Widget _quickTile(int i, {bool arranging = false}) {
     final q = widget.quickLinks[i];
     final (Color? bg, Color? fg) = switch (q.color) {
       'amber' => (OAColors.amber, OAColors.amberInk),
@@ -206,8 +298,63 @@ class _StartPageState extends State<StartPage> {
       letter: q.letter,
       bg: bg,
       fg: fg,
-      onTap: () => widget.onGo(q.url),
-      onMenu: (pos) => _tileMenu(i, pos),
+      onTap: arranging
+          ? () => widget.onQuickAction(QuickAction.edit, i)
+          : () => widget.onGo(q.url),
+      onMenu: arranging ? null : (pos) => _tileMenu(i, pos),
+    );
+  }
+
+  /// Düzenleme modunda kutu: sürüklenir, üzerine bırakılan kutunun yerine geçer.
+  Widget _arrangeTile(int i) {
+    final tile = _quickTile(i, arranging: true);
+    final feedback = Material(
+      color: Colors.transparent,
+      child: SizedBox(width: 140, child: Opacity(opacity: 0.9, child: tile)),
+    );
+    final draggable = widget.compact
+        ? LongPressDraggable<int>(
+            data: i,
+            delay: const Duration(milliseconds: 250),
+            feedback: feedback,
+            childWhenDragging: Opacity(opacity: 0.3, child: tile),
+            child: tile,
+          )
+        : Draggable<int>(
+            data: i,
+            feedback: feedback,
+            childWhenDragging: Opacity(opacity: 0.3, child: tile),
+            child: tile,
+          );
+    return DragTarget<int>(
+      onWillAcceptWithDetails: (d) => d.data != i,
+      onAcceptWithDetails: (d) => widget.onQuickReorder(d.data, i),
+      builder: (context, candidates, _) => AnimatedScale(
+        duration: const Duration(milliseconds: 120),
+        scale: candidates.isNotEmpty ? 1.05 : 1,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            draggable,
+            Positioned(
+              top: -6,
+              right: -6,
+              child: Material(
+                color: OAColors.surface2,
+                shape: CircleBorder(side: BorderSide(color: OAColors.border2)),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: () => widget.onQuickAction(QuickAction.remove, i),
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Icon(Icons.close, size: 16, color: OAColors.text2),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -388,7 +535,7 @@ class _Tile extends StatelessWidget {
       onSecondaryTapDown:
           onMenu == null ? null : (d) => onMenu!(d.globalPosition),
       child: Material(
-        color: OAColors.surface,
+        color: OAColors.surface.withValues(alpha: 0.92),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(OARadius.xl),
           side: BorderSide(color: OAColors.border),
@@ -404,16 +551,7 @@ class _Tile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: bg ?? OAColors.surface2,
-                      borderRadius: BorderRadius.circular(11),
-                    ),
-                    child: Text(letter, style: oaDisplay(17, color: fg ?? OAColors.text2)),
-                  ),
+                  SiteIcon(url: url, letter: letter, bg: bg, fg: fg),
                   const Spacer(),
                   Text(name,
                       maxLines: 1,

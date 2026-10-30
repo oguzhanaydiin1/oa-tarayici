@@ -1,17 +1,25 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io' show Platform;
+import 'dart:collection';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'account.dart';
 import 'account_sheet.dart';
+import 'adblock.dart';
 import 'oa_theme.dart';
+import 'qr_page.dart';
+import 'reader.dart';
 import 'search.dart';
+import 'smart.dart';
 import 'start_page.dart';
+import 'wallpaper.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -104,6 +112,9 @@ class TabData {
   bool coverLoadStarted = false;
   InAppWebViewController? controller;
 
+  /// Android: sayfayı aşağı çekince yenileme.
+  PullToRefreshController? pullToRefresh;
+
   String get displayTitle {
     if (showStart) return incognito ? 'Gizli sekme' : 'Yeni sekme';
     if (title.isNotEmpty) return title;
@@ -137,6 +148,25 @@ class _BrowserPageState extends State<BrowserPage> {
   SharedPreferences? _prefs;
   final OAAccount _account = OAAccount();
   List<QuickLink> _quick = List.of(kDefaultQuickLinks);
+
+  // Reklam engelleme
+  bool _adblockOn = true;
+  Set<String> _adblockAllow = {};
+
+  // Başlangıç sayfası arka planı ve okuma modu yazı boyu
+  String _wallpaperId = 'none';
+  String? _wallpaperPath;
+  int _readerSize = 19;
+
+  // Eşitleme: her koleksiyonun son yerel değişiklik zamanı
+  DateTime _bookmarksUpdated = DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+  DateTime _quickUpdated = DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+  Timer? _syncTimer;
+  bool _wasSignedIn = false;
+  DateTime? _lastSync;
+
+  // Akıllı adres çubuğu cevabı
+  SmartAnswer? _answer;
   List<Map<String, String>> _bookmarks = [];
   List<Map<String, String>> _history = [];
 
@@ -163,7 +193,10 @@ class _BrowserPageState extends State<BrowserPage> {
     _tabs.add(TabData());
     _loadStorage();
     _account.addListener(_onAccount);
-    _account.load().then((_) => _account.syncToWebView());
+    _account.load().then((_) {
+      _account.syncToWebView();
+      _syncNow();
+    });
     // Ok tuşları öneri listesinde gezsin; odaktaki düğümde yakalanır, metin kutusundan önce.
     _urlFocus.onKeyEvent = _onAddressKey;
     _urlFocus.addListener(() {
@@ -186,13 +219,62 @@ class _BrowserPageState extends State<BrowserPage> {
   }
 
   void _onAccount() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {});
+    // Yeni giriş yapıldıysa hemen eşitle.
+    if (_account.signedIn && !_wasSignedIn) _syncNow();
+    _wasSignedIn = _account.signedIn;
+  }
+
+  // ---------------------------------------------------------------- Eşitleme
+
+  /// Yer imleri ve hızlı erişim OA hesabıyla eşitlenir: hangi taraf daha yeni değiştiyse o kazanır.
+  Future<void> _syncNow() async {
+    if (!_account.signedIn || _prefs == null) return;
+    final server = await _account.pullSync();
+    if (server == null || !mounted) return; // sunucu eşitlemeyi henüz desteklemiyor ya da ağ yok
+    var changed = false;
+    final sb = server['bookmarks'];
+    if (sb != null && sb.updated.isAfter(_bookmarksUpdated)) {
+      _bookmarks = sb.data
+          .whereType<Map>()
+          .map((m) => {for (final e in m.entries) e.key.toString(): e.value.toString()})
+          .toList();
+      _bookmarksUpdated = sb.updated;
+      _save('bookmarks', _bookmarks, touch: false);
+      changed = true;
+    }
+    final sq = server['quick'];
+    if (sq != null && sq.updated.isAfter(_quickUpdated)) {
+      _quick = sq.data.whereType<Map>().map(QuickLink.fromJson).where((l) => l.url.isNotEmpty).toList();
+      _quickUpdated = sq.updated;
+      _saveQuick(touch: false);
+      changed = true;
+    }
+    if (changed) setState(() {});
+    final push = <String, SyncItem>{};
+    if (sb == null || _bookmarksUpdated.isAfter(sb.updated)) {
+      push['bookmarks'] = SyncItem(_bookmarksUpdated, _bookmarks);
+    }
+    if (sq == null || _quickUpdated.isAfter(sq.updated)) {
+      push['quick'] = SyncItem(_quickUpdated, _quick.map((q) => q.toJson()).toList());
+    }
+    if (push.isNotEmpty) await _account.pushSync(push);
+    _lastSync = DateTime.now();
+  }
+
+  /// Yerel bir değişiklikten 2 saniye sonra eşitle (art arda değişiklikler tek istekte gider).
+  void _scheduleSync() {
+    if (!_account.signedIn) return;
+    _syncTimer?.cancel();
+    _syncTimer = Timer(const Duration(seconds: 2), _syncNow);
   }
 
   @override
   void dispose() {
     _account.removeListener(_onAccount);
     _account.dispose();
+    _syncTimer?.cancel();
     _debounce?.cancel();
     _urlCtl.dispose();
     _urlFocus.dispose();
@@ -210,6 +292,16 @@ class _BrowserPageState extends State<BrowserPage> {
       _history = _decode(_prefs!.getStringList('history'));
       _engine = engineById(_prefs!.getString('engine'));
       _suggestOn = _prefs!.getBool('suggest') ?? true;
+      _adblockOn = _prefs!.getBool('adblock') ?? true;
+      _adblockAllow = (_prefs!.getStringList('adblock_allow') ?? []).toSet();
+      _wallpaperId = _prefs!.getString('wallpaper') ?? 'none';
+      _wallpaperPath = _prefs!.getString('wallpaper_path');
+      _readerSize = _prefs!.getInt('reader_size') ?? 19;
+      DateTime t(String k) =>
+          DateTime.tryParse(_prefs!.getString(k) ?? '') ??
+          DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+      _bookmarksUpdated = t('bookmarks_updated');
+      _quickUpdated = t('quick_updated');
       final q = _prefs!.getString('quick');
       if (q != null) {
         try {
@@ -223,8 +315,22 @@ class _BrowserPageState extends State<BrowserPage> {
     });
   }
 
-  void _saveQuick() =>
-      _prefs?.setString('quick', jsonEncode(_quick.map((q) => q.toJson()).toList()));
+  void _saveQuick({bool touch = true}) {
+    _prefs?.setString('quick', jsonEncode(_quick.map((q) => q.toJson()).toList()));
+    if (touch) {
+      _quickUpdated = DateTime.now().toUtc();
+      _scheduleSync();
+    }
+    _prefs?.setString('quick_updated', _quickUpdated.toIso8601String());
+  }
+
+  void _reorderQuick(int from, int to) {
+    setState(() {
+      final item = _quick.removeAt(from);
+      _quick.insert(to.clamp(0, _quick.length), item);
+    });
+    _saveQuick();
+  }
 
   void _onQuickAction(QuickAction action, int i) {
     switch (action) {
@@ -329,6 +435,248 @@ class _BrowserPageState extends State<BrowserPage> {
     _saveQuick();
   }
 
+  // ---------------------------------------------------------------- Reklam engelleme
+
+  String get _pageHost =>
+      (_tab.showStart ? '' : Uri.tryParse(_tab.url)?.host ?? '').replaceFirst(RegExp(r'^www\.'), '');
+
+  /// Bu sekmede engelleme çalışıyor mu? (genel ayar açık ve site istisna değil)
+  bool get _siteBlocking =>
+      _adblockOn && (_pageHost.isEmpty || !AdBlock.isAllowedSite(_pageHost, _adblockAllow));
+
+  /// Ayar değişince açık bütün sekmelere uygula ve şu anki sayfayı yenile.
+  Future<void> _applyAdblock() async {
+    _prefs?.setBool('adblock', _adblockOn);
+    _prefs?.setStringList('adblock_allow', _adblockAllow.toList());
+    for (final t in _tabs) {
+      final c = t.controller;
+      if (c == null) continue;
+      try {
+        await c.setSettings(
+          settings: InAppWebViewSettings(
+            contentBlockers: _adblockOn ? AdBlock.contentBlockers(_adblockAllow) : [],
+            useShouldInterceptRequest: Platform.isWindows && _adblockOn,
+          ),
+        );
+        await c.removeUserScriptsByGroupName(groupName: 'oa-adblock');
+        if (_adblockOn) await c.addUserScript(userScript: AdBlock.cosmeticScript(_adblockAllow));
+      } catch (_) {}
+    }
+    if (!_tab.showStart) _tab.controller?.reload();
+    if (mounted) setState(() {});
+  }
+
+  void _showAdblockSettings() {
+    final host = _pageHost;
+    showModalBottomSheet(
+      context: context,
+      useSafeArea: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          final siteAllowed = host.isNotEmpty && AdBlock.isAllowedSite(host, _adblockAllow);
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(8, 16, 8, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                  child: Text('Reklam engelleme', style: oaDisplay(22)),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: Text(
+                    'Reklam ağlarına ve izleyicilere giden istekleri engeller, sayfadaki reklam kutularını gizler. '
+                    '${AdBlock.domains.length} reklam ve izleme alan adı listede.',
+                    style: TextStyle(color: OAColors.muted, height: 1.5),
+                  ),
+                ),
+                SwitchListTile(
+                  value: _adblockOn,
+                  activeThumbColor: OAColors.amberInk,
+                  activeTrackColor: OAColors.amber,
+                  title: const Text('Reklamları ve izleyicileri engelle',
+                      style: TextStyle(fontWeight: FontWeight.w600)),
+                  onChanged: (v) {
+                    _adblockOn = v;
+                    setSheet(() {});
+                    _applyAdblock();
+                  },
+                ),
+                if (host.isNotEmpty && _adblockOn)
+                  SwitchListTile(
+                    value: !siteAllowed,
+                    activeThumbColor: OAColors.amberInk,
+                    activeTrackColor: OAColors.amber,
+                    title: Text('$host sitesinde engelle',
+                        style: const TextStyle(fontWeight: FontWeight.w600)),
+                    subtitle: const Text('Site düzgün çalışmıyorsa bu sitede kapatabilirsin'),
+                    onChanged: (v) {
+                      if (v) {
+                        _adblockAllow.removeWhere(
+                            (a) => host == a || host.endsWith('.$a'));
+                      } else {
+                        _adblockAllow.add(host);
+                      }
+                      setSheet(() {});
+                      _applyAdblock();
+                    },
+                  ),
+                if (_adblockAllow.isNotEmpty)
+                  ListTile(
+                    leading: const Icon(Icons.playlist_remove),
+                    title: Text('Engellemenin kapalı olduğu siteler: ${_adblockAllow.length}'),
+                    subtitle: Text(_adblockAllow.take(4).join(', ') +
+                        (_adblockAllow.length > 4 ? '…' : '')),
+                    trailing: TextButton(
+                      onPressed: () {
+                        _adblockAllow.clear();
+                        setSheet(() {});
+                        _applyAdblock();
+                      },
+                      child: const Text('Hepsini aç'),
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------- Okuma modu, çeviri, QR
+
+  Future<void> _toggleReader() async {
+    final c = _tab.controller;
+    if (_tab.showStart || c == null) return;
+    final r = await Reader.toggle(c, fontSize: _readerSize);
+    if (r == ReaderResult.notAvailable) {
+      _toast('Bu sayfada okuma modu için yeterli yazı bulunamadı');
+    } else if (r == ReaderResult.failed) {
+      _toast('Okuma modu açılamadı');
+    }
+  }
+
+  void _translate() {
+    if (_tab.showStart) return;
+    final u = _tab.url;
+    if (u.contains('translate.goog') || u.contains('translate.google.')) {
+      _toast('Bu sayfa zaten çeviri sayfası');
+      return;
+    }
+    _toast('Sayfa Google Çeviri ile açılıyor; sayfanın adresi Google\'a gönderilir');
+    _go('https://translate.google.com/translate?sl=auto&tl=tr&u=${Uri.encodeComponent(u)}');
+  }
+
+  Future<void> _scanQr() async {
+    if (!Platform.isAndroid) return;
+    _urlFocus.unfocus();
+    final v = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => const QrPage(), fullscreenDialog: true),
+    );
+    if (v == null || !mounted) return;
+    if (looksLikeUrl(v)) {
+      _go(v);
+    } else {
+      Clipboard.setData(ClipboardData(text: v));
+      _toast('Okunan: $v (panoya kopyalandı)');
+      _go(v, forceSearch: true);
+    }
+  }
+
+  // ---------------------------------------------------------------- Arka plan
+
+  void _setWallpaper(String id, {String? path}) {
+    setState(() {
+      _wallpaperId = id;
+      if (path != null) _wallpaperPath = path;
+    });
+    _prefs?.setString('wallpaper', id);
+    if (path != null) _prefs?.setString('wallpaper_path', path);
+  }
+
+  Future<void> _pickPhoto() async {
+    try {
+      final r = await FilePicker.platform.pickFiles(type: FileType.image);
+      final src = r?.files.single.path;
+      if (src == null) return;
+      final dir = await getApplicationSupportDirectory();
+      final ext = src.contains('.') ? src.substring(src.lastIndexOf('.')) : '.jpg';
+      // Her seçimde yeni ad: eski resim önbellekte kalmasın.
+      final dest = '${dir.path}${Platform.pathSeparator}arka-plan-${DateTime.now().millisecondsSinceEpoch}$ext';
+      await File(src).copy(dest);
+      final old = _wallpaperPath;
+      _setWallpaper('photo', path: dest);
+      if (old != null && old != dest) {
+        try {
+          await File(old).delete();
+        } catch (_) {}
+      }
+    } catch (e) {
+      _toast('Fotoğraf seçilemedi');
+    }
+  }
+
+  void _showWallpaperPicker() {
+    showModalBottomSheet(
+      context: context,
+      useSafeArea: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Başlangıç sayfası arka planı', style: oaDisplay(22)),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 14,
+                runSpacing: 14,
+                children: [
+                  for (final w in Wallpaper.all)
+                    WallpaperSwatch(
+                      id: w.id,
+                      label: w.name,
+                      selected: _wallpaperId == w.id,
+                      onTap: () {
+                        _setWallpaper(w.id);
+                        setSheet(() {});
+                      },
+                    ),
+                  WallpaperSwatch(
+                    id: 'photo',
+                    label: 'Fotoğrafın',
+                    photoPath: _wallpaperPath,
+                    icon: _wallpaperPath == null ? Icons.add_photo_alternate_outlined : null,
+                    selected: _wallpaperId == 'photo',
+                    onTap: () async {
+                      await _pickPhoto();
+                      setSheet(() {});
+                    },
+                  ),
+                ],
+              ),
+              if (_wallpaperId == 'photo') ...[
+                const SizedBox(height: 12),
+                TextButton.icon(
+                  onPressed: () async {
+                    await _pickPhoto();
+                    setSheet(() {});
+                  },
+                  icon: const Icon(Icons.photo_library_outlined),
+                  label: const Text('Başka fotoğraf seç'),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   // ---------------------------------------------------------------- Görünüm ve hesap
 
   void _showThemeSettings() {
@@ -413,8 +761,15 @@ class _BrowserPageState extends State<BrowserPage> {
       .map((e) => Map<String, String>.from(jsonDecode(e) as Map))
       .toList();
 
-  void _save(String key, List<Map<String, String>> list) {
+  void _save(String key, List<Map<String, String>> list, {bool touch = true}) {
     _prefs?.setStringList(key, list.map(jsonEncode).toList());
+    if (key == 'bookmarks') {
+      if (touch) {
+        _bookmarksUpdated = DateTime.now().toUtc();
+        _scheduleSync();
+      }
+      _prefs?.setString('bookmarks_updated', _bookmarksUpdated.toIso8601String());
+    }
   }
 
   bool get _isBookmarked =>
@@ -638,9 +993,16 @@ class _BrowserPageState extends State<BrowserPage> {
     final local = _localSuggestions(text);
     setState(() {
       _suggestions = local;
+      _answer = smartAnswer(text);
       _selected = -1;
       _showSuggestions = local.isNotEmpty;
     });
+    // Döviz sorusuysa ve kurlar henüz inmediyse indir, inince cevabı göster.
+    if (_answer == null && looksLikeCurrency(text) && !Rates.ready) {
+      Rates.load().then((_) {
+        if (mounted && _urlCtl.text == text) setState(() => _answer = smartAnswer(text));
+      });
+    }
 
     _debounce?.cancel();
     // Gizli sekmede yazılanlar arama motoruna gönderilmez.
@@ -824,7 +1186,11 @@ class _BrowserPageState extends State<BrowserPage> {
             onGo: (input) => _go(input),
             onQuickAction: _onQuickAction,
             onQuickAdd: () => _editQuick(null),
+            onQuickReorder: _reorderQuick,
             onChangeEngine: _showSearchSettings,
+            onWallpaper: _showWallpaperPicker,
+            wallpaperId: _wallpaperId,
+            wallpaperPath: _wallpaperPath,
           ),
       ],
     );
@@ -1000,6 +1366,19 @@ class _BrowserPageState extends State<BrowserPage> {
             ),
           ),
           IconButton(
+            tooltip: 'Okuma modu',
+            icon: const Icon(Icons.chrome_reader_mode_outlined),
+            onPressed: _tab.showStart ? null : _toggleReader,
+          ),
+          IconButton(
+            tooltip: _siteBlocking ? 'Reklam engelleme açık' : 'Reklam engelleme kapalı',
+            icon: Icon(
+              _siteBlocking ? Icons.shield : Icons.shield_outlined,
+              color: _siteBlocking ? OAColors.green : null,
+            ),
+            onPressed: _showAdblockSettings,
+          ),
+          IconButton(
             tooltip: 'Yer imi',
             icon: Icon(
               _isBookmarked ? Icons.star : Icons.star_border,
@@ -1022,7 +1401,13 @@ class _BrowserPageState extends State<BrowserPage> {
               PopupMenuItem(value: 'history', child: Text('Geçmiş')),
               if (!_tab.showStart && _quick.length < kMaxQuickLinks)
                 PopupMenuItem(value: 'quick', child: Text('Bu sayfayı hızlı erişime ekle')),
+              if (!_tab.showStart) ...[
+                PopupMenuDivider(),
+                PopupMenuItem(value: 'reader', child: Text('Okuma modu')),
+                PopupMenuItem(value: 'translate', child: Text('Türkçeye çevir')),
+              ],
               PopupMenuDivider(),
+              PopupMenuItem(value: 'adblock', child: Text('Reklam engelleme')),
               PopupMenuItem(value: 'engine', child: Text('Arama motoru')),
               PopupMenuItem(value: 'theme', child: Text('Görünüm: koyu / açık')),
               PopupMenuItem(
@@ -1059,6 +1444,18 @@ class _BrowserPageState extends State<BrowserPage> {
         _showThemeSettings();
       case 'account':
         _openAccount();
+      case 'reader':
+        _toggleReader();
+      case 'translate':
+        _translate();
+      case 'adblock':
+        _showAdblockSettings();
+      case 'qr':
+        _scanQr();
+      case 'wallpaper':
+        _showWallpaperPicker();
+      case 'sync':
+        _syncNow().then((_) => _toast('Eşitlendi'));
       case 'quick':
         _editQuick(null);
       case 'tabs':
@@ -1136,7 +1533,16 @@ class _BrowserPageState extends State<BrowserPage> {
     return Material(
       color: OAColors.surface2,
       shape: StadiumBorder(side: BorderSide(color: OAColors.border2)),
-      child: InkWell(
+      child: GestureDetector(
+        // Safari gibi: adres çubuğunda sağa-sola kaydırınca sekme değişir.
+        onHorizontalDragEnd: (d) {
+          final v = d.primaryVelocity ?? 0;
+          if (v.abs() < 250 || _tabs.length < 2) return;
+          final next = (_current + (v < 0 ? 1 : -1)) % _tabs.length;
+          HapticFeedback.selectionClick();
+          _selectTab(next < 0 ? next + _tabs.length : next);
+        },
+        child: InkWell(
         customBorder: StadiumBorder(),
         onTap: _startEditing,
         child: SizedBox(
@@ -1185,6 +1591,7 @@ class _BrowserPageState extends State<BrowserPage> {
           ),
         ),
       ),
+      ),
     );
   }
 
@@ -1217,6 +1624,12 @@ class _BrowserPageState extends State<BrowserPage> {
             ),
           ),
         ),
+        if (Platform.isAndroid)
+          IconButton(
+            tooltip: 'QR kod okut',
+            icon: const Icon(Icons.qr_code_scanner),
+            onPressed: _scanQr,
+          ),
         TextButton(
           onPressed: () {
             _urlFocus.unfocus();
@@ -1331,10 +1744,19 @@ class _BrowserPageState extends State<BrowserPage> {
               Divider(height: 16),
               item(Icons.star_border, 'Yer imleri', 'bookmarks'),
               item(Icons.history, 'Geçmiş', 'history'),
+              if (Platform.isAndroid) item(Icons.qr_code_scanner, 'QR kod okut', 'qr'),
+              if (!_tab.showStart) ...[
+                item(Icons.chrome_reader_mode_outlined, 'Okuma modu', 'reader'),
+                item(Icons.translate, 'Türkçeye çevir', 'translate'),
+              ],
               if (!_tab.showStart && _quick.length < kMaxQuickLinks)
                 item(Icons.add_to_home_screen_outlined, 'Bu sayfayı hızlı erişime ekle', 'quick'),
               Divider(height: 16),
+              item(_siteBlocking ? Icons.shield : Icons.shield_outlined,
+                  'Reklam engelleme: ${_adblockOn ? (_siteBlocking ? 'açık' : 'bu sitede kapalı') : 'kapalı'}', 'adblock'),
               item(Icons.search, 'Arama motoru: ${_engine.name}', 'engine'),
+              item(Icons.wallpaper_outlined, 'Başlangıç sayfası arka planı', 'wallpaper'),
+              if (_account.signedIn) item(Icons.sync, 'Şimdi eşitle', 'sync'),
               item(OAColors.isDark ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
                   'Görünüm: ${switch (themeModeNotifier.value) { ThemeMode.dark => 'Koyu', ThemeMode.light => 'Açık', ThemeMode.system => 'Sistem' }}',
                   'theme'),
@@ -1544,11 +1966,52 @@ class _BrowserPageState extends State<BrowserPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                if (_answer != null) _answerRow(_answer!),
                 for (var i = 0; i < _suggestions.length; i++)
                   _suggestionRow(_suggestions[i], q, i == _selected),
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  /// Hızlı cevap satırı: hesap makinesi, birim, döviz. Dokununca sonuç panoya kopyalanır.
+  Widget _answerRow(SmartAnswer a) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: () {
+        Clipboard.setData(ClipboardData(text: a.copy ?? a.text));
+        _toast('Kopyalandı: ${a.copy ?? a.text}');
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        margin: const EdgeInsets.only(bottom: 4),
+        decoration: BoxDecoration(
+          color: OAColors.surface2,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.calculate_outlined, size: 20, color: OAColors.accent),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(a.text,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: oaDisplay(20).copyWith(height: 1.2)),
+            ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(a.source, style: TextStyle(fontSize: 12, color: OAColors.faint)),
+                Text('Kopyalamak için dokun',
+                    style: TextStyle(fontSize: 11, color: OAColors.faint)),
+              ],
+            ),
+          ],
         ),
       ),
     );
@@ -1632,8 +2095,41 @@ class _BrowserPageState extends State<BrowserPage> {
         isInspectable: true,
         supportZoom: true,
         mediaPlaybackRequiresUserGesture: false,
+        contentBlockers: _adblockOn ? AdBlock.contentBlockers(_adblockAllow) : [],
+        useShouldInterceptRequest: Platform.isWindows && _adblockOn,
       ),
-      onWebViewCreated: (c) => t.controller = c,
+      initialUserScripts: UnmodifiableListView(
+          [if (_adblockOn) AdBlock.cosmeticScript(_adblockAllow)]),
+      pullToRefreshController: t.pullToRefresh ??= Platform.isAndroid
+          ? PullToRefreshController(
+              settings: PullToRefreshSettings(
+                  color: OAColors.amber, backgroundColor: OAColors.surface),
+              onRefresh: () => t.controller?.reload(),
+            )
+          : null,
+      // Windows: her istek burada kontrol edilir; Android'de web motorunun kendi engelleyicisi çalışır.
+      shouldInterceptRequest: Platform.isWindows
+          ? (c, req) async {
+              if (!_adblockOn) return null;
+              final pageHost = Uri.tryParse(t.url)?.host ?? '';
+              return AdBlock.shouldBlock(req.url, pageHost: pageHost, allowedSites: _adblockAllow)
+                  ? AdBlock.emptyResponse()
+                  : null;
+            }
+          : null,
+      onWebViewCreated: (c) {
+        t.controller = c;
+        c.addJavaScriptHandler(
+          handlerName: 'oaReaderSize',
+          callback: (args) {
+            final v = args.isNotEmpty ? args.first : null;
+            if (v is num) {
+              _readerSize = v.toInt();
+              _prefs?.setInt('reader_size', _readerSize);
+            }
+          },
+        );
+      },
       onLoadStart: (c, url) {
         if (url == null) return;
         setState(() {
@@ -1646,8 +2142,10 @@ class _BrowserPageState extends State<BrowserPage> {
       onPageCommitVisible: (c, url) => _uncover(t),
       onReceivedError: (c, req, err) {
         if (req.isForMainFrame ?? true) _uncover(t);
+        t.pullToRefresh?.endRefreshing();
       },
       onLoadStop: (c, url) async {
+        t.pullToRefresh?.endRefreshing();
         if (t.coverLoadStarted) _uncover(t);
         _refreshNavState(t);
         _addHistory(t);
