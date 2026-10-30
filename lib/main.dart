@@ -97,6 +97,11 @@ class TabData {
   double progress = 1;
   bool canGoBack = false;
   bool canGoForward = false;
+
+  /// Yeni sayfa ekrana gelene kadar web görünümünü örten perde. Başlangıç sayfasından
+  /// bir siteye gidilince sekmede önceden açık kalan sayfa (ya da boş beyaz ekran) görünmesin.
+  bool covering = false;
+  bool coverLoadStarted = false;
   InAppWebViewController? controller;
 
   String get displayTitle {
@@ -519,6 +524,7 @@ class _BrowserPageState extends State<BrowserPage> {
     final url = _normalize(input, forceSearch: forceSearch);
     final t = _tab;
     setState(() {
+      if (t.showStart || t.controller == null) _cover(t);
       t.url = url;
       t.title = '';
       t.showStart = false;
@@ -533,6 +539,19 @@ class _BrowserPageState extends State<BrowserPage> {
       _urlCtl.text = url;
     });
     _urlFocus.unfocus();
+  }
+
+  void _cover(TabData t) {
+    t
+      ..covering = true
+      ..coverLoadStarted = false;
+    // Sayfa hiç cevap vermezse perde sonsuza kadar kalmasın.
+    Future.delayed(const Duration(seconds: 8), () => _uncover(t));
+  }
+
+  void _uncover(TabData t) {
+    if (!t.covering || !mounted) return;
+    setState(() => t.covering = false);
   }
 
   void _goHome() {
@@ -768,11 +787,32 @@ class _BrowserPageState extends State<BrowserPage> {
     );
   }
 
+  Widget _loadingCover(TabData t) {
+    return ColoredBox(
+      color: OAColors.bg,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 28,
+              height: 28,
+              child: CircularProgressIndicator(strokeWidth: 3, color: OAColors.amber),
+            ),
+            const SizedBox(height: 16),
+            Text(t.host, style: TextStyle(color: OAColors.muted, fontSize: 15)),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _tabContent(TabData t, {required bool compact}) {
     return Stack(
       fit: StackFit.expand,
       children: [
         if (t.webStarted) Offstage(offstage: t.showStart, child: _buildWebView(t)),
+        if (t.webStarted && !t.showStart && t.covering) _loadingCover(t),
         if (t.showStart)
           StartPage(
             incognito: t.incognito,
@@ -1599,10 +1639,16 @@ class _BrowserPageState extends State<BrowserPage> {
         setState(() {
           t.url = url.toString();
           t.progress = 0.05;
+          t.coverLoadStarted = true;
         });
         if (t == _tab && !_urlFocus.hasFocus && !t.showStart) _urlCtl.text = t.url;
       },
+      onPageCommitVisible: (c, url) => _uncover(t),
+      onReceivedError: (c, req, err) {
+        if (req.isForMainFrame ?? true) _uncover(t);
+      },
       onLoadStop: (c, url) async {
+        if (t.coverLoadStarted) _uncover(t);
         _refreshNavState(t);
         _addHistory(t);
         // Sitede giriş/çıkış yapıldıysa uygulama da öğrensin.
@@ -1610,7 +1656,11 @@ class _BrowserPageState extends State<BrowserPage> {
           _account.adoptFromWebView();
         }
       },
-      onProgressChanged: (c, p) => setState(() => t.progress = p / 100),
+      onProgressChanged: (c, p) {
+        setState(() => t.progress = p / 100);
+        // Yeni sayfanın yarısından fazlası yüklendiyse perdeyi kaldır.
+        if (t.coverLoadStarted && p >= 60) _uncover(t);
+      },
       onTitleChanged: (c, title) {
         if (title == null || title.isEmpty) return;
         setState(() => t.title = title);
