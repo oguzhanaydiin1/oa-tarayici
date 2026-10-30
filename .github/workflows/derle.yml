@@ -1,0 +1,93 @@
+name: Derle
+
+# main'e her gönderimde Windows exe ve Android apk derlenir.
+# "v" ile başlayan bir etiket (ör. v0.1.0) gönderilince dosyalar bir GitHub sürümüne de eklenir.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: Windows (.exe)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Platform klasörünü hazırla
+        shell: bash
+        run: bash scripts/platform_hazirla.sh windows
+
+      - run: flutter pub get
+
+      - name: Kod analizi (bilgi için, derlemeyi durdurmaz)
+        continue-on-error: true
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Derle
+        run: flutter build windows --release
+
+      - name: Paketle
+        shell: pwsh
+        run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath OA-Tarayici-Windows.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OA-Tarayici-Windows
+          path: OA-Tarayici-Windows.zip
+
+      - name: Sürüme ekle
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: OA-Tarayici-Windows.zip
+          prerelease: true
+
+  android:
+    name: Android (.apk)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Platform klasörünü hazırla
+        run: bash scripts/platform_hazirla.sh android
+
+      - run: flutter pub get
+
+      - name: Derle
+        # Deneme sürümü: Flutter'ın hata ayıklama anahtarıyla imzalanır, Play Store'a yüklenemez.
+        run: flutter build apk --release
+
+      - name: Yeniden adlandır
+        run: cp build/app/outputs/flutter-apk/app-release.apk OA-Tarayici-Android.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OA-Tarayici-Android
+          path: OA-Tarayici-Android.apk
+
+      - name: Sürüme ekle
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: OA-Tarayici-Android.apk
+          prerelease: true
