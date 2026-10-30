@@ -25,8 +25,12 @@ class SearchEngine {
   /// null ise öneriler DuckDuckGo'dan alınır.
   final String? suggestTemplate;
 
-  String searchUrl(String query) =>
-      searchTemplate.replaceAll('%s', Uri.encodeQueryComponent(query));
+  /// `%k`: DuckDuckGo'nun tema parametresi; uygulama koyu temadaysa sonuçlar da koyu açılır.
+  String searchUrl(String query, {bool dark = true}) => searchTemplate
+      .replaceAll('%k', dark ? 'd' : '-1')
+      .replaceAll('%s', Uri.encodeQueryComponent(query));
+
+  String home({bool dark = true}) => homeUrl.replaceAll('%k', dark ? 'd' : '-1');
 }
 
 const kEngines = <SearchEngine>[
@@ -34,8 +38,8 @@ const kEngines = <SearchEngine>[
     id: 'ddg',
     name: 'DuckDuckGo',
     note: 'Seni takip etmez · önerilen',
-    homeUrl: 'https://duckduckgo.com/?kae=d',
-    searchTemplate: 'https://duckduckgo.com/?kae=d&q=%s',
+    homeUrl: 'https://duckduckgo.com/?kae=%k',
+    searchTemplate: 'https://duckduckgo.com/?kae=%k&q=%s',
     suggestTemplate: 'https://duckduckgo.com/ac/?type=list&q=%s',
   ),
   SearchEngine(

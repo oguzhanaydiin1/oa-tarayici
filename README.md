@@ -3,7 +3,7 @@
 OA Labs'in Windows ve Android tarayıcısı. Flutter + `flutter_inappwebview`: sayfaları Windows'ta
 WebView2 (Edge motoru), Android'de Android WebView çizer; arayüz OA Labs tasarım sistemiyle yazılır.
 
-> Durum: deneme sürümü (0.2.0). Derlenen dosyalar imzasız.
+> Durum: deneme sürümü (0.3.0). Derlenen dosyalar imzasız.
 
 ## İndir ve dene
 
@@ -17,6 +17,9 @@ Her `main` gönderiminde GitHub Actions iki dosya derler: **Actions** sekmesi �
 Aynı dosyalar **Releases** sayfasına da `pubspec.yaml`daki sürüm numarasıyla (ör. v0.1.0) deneme sürümü olarak eklenir. Yeni sürüm çıkarmak için `version` satırını artırmak yeterli.
 
 ## Özellikler
+- OA Labs hesabıyla giriş: sitedeki üyelikle aynı (e-postaya gelen kodla, şifresiz). Oturum cihazın güvenli deposunda saklanır ve tarayıcının içindeki oalabs.dev'e de aktarılır; sitede giriş yapılırsa uygulama da öğrenir
+- Koyu / açık tema (ya da sistemi izle). DuckDuckGo sonuçları da seçilen temada açılır
+- Hızlı erişim düzenlenebilir: telefonda basılı tut, bilgisayarda sağ tıkla → Düzenle / Kaldır / Yeni sekmede aç; "Ekle" kutusu, menüde "Bu sayfayı hızlı erişime ekle"
 - OA başlangıç sayfası: "Nereye gidiyoruz?", arama, hızlı erişim, yer imleri (yeni sekmede ve ana sayfa düğmesinde)
 - Telefon düzeni (Android): adres çubuğu ve düğmeler altta; adres çubuğu alan adını gösterir, dokununca düzenlenir; sekmeler kart görünümünde
 - Çoklu sekme, gizli sekme (gizli sekmede geçmiş tutulmaz, yazılanlar arama motoruna gönderilmez)
@@ -29,7 +32,8 @@ Aynı dosyalar **Releases** sayfasına da `pubspec.yaml`daki sürüm numarasıyl
 
 ## Dosyalar
 - `lib/main.dart` — tarayıcı arayüzü (bilgisayar ve telefon düzeni) ve sekmeler
-- `lib/start_page.dart` — OA başlangıç sayfası
+- `lib/start_page.dart` — OA başlangıç sayfası ve hızlı erişim
+- `lib/account.dart`, `lib/account_sheet.dart` — OA Labs üyeliği (api.oalabs.dev) ve giriş ekranı
 - `lib/search.dart` — arama motorları ve öneri adresleri
 - `lib/oa_theme.dart` — OA Labs renkleri, fontları (Bricolage Grotesque, DM Sans) ve bileşen stilleri
 - `scripts/platform_hazirla.sh` — `windows/` ve `android/` klasörlerini üretir; internet izni, uygulama adı, pencere başlığı

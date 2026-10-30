@@ -7,37 +7,74 @@ import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'account.dart';
+import 'account_sheet.dart';
 import 'oa_theme.dart';
 import 'search.dart';
 import 'start_page.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    statusBarColor: OAColors.bg,
-    statusBarIconBrightness: Brightness.light,
-    statusBarBrightness: Brightness.dark,
-    systemNavigationBarColor: OAColors.surface,
-    systemNavigationBarIconBrightness: Brightness.light,
-  ));
-  runApp(const BrowserApp());
+  // Tema seçimini açılışta oku; yanlış temada bir an görünmesin.
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    themeModeNotifier.value = themeModeFromString(prefs.getString('theme'));
+  } catch (_) {}
+  runApp(BrowserApp());
 }
 
-class BrowserApp extends StatelessWidget {
-  const BrowserApp({super.key});
+class BrowserApp extends StatefulWidget {
+  BrowserApp({super.key});
+
+  @override
+  State<BrowserApp> createState() => _BrowserAppState();
+}
+
+class _BrowserAppState extends State<BrowserApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    themeModeNotifier.addListener(_onTheme);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    themeModeNotifier.removeListener(_onTheme);
+    super.dispose();
+  }
+
+  void _onTheme() => setState(() {});
+
+  // Sistem teması değişince ("Sistem" seçiliyse) uygulama da değişsin.
+  @override
+  void didChangePlatformBrightness() => setState(() {});
+
+  OAPalette _palette() {
+    final mode = themeModeNotifier.value;
+    final dark = mode == ThemeMode.dark ||
+        (mode == ThemeMode.system &&
+            WidgetsBinding.instance.platformDispatcher.platformBrightness ==
+                Brightness.dark);
+    return dark ? kOADark : kOALight;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final p = _palette();
+    OAColors.use(p);
+    SystemChrome.setSystemUIOverlayStyle(oaSystemOverlay(p));
     return MaterialApp(
       title: 'OA Tarayıcı',
       debugShowCheckedModeBanner: false,
-      themeMode: ThemeMode.dark,
-      theme: buildOATheme(),
-      darkTheme: buildOATheme(),
-      home: const BrowserPage(),
+      theme: buildOATheme(p),
+      home: BrowserPage(key: _pageKey),
     );
   }
 }
+
+final _pageKey = GlobalKey<_BrowserPageState>();
 
 /// Tek bir sekmenin durumu.
 class TabData {
@@ -76,7 +113,7 @@ class TabData {
 }
 
 class BrowserPage extends StatefulWidget {
-  const BrowserPage({super.key});
+  BrowserPage({super.key});
 
   @override
   State<BrowserPage> createState() => _BrowserPageState();
@@ -93,6 +130,8 @@ class _BrowserPageState extends State<BrowserPage> {
   bool _editing = false;
 
   SharedPreferences? _prefs;
+  final OAAccount _account = OAAccount();
+  List<QuickLink> _quick = List.of(kDefaultQuickLinks);
   List<Map<String, String>> _bookmarks = [];
   List<Map<String, String>> _history = [];
 
@@ -118,12 +157,14 @@ class _BrowserPageState extends State<BrowserPage> {
     super.initState();
     _tabs.add(TabData());
     _loadStorage();
+    _account.addListener(_onAccount);
+    _account.load().then((_) => _account.syncToWebView());
     // Ok tuşları öneri listesinde gezsin; odaktaki düğümde yakalanır, metin kutusundan önce.
     _urlFocus.onKeyEvent = _onAddressKey;
     _urlFocus.addListener(() {
       if (!_urlFocus.hasFocus) {
         // Öneriye dokunma, odak kaybından sonra gelir; kısa bir gecikmeyle kapat.
-        Future.delayed(const Duration(milliseconds: 150), () {
+        Future.delayed(Duration(milliseconds: 150), () {
           if (mounted && !_urlFocus.hasFocus) {
             setState(() {
               _showSuggestions = false;
@@ -139,8 +180,14 @@ class _BrowserPageState extends State<BrowserPage> {
     });
   }
 
+  void _onAccount() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    _account.removeListener(_onAccount);
+    _account.dispose();
     _debounce?.cancel();
     _urlCtl.dispose();
     _urlFocus.dispose();
@@ -158,7 +205,203 @@ class _BrowserPageState extends State<BrowserPage> {
       _history = _decode(_prefs!.getStringList('history'));
       _engine = engineById(_prefs!.getString('engine'));
       _suggestOn = _prefs!.getBool('suggest') ?? true;
+      final q = _prefs!.getString('quick');
+      if (q != null) {
+        try {
+          _quick = (jsonDecode(q) as List)
+              .whereType<Map>()
+              .map(QuickLink.fromJson)
+              .where((l) => l.url.isNotEmpty)
+              .toList();
+        } catch (_) {}
+      }
     });
+  }
+
+  void _saveQuick() =>
+      _prefs?.setString('quick', jsonEncode(_quick.map((q) => q.toJson()).toList()));
+
+  void _onQuickAction(QuickAction action, int i) {
+    switch (action) {
+      case QuickAction.open:
+        _go(_quick[i].url);
+      case QuickAction.openNewTab:
+        _addTab(url: _quick[i].url, incognito: _tab.incognito);
+      case QuickAction.edit:
+        _editQuick(i);
+      case QuickAction.remove:
+        final removed = _quick[i];
+        setState(() => _quick.removeAt(i));
+        _saveQuick();
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(
+            content: Text('"${removed.name}" kaldırıldı'),
+            action: SnackBarAction(
+              label: 'Geri al',
+              textColor: OAColors.accent,
+              onPressed: () {
+                setState(() => _quick.insert(i.clamp(0, _quick.length), removed));
+                _saveQuick();
+              },
+            ),
+          ));
+    }
+  }
+
+  /// Hızlı erişim kutusu ekle (index null) ya da düzenle.
+  Future<void> _editQuick(int? index) async {
+    final old = index == null ? null : _quick[index];
+    final onPage = !_tab.showStart;
+    final name = TextEditingController(
+        text: old?.name ?? (onPage && index == null ? _tab.displayTitle : ''));
+    final url = TextEditingController(
+        text: old?.url ?? (onPage && index == null ? _tab.url : ''));
+    String? error;
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          title: Text(old == null ? 'Hızlı erişime ekle' : 'Hızlı erişimi düzenle',
+              style: oaDisplay(22)),
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: name,
+                  autofocus: true,
+                  textInputAction: TextInputAction.next,
+                  decoration: InputDecoration(hintText: 'Ad (ör. Haberler)'),
+                ),
+                SizedBox(height: 12),
+                TextField(
+                  controller: url,
+                  keyboardType: TextInputType.url,
+                  autocorrect: false,
+                  decoration: InputDecoration(hintText: 'Adres (ör. ornek.com)'),
+                  onSubmitted: (_) => Navigator.pop(ctx, true),
+                ),
+                if (error != null) ...[
+                  SizedBox(height: 10),
+                  Text(error!, style: TextStyle(color: OAColors.danger, fontSize: 14)),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Vazgeç')),
+            FilledButton(
+              onPressed: () {
+                if (!looksLikeUrl(url.text)) {
+                  setD(() => error = 'Geçerli bir adres yaz, ör. ornek.com');
+                  return;
+                }
+                Navigator.pop(ctx, true);
+              },
+              style: FilledButton.styleFrom(minimumSize: Size(0, 44)),
+              child: Text('Kaydet'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (saved != true || !looksLikeUrl(url.text)) return;
+    var u = url.text.trim();
+    if (!RegExp(r'^[a-zA-Z][a-zA-Z0-9+.-]*://').hasMatch(u)) u = 'https://$u';
+    var n = name.text.trim();
+    if (n.isEmpty) n = Uri.tryParse(u)?.host.replaceFirst(RegExp(r'^www\.'), '') ?? u;
+    final link = QuickLink(n, u, color: old?.url == u ? old?.color : null);
+    setState(() {
+      if (index == null) {
+        _quick.add(link);
+      } else {
+        _quick[index] = link;
+      }
+    });
+    _saveQuick();
+  }
+
+  // ---------------------------------------------------------------- Görünüm ve hesap
+
+  void _showThemeSettings() {
+    showModalBottomSheet(
+      context: context,
+      useSafeArea: true,
+      builder: (ctx) => ValueListenableBuilder<ThemeMode>(
+        valueListenable: themeModeNotifier,
+        builder: (ctx, mode, _) {
+          Widget option(ThemeMode m, IconData icon, String label, String sub) => ListTile(
+                leading: Icon(icon),
+                title: Text(label, style: TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: Text(sub),
+                trailing: Icon(
+                  mode == m ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                  color: mode == m ? OAColors.accent : OAColors.border2,
+                ),
+                onTap: () {
+                  themeModeNotifier.value = m;
+                  _prefs?.setString('theme', themeModeToString(m));
+                },
+              );
+          return Padding(
+            padding: EdgeInsets.fromLTRB(8, 16, 8, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: Text('Görünüm', style: oaDisplay(22)),
+                ),
+                option(ThemeMode.system, Icons.brightness_auto_outlined, 'Sistem',
+                    'Cihazın ayarına göre koyu ya da açık'),
+                option(ThemeMode.dark, Icons.dark_mode_outlined, 'Koyu', 'OA Labs sitesi gibi'),
+                option(ThemeMode.light, Icons.light_mode_outlined, 'Açık', 'Aydınlık ortamlar için'),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _openAccount() {
+    final mobile = _isMobile(context);
+    if (!_account.signedIn) {
+      showSignIn(context, _account, mobile: mobile, openUrl: (u) => _addTab(url: u));
+      return;
+    }
+    final summary = AccountSummary(
+      account: _account,
+      onManage: () {
+        Navigator.of(context).pop();
+        _account.syncToWebView().then((_) => _addTab(url: '${OAAccount.site}/hesabim/'));
+      },
+      onLogout: () {
+        Navigator.of(context).pop();
+        _account.logout().then((_) => _toast('Çıkış yapıldı'));
+      },
+    );
+    if (mobile) {
+      showModalBottomSheet(
+        context: context,
+        useSafeArea: true,
+        builder: (_) => Padding(padding: EdgeInsets.fromLTRB(20, 24, 20, 16), child: summary),
+      );
+    } else {
+      showDialog(
+        context: context,
+        builder: (_) => Dialog(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: 400),
+            child: Padding(padding: EdgeInsets.all(24), child: summary),
+          ),
+        ),
+      );
+    }
   }
 
   List<Map<String, String>> _decode(List<String>? raw) => (raw ?? [])
@@ -203,7 +446,7 @@ class _BrowserPageState extends State<BrowserPage> {
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(
         content: Text(text),
-        duration: const Duration(milliseconds: 1400),
+        duration: Duration(milliseconds: 1400),
       ));
   }
 
@@ -263,9 +506,9 @@ class _BrowserPageState extends State<BrowserPage> {
       return hasScheme ? text : 'https://$text';
     }
     if (!_tab.incognito) {
-      _pushHistory({'title': text, 'url': _engine.searchUrl(text), 'q': text});
+      _pushHistory({'title': text, 'url': _engine.searchUrl(text, dark: OAColors.isDark), 'q': text});
     }
-    return _engine.searchUrl(text);
+    return _engine.searchUrl(text, dark: OAColors.isDark);
   }
 
   void _go(String input, {bool forceSearch = false}) {
@@ -385,7 +628,7 @@ class _BrowserPageState extends State<BrowserPage> {
     if (!_suggestOn || _tab.incognito || text.trim().isEmpty || looksLikeUrl(text)) {
       return;
     }
-    _debounce = Timer(const Duration(milliseconds: 150), () async {
+    _debounce = Timer(Duration(milliseconds: 150), () async {
       final request = ++_suggestRequest;
       final remote = await fetchSuggestions(_engine, text);
       // Bu arada kullanıcı yazmaya devam ettiyse eski cevabı at.
@@ -400,7 +643,7 @@ class _BrowserPageState extends State<BrowserPage> {
   /// Cihazda olanlardan öneri: önceki aramalar, yer imleri, ziyaret edilen sayfalar.
   List<Suggestion> _localSuggestions(String raw) {
     final q = raw.trim();
-    if (q.isEmpty) return const [];
+    if (q.isEmpty) return [];
     final ql = q.toLowerCase();
     final out = <Suggestion>[];
     if (looksLikeUrl(q)) out.add(Suggestion(SuggestionKind.go, q, q));
@@ -508,10 +751,10 @@ class _BrowserPageState extends State<BrowserPage> {
       },
       child: CallbackShortcuts(
         bindings: {
-          const SingleActivator(LogicalKeyboardKey.keyT, control: true): () => _addTab(),
-          const SingleActivator(LogicalKeyboardKey.keyW, control: true): () =>
+          SingleActivator(LogicalKeyboardKey.keyT, control: true): () => _addTab(),
+          SingleActivator(LogicalKeyboardKey.keyW, control: true): () =>
               _closeTab(_current),
-          const SingleActivator(LogicalKeyboardKey.keyL, control: true): () =>
+          SingleActivator(LogicalKeyboardKey.keyL, control: true): () =>
               mobile ? _startEditing() : _urlFocus.requestFocus(),
         },
         child: Focus(
@@ -534,9 +777,13 @@ class _BrowserPageState extends State<BrowserPage> {
           StartPage(
             incognito: t.incognito,
             engineName: _engine.name,
+            quickLinks: _quick,
             bookmarks: _bookmarks,
             compact: compact,
+            userFirstName: _account.user?.firstName,
             onGo: (input) => _go(input),
+            onQuickAction: _onQuickAction,
+            onQuickAdd: () => _editQuick(null),
             onChangeEngine: _showSearchSettings,
           ),
       ],
@@ -579,13 +826,13 @@ class _BrowserPageState extends State<BrowserPage> {
   Widget _buildTabBar() {
     return Container(
       height: 46,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: OAColors.bg2,
         border: Border(bottom: BorderSide(color: OAColors.line)),
       ),
       child: Row(
         children: [
-          const Padding(
+          Padding(
             padding: EdgeInsets.fromLTRB(10, 0, 6, 0),
             child: OAMark(),
           ),
@@ -600,24 +847,24 @@ class _BrowserPageState extends State<BrowserPage> {
                   onTap: () => _selectTab(i),
                   child: Container(
                     width: 184,
-                    margin: const EdgeInsets.fromLTRB(2, 8, 0, 0),
-                    padding: const EdgeInsets.only(left: 14),
+                    margin: EdgeInsets.fromLTRB(2, 8, 0, 0),
+                    padding: EdgeInsets.only(left: 14),
                     decoration: BoxDecoration(
                       color: selected ? OAColors.surface : Colors.transparent,
                       border: selected
-                          ? const Border(
+                          ? Border(
                               top: BorderSide(color: OAColors.border),
                               left: BorderSide(color: OAColors.border),
                               right: BorderSide(color: OAColors.border),
                             )
                           : null,
                       borderRadius:
-                          const BorderRadius.vertical(top: Radius.circular(12)),
+                          BorderRadius.vertical(top: Radius.circular(12)),
                     ),
                     child: Row(
                       children: [
                         if (t.incognito)
-                          const Padding(
+                          Padding(
                             padding: EdgeInsets.only(right: 6),
                             child: Icon(Icons.visibility_off,
                                 size: 14, color: OAColors.blue),
@@ -638,8 +885,8 @@ class _BrowserPageState extends State<BrowserPage> {
                           iconSize: 14,
                           padding: EdgeInsets.zero,
                           constraints:
-                              const BoxConstraints(minWidth: 28, minHeight: 28),
-                          icon: const Icon(Icons.close),
+                              BoxConstraints(minWidth: 28, minHeight: 28),
+                          icon: Icon(Icons.close),
                           onPressed: () => _closeTab(i),
                         ),
                       ],
@@ -651,7 +898,7 @@ class _BrowserPageState extends State<BrowserPage> {
           ),
           IconButton(
             tooltip: 'Yeni sekme (Ctrl+T)',
-            icon: const Icon(Icons.add),
+            icon: Icon(Icons.add),
             onPressed: () => _addTab(),
           ),
         ],
@@ -663,8 +910,8 @@ class _BrowserPageState extends State<BrowserPage> {
     final loading = !_tab.showStart && _tab.progress < 1;
     final secure = !_tab.showStart && _tab.url.startsWith('https');
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-      decoration: const BoxDecoration(
+      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+      decoration: BoxDecoration(
         color: OAColors.surface,
         border: Border(bottom: BorderSide(color: OAColors.border)),
       ),
@@ -672,12 +919,12 @@ class _BrowserPageState extends State<BrowserPage> {
         children: [
           IconButton(
             tooltip: 'Geri',
-            icon: const Icon(Icons.arrow_back),
+            icon: Icon(Icons.arrow_back),
             onPressed: _canBack ? _back : null,
           ),
           IconButton(
             tooltip: 'İleri',
-            icon: const Icon(Icons.arrow_forward),
+            icon: Icon(Icons.arrow_forward),
             onPressed: _canForward ? _forward : null,
           ),
           IconButton(
@@ -687,7 +934,7 @@ class _BrowserPageState extends State<BrowserPage> {
           ),
           IconButton(
             tooltip: 'Ana sayfa',
-            icon: const Icon(Icons.home_outlined),
+            icon: Icon(Icons.home_outlined),
             onPressed: _goHome,
           ),
           Expanded(
@@ -699,7 +946,7 @@ class _BrowserPageState extends State<BrowserPage> {
               autocorrect: false,
               onChanged: _onAddressChanged,
               onSubmitted: _onSubmitted,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
               decoration: InputDecoration(
                 isDense: true,
                 hintText: '${_engine.name} ile ara veya adres yaz',
@@ -708,7 +955,7 @@ class _BrowserPageState extends State<BrowserPage> {
                   size: 18,
                   color: secure ? OAColors.green : OAColors.muted,
                 ),
-                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                contentPadding: EdgeInsets.symmetric(vertical: 12),
               ),
             ),
           ),
@@ -720,16 +967,27 @@ class _BrowserPageState extends State<BrowserPage> {
             ),
             onPressed: _tab.showStart ? null : _toggleBookmark,
           ),
+          IconButton(
+            tooltip: _account.signedIn ? 'Hesabım: ${_account.user!.name}' : 'Giriş yap',
+            icon: OAAvatar(name: _account.user?.name, size: 30),
+            onPressed: _openAccount,
+          ),
           PopupMenuButton<String>(
             onSelected: _onMenu,
-            itemBuilder: (_) => const [
+            itemBuilder: (_) => [
               PopupMenuItem(value: 'new', child: Text('Yeni sekme')),
               PopupMenuItem(value: 'incognito', child: Text('Yeni gizli sekme')),
               PopupMenuDivider(),
               PopupMenuItem(value: 'bookmarks', child: Text('Yer imleri')),
               PopupMenuItem(value: 'history', child: Text('Geçmiş')),
+              if (!_tab.showStart && _quick.length < kMaxQuickLinks)
+                PopupMenuItem(value: 'quick', child: Text('Bu sayfayı hızlı erişime ekle')),
               PopupMenuDivider(),
               PopupMenuItem(value: 'engine', child: Text('Arama motoru')),
+              PopupMenuItem(value: 'theme', child: Text('Görünüm: koyu / açık')),
+              PopupMenuItem(
+                  value: 'account',
+                  child: Text(_account.signedIn ? 'Hesabım' : 'OA Labs hesabıyla giriş yap')),
             ],
           ),
         ],
@@ -757,13 +1015,19 @@ class _BrowserPageState extends State<BrowserPage> {
         _showSearchSettings();
       case 'home':
         _goHome();
+      case 'theme':
+        _showThemeSettings();
+      case 'account':
+        _openAccount();
+      case 'quick':
+        _editQuick(null);
       case 'tabs':
         _showTabSwitcher();
     }
   }
 
   Widget _buildProgress() {
-    if (_tab.showStart || _tab.progress >= 1) return const SizedBox(height: 2);
+    if (_tab.showStart || _tab.progress >= 1) return SizedBox(height: 2);
     return SizedBox(
       height: 2,
       child: LinearProgressIndicator(value: _tab.progress),
@@ -800,23 +1064,23 @@ class _BrowserPageState extends State<BrowserPage> {
 
   Widget _buildBottomBar() {
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: OAColors.surface,
         border: Border(top: BorderSide(color: OAColors.border)),
       ),
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+          padding: EdgeInsets.fromLTRB(12, 10, 12, 4),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               _editing ? _mobileAddressEditor() : _mobileAddressPill(),
               if (!_editing) ...[
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
                 _mobileActions(),
               ] else
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
             ],
           ),
         ),
@@ -831,15 +1095,15 @@ class _BrowserPageState extends State<BrowserPage> {
     final secure = !t.showStart && t.url.startsWith('https');
     return Material(
       color: OAColors.surface2,
-      shape: const StadiumBorder(side: BorderSide(color: OAColors.border2)),
+      shape: StadiumBorder(side: BorderSide(color: OAColors.border2)),
       child: InkWell(
-        customBorder: const StadiumBorder(),
+        customBorder: StadiumBorder(),
         onTap: _startEditing,
         child: SizedBox(
           height: 48,
           child: Row(
             children: [
-              const SizedBox(width: 16),
+              SizedBox(width: 16),
               Icon(
                 t.incognito
                     ? Icons.visibility_off
@@ -853,7 +1117,7 @@ class _BrowserPageState extends State<BrowserPage> {
                         ? OAColors.green
                         : OAColors.muted,
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Expanded(
                 child: Text(
                   t.showStart ? '${_engine.name} ile ara veya adres yaz' : t.host,
@@ -868,7 +1132,7 @@ class _BrowserPageState extends State<BrowserPage> {
                 ),
               ),
               if (t.showStart)
-                const SizedBox(width: 40)
+                SizedBox(width: 40)
               else
                 IconButton(
                   tooltip: loading ? 'Durdur' : 'Yenile',
@@ -876,7 +1140,7 @@ class _BrowserPageState extends State<BrowserPage> {
                   icon: Icon(loading ? Icons.close : Icons.refresh),
                   onPressed: _reloadOrStop,
                 ),
-              const SizedBox(width: 4),
+              SizedBox(width: 4),
             ],
           ),
         ),
@@ -896,20 +1160,20 @@ class _BrowserPageState extends State<BrowserPage> {
             autocorrect: false,
             onChanged: _onAddressChanged,
             onSubmitted: _onSubmitted,
-            style: const TextStyle(fontSize: 16),
+            style: TextStyle(fontSize: 16),
             decoration: InputDecoration(
               hintText: '${_engine.name} ile ara veya adres yaz',
               fillColor: OAColors.surface2,
-              prefixIcon: const Icon(Icons.search, size: 18, color: OAColors.muted),
+              prefixIcon: Icon(Icons.search, size: 18, color: OAColors.muted),
               suffixIcon: IconButton(
                 tooltip: 'Temizle',
-                icon: const Icon(Icons.cancel, size: 18, color: OAColors.faint),
+                icon: Icon(Icons.cancel, size: 18, color: OAColors.faint),
                 onPressed: () {
                   _urlCtl.clear();
                   _onAddressChanged('');
                 },
               ),
-              contentPadding: const EdgeInsets.symmetric(vertical: 13),
+              contentPadding: EdgeInsets.symmetric(vertical: 13),
             ),
           ),
         ),
@@ -922,7 +1186,7 @@ class _BrowserPageState extends State<BrowserPage> {
               _urlCtl.text = _addressText(_tab);
             });
           },
-          child: const Text('İptal', style: TextStyle(fontSize: 16)),
+          child: Text('İptal', style: TextStyle(fontSize: 16)),
         ),
       ],
     );
@@ -934,12 +1198,12 @@ class _BrowserPageState extends State<BrowserPage> {
       children: [
         IconButton(
           tooltip: 'Geri',
-          icon: const Icon(Icons.arrow_back_ios_new, size: 22),
+          icon: Icon(Icons.arrow_back_ios_new, size: 22),
           onPressed: _canBack ? _back : null,
         ),
         IconButton(
           tooltip: 'İleri',
-          icon: const Icon(Icons.arrow_forward_ios, size: 22),
+          icon: Icon(Icons.arrow_forward_ios, size: 22),
           onPressed: _canForward ? _forward : null,
         ),
         IconButton(
@@ -964,14 +1228,14 @@ class _BrowserPageState extends State<BrowserPage> {
             ),
             child: Text(
               _tabs.length > 99 ? '99+' : '${_tabs.length}',
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 12, fontWeight: FontWeight.w700, color: OAColors.text2),
             ),
           ),
         ),
         IconButton(
           tooltip: 'Menü',
-          icon: const Icon(Icons.more_horiz, size: 26),
+          icon: Icon(Icons.more_horiz, size: 26),
           onPressed: _showMobileMenu,
         ),
       ],
@@ -982,37 +1246,58 @@ class _BrowserPageState extends State<BrowserPage> {
     showModalBottomSheet(
       context: context,
       useSafeArea: true,
+      isScrollControlled: true,
       builder: (ctx) {
         Widget item(IconData icon, String label, String value) => ListTile(
               leading: Icon(icon),
-              title: Text(label, style: const TextStyle(fontSize: 16)),
+              title: Text(label, style: TextStyle(fontSize: 16)),
               onTap: () {
                 Navigator.pop(ctx);
                 _onMenu(value);
               },
             );
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(8, 12, 8, 12),
+        return SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(8, 12, 8, 12),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
                 width: 40,
                 height: 4,
-                margin: const EdgeInsets.only(bottom: 12),
+                margin: EdgeInsets.only(bottom: 12),
                 decoration: BoxDecoration(
                   color: OAColors.border2,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
+              ListTile(
+                leading: OAAvatar(name: _account.user?.name, size: 36),
+                title: Text(
+                  _account.signedIn ? _account.user!.name : 'Giriş yap veya üye ol',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+                subtitle: Text(_account.signedIn
+                    ? _account.user!.email
+                    : 'OA Labs hesabın: şifre yok, e-postana kod gelir'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _openAccount();
+                },
+              ),
+              Divider(height: 16),
               item(Icons.add, 'Yeni sekme', 'new'),
               item(Icons.visibility_off_outlined, 'Yeni gizli sekme', 'incognito'),
               item(Icons.home_outlined, 'Başlangıç sayfası', 'home'),
-              const Divider(height: 16),
+              Divider(height: 16),
               item(Icons.star_border, 'Yer imleri', 'bookmarks'),
               item(Icons.history, 'Geçmiş', 'history'),
-              const Divider(height: 16),
+              if (!_tab.showStart && _quick.length < kMaxQuickLinks)
+                item(Icons.add_to_home_screen_outlined, 'Bu sayfayı hızlı erişime ekle', 'quick'),
+              Divider(height: 16),
               item(Icons.search, 'Arama motoru: ${_engine.name}', 'engine'),
+              item(OAColors.isDark ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
+                  'Görünüm: ${switch (themeModeNotifier.value) { ThemeMode.dark => 'Koyu', ThemeMode.light => 'Açık', ThemeMode.system => 'Sistem' }}',
+                  'theme'),
             ],
           ),
         );
@@ -1033,7 +1318,7 @@ class _BrowserPageState extends State<BrowserPage> {
             child: Column(
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
+                  padding: EdgeInsets.fromLTRB(20, 16, 12, 8),
                   child: Row(
                     children: [
                       Expanded(
@@ -1044,15 +1329,15 @@ class _BrowserPageState extends State<BrowserPage> {
                       ),
                       TextButton(
                         onPressed: () => Navigator.pop(ctx),
-                        child: const Text('Bitti', style: TextStyle(fontSize: 16)),
+                        child: Text('Bitti', style: TextStyle(fontSize: 16)),
                       ),
                     ],
                   ),
                 ),
                 Expanded(
                   child: GridView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    padding: EdgeInsets.fromLTRB(16, 8, 16, 16),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 2,
                       mainAxisSpacing: 12,
                       crossAxisSpacing: 12,
@@ -1063,8 +1348,8 @@ class _BrowserPageState extends State<BrowserPage> {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                  decoration: const BoxDecoration(
+                  padding: EdgeInsets.fromLTRB(16, 12, 16, 12),
+                  decoration: BoxDecoration(
                     color: OAColors.surface,
                     border: Border(top: BorderSide(color: OAColors.border)),
                   ),
@@ -1076,21 +1361,21 @@ class _BrowserPageState extends State<BrowserPage> {
                             Navigator.pop(ctx);
                             _addTab(incognito: true);
                           },
-                          icon: const Icon(Icons.visibility_off_outlined, size: 18),
-                          label: const Text('Gizli'),
-                          style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48)),
+                          icon: Icon(Icons.visibility_off_outlined, size: 18),
+                          label: Text('Gizli'),
+                          style: OutlinedButton.styleFrom(minimumSize: Size(0, 48)),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      SizedBox(width: 12),
                       Expanded(
                         child: FilledButton.icon(
                           onPressed: () {
                             Navigator.pop(ctx);
                             _addTab();
                           },
-                          icon: const Icon(Icons.add, size: 20),
-                          label: const Text('Yeni sekme'),
-                          style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
+                          icon: Icon(Icons.add, size: 20),
+                          label: Text('Yeni sekme'),
+                          style: FilledButton.styleFrom(minimumSize: Size(0, 48)),
                         ),
                       ),
                     ],
@@ -1129,11 +1414,11 @@ class _BrowserPageState extends State<BrowserPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 6, 2, 6),
+              padding: EdgeInsets.fromLTRB(12, 6, 2, 6),
               child: Row(
                 children: [
                   if (t.incognito)
-                    const Padding(
+                    Padding(
                       padding: EdgeInsets.only(right: 6),
                       child: Icon(Icons.visibility_off, size: 14, color: OAColors.blue),
                     ),
@@ -1142,14 +1427,14 @@ class _BrowserPageState extends State<BrowserPage> {
                       t.displayTitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                     ),
                   ),
                   IconButton(
                     tooltip: 'Sekmeyi kapat',
                     iconSize: 18,
                     visualDensity: VisualDensity.compact,
-                    icon: const Icon(Icons.close),
+                    icon: Icon(Icons.close),
                     onPressed: () {
                       _closeTab(i);
                       setSheet(() {});
@@ -1162,7 +1447,7 @@ class _BrowserPageState extends State<BrowserPage> {
               child: Container(
                 color: OAColors.bg2,
                 alignment: Alignment.center,
-                padding: const EdgeInsets.all(12),
+                padding: EdgeInsets.all(12),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -1180,12 +1465,12 @@ class _BrowserPageState extends State<BrowserPage> {
                             color: t.showStart ? OAColors.bg : OAColors.text2),
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    SizedBox(height: 10),
                     Text(
                       t.showStart ? 'Başlangıç' : t.host,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 13, color: OAColors.muted),
+                      style: TextStyle(fontSize: 13, color: OAColors.muted),
                     ),
                   ],
                 ),
@@ -1204,18 +1489,18 @@ class _BrowserPageState extends State<BrowserPage> {
     return Align(
       alignment: Alignment.topCenter,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 760),
+        constraints: BoxConstraints(maxWidth: 760),
         child: Material(
           color: OAColors.surface,
           elevation: 12,
           shadowColor: Colors.black,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(OARadius.lg),
-            side: const BorderSide(color: OAColors.border2),
+            side: BorderSide(color: OAColors.border2),
           ),
           clipBehavior: Clip.antiAlias,
           child: Padding(
-            padding: const EdgeInsets.all(6),
+            padding: EdgeInsets.all(6),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -1243,7 +1528,7 @@ class _BrowserPageState extends State<BrowserPage> {
       onTap: () => _pick(s),
       child: Container(
         height: 46,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        padding: EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
           color: selected ? OAColors.surface2 : null,
           borderRadius: BorderRadius.circular(10),
@@ -1253,16 +1538,16 @@ class _BrowserPageState extends State<BrowserPage> {
             Icon(icon,
                 size: 18,
                 color: s.kind == SuggestionKind.go ? OAColors.amber : OAColors.muted),
-            const SizedBox(width: 12),
+            SizedBox(width: 12),
             Expanded(child: _highlight(s.label, q)),
             if (right.isNotEmpty) ...[
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Flexible(
                 child: Text(
                   right,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 13, color: OAColors.faint),
+                  style: TextStyle(fontSize: 13, color: OAColors.faint),
                 ),
               ),
             ],
@@ -1275,7 +1560,7 @@ class _BrowserPageState extends State<BrowserPage> {
   /// Yazılan kısmı kalın gösterir.
   Widget _highlight(String label, String q) {
     final i = q.isEmpty ? -1 : label.toLowerCase().indexOf(q.toLowerCase());
-    const base = TextStyle(fontSize: 15, color: OAColors.text);
+    final base = TextStyle(fontSize: 15, color: OAColors.text);
     if (i < 0) {
       return Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: base);
     }
@@ -1284,7 +1569,7 @@ class _BrowserPageState extends State<BrowserPage> {
         TextSpan(text: label.substring(0, i)),
         TextSpan(
             text: label.substring(i, i + q.length),
-            style: const TextStyle(fontWeight: FontWeight.w600)),
+            style: TextStyle(fontWeight: FontWeight.w600)),
         TextSpan(text: label.substring(i + q.length)),
       ]),
       maxLines: 1,
@@ -1320,6 +1605,10 @@ class _BrowserPageState extends State<BrowserPage> {
       onLoadStop: (c, url) async {
         _refreshNavState(t);
         _addHistory(t);
+        // Sitede giriş/çıkış yapıldıysa uygulama da öğrensin.
+        if (!t.incognito && (url?.host ?? '').endsWith('oalabs.dev')) {
+          _account.adoptFromWebView();
+        }
       },
       onProgressChanged: (c, p) => setState(() => t.progress = p / 100),
       onTitleChanged: (c, title) {
@@ -1365,13 +1654,13 @@ class _BrowserPageState extends State<BrowserPage> {
             initialChildSize: 0.75,
             builder: (_, scroll) => ListView(
               controller: scroll,
-              padding: const EdgeInsets.fromLTRB(8, 16, 8, 24),
+              padding: EdgeInsets.fromLTRB(8, 16, 8, 24),
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                  padding: EdgeInsets.fromLTRB(16, 0, 16, 4),
                   child: Text('Arama motoru', style: oaDisplay(22)),
                 ),
-                const Padding(
+                Padding(
                   padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
                   child: Text('Adres çubuğuna yazdığın aramalar buraya gider.',
                       style: TextStyle(color: OAColors.muted)),
@@ -1398,7 +1687,7 @@ class _BrowserPageState extends State<BrowserPage> {
                       ),
                     ),
                     title: Text(e.name,
-                        style: const TextStyle(fontWeight: FontWeight.w600)),
+                        style: TextStyle(fontWeight: FontWeight.w600)),
                     subtitle: Text(e.note),
                     trailing: Icon(
                       e.id == _engine.id
@@ -1407,21 +1696,21 @@ class _BrowserPageState extends State<BrowserPage> {
                       color: e.id == _engine.id ? OAColors.amber : OAColors.border2,
                     ),
                   ),
-                const Divider(height: 24),
+                Divider(height: 24),
                 SwitchListTile(
                   value: _suggestOn,
                   activeThumbColor: OAColors.amberInk,
                   activeTrackColor: OAColors.amber,
-                  title: const Text('Yazarken öneri göster',
+                  title: Text('Yazarken öneri göster',
                       style: TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: const Text('Adres çubuğunda arama önerileri'),
+                  subtitle: Text('Adres çubuğunda arama önerileri'),
                   onChanged: (v) {
                     setState(() => _suggestOn = v);
                     setSheet(() {});
                     _prefs?.setBool('suggest', v);
                   },
                 ),
-                const Padding(
+                Padding(
                   padding: EdgeInsets.fromLTRB(16, 4, 16, 0),
                   child: Text(
                     'Öneriler açıkken yazdıkların, sen Enter\'a basmadan da seçtiğin '
@@ -1461,13 +1750,13 @@ class _BrowserPageState extends State<BrowserPage> {
                         onClear();
                         Navigator.pop(ctx);
                       },
-                      child: const Text('Temizle'),
+                      child: Text('Temizle'),
                     ),
             ),
-            const Divider(height: 1),
+            Divider(height: 1),
             Expanded(
               child: items.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: Text('Burada henüz bir şey yok.',
                           style: TextStyle(color: OAColors.muted)))
                   : ListView.builder(
