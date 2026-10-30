@@ -23,6 +23,8 @@ import 'wallpaper.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Ekranın tamamına çiz: saatin olduğu üst şerit ve alttaki çizgi bölgesini uygulama boyar.
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   // Tema seçimini açılışta oku; yanlış temada bir an görünmesin.
   try {
     final prefs = await SharedPreferences.getInstance();
@@ -110,6 +112,12 @@ class TabData {
   /// bir siteye gidilince sekmede önceden açık kalan sayfa (ya da boş beyaz ekran) görünmesin.
   bool covering = false;
   bool coverLoadStarted = false;
+
+  /// Sitenin rengi (theme-color ya da sayfa zemini): telefonda saatin olduğu üst şerit bu renge boyanır.
+  Color? siteColor;
+
+  /// Telefonda aşağı kaydırınca alt çubuk incelir; yukarı kaydırınca geri açılır.
+  int lastScrollY = 0;
   InAppWebViewController? controller;
 
   /// Android: sayfayı aşağı çekince yenileme.
@@ -163,6 +171,9 @@ class _BrowserPageState extends State<BrowserPage> {
   DateTime _quickUpdated = DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
   Timer? _syncTimer;
   bool _wasSignedIn = false;
+
+  /// Telefonda alt çubuk inceltilmiş mi (sayfa aşağı kaydırıldı).
+  bool _barCollapsed = false;
 
   // Akıllı adres çubuğu cevabı
   SmartAnswer? _answer;
@@ -431,6 +442,37 @@ class _BrowserPageState extends State<BrowserPage> {
       }
     });
     _saveQuick();
+  }
+
+  // ---------------------------------------------------------------- Sitenin rengi
+
+  /// Sitenin rengi: önce <meta name="theme-color"> (karanlık/aydınlık mod için media'lısı dahil),
+  /// yoksa sayfanın zemin rengi; o da saydamsa beyaz (tarayıcıların varsayılan zemini).
+  static const _siteColorJs = '''
+(function(){
+  try {
+    var ms = document.querySelectorAll('meta[name="theme-color"]');
+    for (var i = 0; i < ms.length; i++) {
+      var m = ms[i];
+      if (!m.media || window.matchMedia(m.media).matches) { if (m.content) return m.content; }
+    }
+    var pick = function(el){ if (!el) return null; var c = getComputedStyle(el).backgroundColor;
+      return (!c || c === 'transparent' || /rgba\\([^)]*,\\s*0\\)/.test(c)) ? null : c; };
+    var top = document.elementFromPoint(window.innerWidth / 2, 2);
+    return pick(top) || pick(document.body) || pick(document.documentElement) || '#ffffff';
+  } catch (e) { return null; }
+})()''';
+
+  Future<void> _readSiteColor(TabData t) async {
+    final c = t.controller;
+    if (c == null) return;
+    try {
+      final r = await c.evaluateJavascript(source: _siteColorJs);
+      final color = parseCssColor(r?.toString());
+      if (color != null && color != t.siteColor && mounted) {
+        setState(() => t.siteColor = color);
+      }
+    } catch (_) {}
   }
 
   // ---------------------------------------------------------------- Reklam engelleme
@@ -848,6 +890,7 @@ class _BrowserPageState extends State<BrowserPage> {
 
   void _selectTab(int i) {
     setState(() {
+      _barCollapsed = false;
       _current = i;
       _urlCtl.text = _addressText(_tab);
       _showSuggestions = false;
@@ -1106,6 +1149,7 @@ class _BrowserPageState extends State<BrowserPage> {
 
   void _startEditing() {
     setState(() {
+      _barCollapsed = false;
       _editing = true;
       _urlCtl.text = _addressText(_tab);
     });
@@ -1471,11 +1515,21 @@ class _BrowserPageState extends State<BrowserPage> {
 
   // ---------------------------------------------------------------- Telefon düzeni
 
+  /// Üst şeridin rengi: başlangıç sayfasında uygulamanın zemini, sitede sitenin rengi.
+  Color get _topBandColor =>
+      _tab.showStart || _tab.siteColor == null ? OAColors.bg : _tab.siteColor!;
+
   Widget _buildMobile() {
-    return SafeArea(
-      bottom: false,
+    final band = _topBandColor;
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: oaSystemOverlay(OAColors.palette, statusBackground: band),
       child: Column(
         children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            height: MediaQuery.paddingOf(context).top,
+            color: band,
+          ),
           Expanded(
             child: Stack(
               children: [
@@ -1497,7 +1551,72 @@ class _BrowserPageState extends State<BrowserPage> {
     );
   }
 
+  bool get _showCollapsed => _barCollapsed && !_editing && !_tab.showStart;
+
+  void _expandBar() {
+    if (_barCollapsed) setState(() => _barCollapsed = false);
+  }
+
+  /// Telefonda sayfa kaydırılınca alt çubuğu incelt / aç.
+  void _onScroll(TabData t, int y) {
+    if (t != _tab || !_isMobile(context)) return;
+    final dy = y - t.lastScrollY;
+    if (dy.abs() < 12) return;
+    t.lastScrollY = y;
+    final collapse = dy > 0 && y > 80;
+    final expand = dy < 0 || y < 40;
+    if (collapse && !_barCollapsed) {
+      setState(() => _barCollapsed = true);
+    } else if (expand && _barCollapsed) {
+      setState(() => _barCollapsed = false);
+    }
+  }
+
+  /// İnce alt çubuk: yalnız kilit ve alan adı; dokununca açılır.
+  Widget _collapsedBar() {
+    final t = _tab;
+    final secure = t.url.startsWith('https');
+    return Material(
+      color: OAColors.surface,
+      child: InkWell(
+        onTap: _expandBar,
+        child: Container(
+          decoration: BoxDecoration(border: Border(top: BorderSide(color: OAColors.border))),
+          child: SafeArea(
+            top: false,
+            child: SizedBox(
+              height: 34,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(secure ? Icons.lock_outline : Icons.public,
+                      size: 13, color: secure ? OAColors.green : OAColors.muted),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(t.host,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildBottomBar() {
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      alignment: Alignment.bottomCenter,
+      child: _showCollapsed ? _collapsedBar() : _fullBottomBar(),
+    );
+  }
+
+  Widget _fullBottomBar() {
     return Container(
       decoration: BoxDecoration(
         color: OAColors.surface,
@@ -2129,6 +2248,8 @@ class _BrowserPageState extends State<BrowserPage> {
         );
       },
       onLoadStart: (c, url) {
+        t.lastScrollY = 0;
+        if (t == _tab && _barCollapsed) setState(() => _barCollapsed = false);
         if (url == null) return;
         setState(() {
           t.url = url.toString();
@@ -2137,13 +2258,18 @@ class _BrowserPageState extends State<BrowserPage> {
         });
         if (t == _tab && !_urlFocus.hasFocus && !t.showStart) _urlCtl.text = t.url;
       },
-      onPageCommitVisible: (c, url) => _uncover(t),
+      onPageCommitVisible: (c, url) {
+        _uncover(t);
+        _readSiteColor(t);
+      },
+      onScrollChanged: (c, x, y) => _onScroll(t, y),
       onReceivedError: (c, req, err) {
         if (req.isForMainFrame ?? true) _uncover(t);
         t.pullToRefresh?.endRefreshing();
       },
       onLoadStop: (c, url) async {
         t.pullToRefresh?.endRefreshing();
+        _readSiteColor(t);
         if (t.coverLoadStarted) _uncover(t);
         _refreshNavState(t);
         _addHistory(t);

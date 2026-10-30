@@ -3,7 +3,7 @@
 OA Labs'in Windows ve Android tarayıcısı. Flutter + `flutter_inappwebview`: sayfaları Windows'ta
 WebView2 (Edge motoru), Android'de Android WebView çizer; arayüz OA Labs tasarım sistemiyle yazılır.
 
-> Durum: deneme sürümü (0.4.0). Derlenen dosyalar imzasız.
+> Durum: deneme sürümü (0.4.1). Derlenen dosyalar imzasız.
 
 ## İndir ve dene
 
@@ -27,6 +27,7 @@ Aynı dosyalar **Releases** sayfasına da `pubspec.yaml`daki sürüm numarasıyl
 - Koyu / açık tema (ya da sistemi izle). DuckDuckGo sonuçları da seçilen temada açılır
 - Hızlı erişim düzenlenebilir: telefonda basılı tut, bilgisayarda sağ tıkla → Düzenle / Kaldır / Yeni sekmede aç; "Ekle" kutusu, menüde "Bu sayfayı hızlı erişime ekle"
 - OA başlangıç sayfası: "Nereye gidiyoruz?", arama, hızlı erişim, yer imleri (yeni sekmede ve ana sayfa düğmesinde)
+- Telefonda saatin olduğu üst şerit açık sitenin rengini alır (theme-color ya da sayfa zemini); aşağı kaydırınca alt çubuk incelir, yukarı kaydırınca açılır
 - Telefon düzeni (Android): adres çubuğu ve düğmeler altta; adres çubuğu alan adını gösterir, dokununca düzenlenir; sekmeler kart görünümünde
 - Çoklu sekme, gizli sekme (gizli sekmede geçmiş tutulmaz, yazılanlar arama motoruna gönderilmez)
 - Adres çubuğu: adres ya da arama; yazarken öneriler, ok tuşlarıyla gezinme

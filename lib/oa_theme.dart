@@ -155,13 +155,50 @@ TextStyle oaDisplay(double size, {Color? color}) => GoogleFonts.bricolageGrotesq
       color: color ?? OAColors.text,
     );
 
-SystemUiOverlayStyle oaSystemOverlay(OAPalette p) => SystemUiOverlayStyle(
-      statusBarColor: p.bg,
-      statusBarIconBrightness: p.isDark ? Brightness.light : Brightness.dark,
-      statusBarBrightness: p.isDark ? Brightness.dark : Brightness.light,
-      systemNavigationBarColor: p.surface,
-      systemNavigationBarIconBrightness: p.isDark ? Brightness.light : Brightness.dark,
-    );
+/// Sistem çubukları. Uygulama ekranın tamamına çizilir (Android 15 zaten zorunlu kılıyor);
+/// çubukların arkasını uygulama kendisi boyar, Android'in gri okunabilirlik perdesi kapatılır.
+SystemUiOverlayStyle oaSystemOverlay(OAPalette p, {Color? statusBackground}) {
+  final top = statusBackground ?? p.bg;
+  final topDark = ThemeData.estimateBrightnessForColor(top) == Brightness.dark;
+  return SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: topDark ? Brightness.light : Brightness.dark,
+    statusBarBrightness: topDark ? Brightness.dark : Brightness.light,
+    systemStatusBarContrastEnforced: false,
+    systemNavigationBarColor: Colors.transparent,
+    systemNavigationBarDividerColor: Colors.transparent,
+    systemNavigationBarIconBrightness: p.isDark ? Brightness.light : Brightness.dark,
+    systemNavigationBarContrastEnforced: false,
+  );
+}
+
+/// Sayfanın bildirdiği renk metnini ("#fff", "#0d0f16", "rgb(13, 15, 22)", "rgba(...)", "white") okur.
+Color? parseCssColor(String? input) {
+  if (input == null) return null;
+  var s = input.trim().toLowerCase();
+  if (s.isEmpty || s == 'transparent') return null;
+  const named = {'white': 0xFFFFFFFF, 'black': 0xFF000000};
+  if (named.containsKey(s)) return Color(named[s]!);
+  if (s.startsWith('#')) {
+    s = s.substring(1);
+    final hasAlpha = s.length == 4 || s.length == 8; // #rgba, #rrggbbaa
+    if (s.length == 3 || s.length == 4) s = s.split('').map((c) => '$c$c').join();
+    if (s.length == 6) s = 'ff$s';
+    if (s.length == 8 && hasAlpha) s = s.substring(6) + s.substring(0, 6); // rrggbbaa → aarrggbb
+    final v = int.tryParse(s, radix: 16);
+    return v == null ? null : Color(v);
+  }
+  final m = RegExp(r'rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:[,\s/]+([\d.]+%?))?\s*\)').firstMatch(s);
+  if (m != null) {
+    int ch(String g) => double.parse(g).round().clamp(0, 255);
+    var a = 1.0;
+    final ag = m.group(4);
+    if (ag != null) a = ag.endsWith('%') ? double.parse(ag.substring(0, ag.length - 1)) / 100 : double.parse(ag);
+    if (a < 0.5) return null; // neredeyse saydam: sayfanın gerçek rengi değil
+    return Color.fromARGB(255, ch(m.group(1)!), ch(m.group(2)!), ch(m.group(3)!));
+  }
+  return null;
+}
 
 ThemeData buildOATheme(OAPalette p) {
   final scheme = ColorScheme(
