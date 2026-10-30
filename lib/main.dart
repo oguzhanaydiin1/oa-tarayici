@@ -124,6 +124,10 @@ class TabData {
   /// Android: sayfayı aşağı çekince yenileme.
   PullToRefreshController? pullToRefresh;
 
+  /// Android: sekme ekranda değilken web görünümü ağaçtan çıkarılır ama sayfa bellekte kalır.
+  /// (Arka plandaki web görünümleri Android'de öne çizilebiliyor: başka sekmenin sayfası görünüyordu.)
+  InAppWebViewKeepAlive? keepAlive;
+
   String get displayTitle {
     if (showStart) return incognito ? 'Gizli sekme' : 'Yeni sekme';
     if (title.isNotEmpty) return title;
@@ -872,7 +876,16 @@ class _BrowserPageState extends State<BrowserPage> {
     });
   }
 
+  void _disposeTab(TabData t) {
+    final k = t.keepAlive;
+    // Web görünümü ağaçtan çıktıktan sonra bellekteki sayfayı da bırak.
+    if (k != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => InAppWebViewController.disposeKeepAlive(k));
+    }
+  }
+
   void _closeTab(int i) {
+    _disposeTab(_tabs[i]);
     setState(() {
       if (_tabs.length == 1) {
         _tabs
@@ -1218,7 +1231,10 @@ class _BrowserPageState extends State<BrowserPage> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        if (t.webStarted) Offstage(offstage: t.showStart, child: _buildWebView(t)),
+        // Android'de yalnız görünen sayfanın web görünümü ağaçta durur (keepAlive ile bellekte kalır);
+        // Windows'ta gizli web görünümü sorun çıkarmadığı için Offstage ile tutulur.
+        if (t.webStarted && Platform.isAndroid && !t.showStart) _buildWebView(t),
+        if (t.webStarted && !Platform.isAndroid) Offstage(offstage: t.showStart, child: _buildWebView(t)),
         if (t.webStarted && !t.showStart && t.covering) _loadingCover(t),
         if (t.showStart && compact)
           MobileStartPage(
@@ -1266,10 +1282,16 @@ class _BrowserPageState extends State<BrowserPage> {
     );
   }
 
-  Widget _pages({required bool compact}) => IndexedStack(
-        index: _current,
-        children: [for (final t in _tabs) _tabContent(t, compact: compact)],
-      );
+  Widget _pages({required bool compact}) {
+    if (Platform.isAndroid) {
+      // Yalnız açık sekme çizilir; diğer sekmelerin sayfaları keepAlive ile bellekte bekler.
+      return KeyedSubtree(key: ValueKey(_tab.id), child: _tabContent(_tab, compact: compact));
+    }
+    return IndexedStack(
+      index: _current,
+      children: [for (final t in _tabs) _tabContent(t, compact: compact)],
+    );
+  }
 
   // ---------------------------------------------------------------- Bilgisayar düzeni
 
@@ -2324,6 +2346,7 @@ class _BrowserPageState extends State<BrowserPage> {
   Widget _buildWebView(TabData t) {
     return InAppWebView(
       key: ValueKey(t.id),
+      keepAlive: Platform.isAndroid ? (t.keepAlive ??= InAppWebViewKeepAlive()) : null,
       initialUrlRequest: URLRequest(url: WebUri(t.pendingUrl ?? t.url)),
       initialSettings: InAppWebViewSettings(
         javaScriptEnabled: true,
