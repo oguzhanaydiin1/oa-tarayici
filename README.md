@@ -3,7 +3,7 @@
 OA Labs'in Windows ve Android tarayıcısı. Flutter + `flutter_inappwebview`: sayfaları Windows'ta
 WebView2 (Edge motoru), Android'de Android WebView çizer; arayüz OA Labs tasarım sistemiyle yazılır.
 
-> Durum: deneme sürümü (0.1.0). Derlenen dosyalar imzasız.
+> Durum: deneme sürümü (0.2.0). Derlenen dosyalar imzasız.
 
 ## İndir ve dene
 
@@ -17,6 +17,8 @@ Her `main` gönderiminde GitHub Actions iki dosya derler: **Actions** sekmesi �
 Aynı dosyalar **Releases** sayfasına da `pubspec.yaml`daki sürüm numarasıyla (ör. v0.1.0) deneme sürümü olarak eklenir. Yeni sürüm çıkarmak için `version` satırını artırmak yeterli.
 
 ## Özellikler
+- OA başlangıç sayfası: "Nereye gidiyoruz?", arama, hızlı erişim, yer imleri (yeni sekmede ve ana sayfa düğmesinde)
+- Telefon düzeni (Android): adres çubuğu ve düğmeler altta; adres çubuğu alan adını gösterir, dokununca düzenlenir; sekmeler kart görünümünde
 - Çoklu sekme, gizli sekme (gizli sekmede geçmiş tutulmaz, yazılanlar arama motoruna gönderilmez)
 - Adres çubuğu: adres ya da arama; yazarken öneriler, ok tuşlarıyla gezinme
 - Arama motoru seçimi: DuckDuckGo (varsayılan), Google, Bing, Yandex, Brave Search, Ecosia, Startpage
@@ -26,7 +28,8 @@ Aynı dosyalar **Releases** sayfasına da `pubspec.yaml`daki sürüm numarasıyl
 - Klavye: Ctrl+T yeni sekme, Ctrl+L adres çubuğu
 
 ## Dosyalar
-- `lib/main.dart` — tarayıcı arayüzü ve sekmeler
+- `lib/main.dart` — tarayıcı arayüzü (bilgisayar ve telefon düzeni) ve sekmeler
+- `lib/start_page.dart` — OA başlangıç sayfası
 - `lib/search.dart` — arama motorları ve öneri adresleri
 - `lib/oa_theme.dart` — OA Labs renkleri, fontları (Bricolage Grotesque, DM Sans) ve bileşen stilleri
 - `scripts/platform_hazirla.sh` — `windows/` ve `android/` klasörlerini üretir; internet izni, uygulama adı, pencere başlığı
@@ -44,7 +47,6 @@ flutter build apk --release
 ```
 
 ## Sıradakiler
-- OA başlangıç sayfası ("Nereye gidiyoruz?")
 - İndirme yöneticisi
 - Uygulama ikonu
 - Kurulum programı ve OA Labs güncelleme sistemi (`latest.json`)

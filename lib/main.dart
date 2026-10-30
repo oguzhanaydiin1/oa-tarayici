@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,9 +9,17 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'oa_theme.dart';
 import 'search.dart';
+import 'start_page.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: OAColors.bg,
+    statusBarIconBrightness: Brightness.light,
+    statusBarBrightness: Brightness.dark,
+    systemNavigationBarColor: OAColors.surface,
+    systemNavigationBarIconBrightness: Brightness.light,
+  ));
   runApp(const BrowserApp());
 }
 
@@ -32,15 +41,38 @@ class BrowserApp extends StatelessWidget {
 
 /// Tek bir sekmenin durumu.
 class TabData {
-  TabData(this.url, {this.incognito = false}) : id = UniqueKey().toString();
+  TabData({this.incognito = false}) : id = UniqueKey().toString();
 
   final String id;
   final bool incognito;
-  String url;
-  String title = 'Yeni sekme';
-  double progress = 0;
+
+  /// OA başlangıç sayfası gösteriliyor mu? Sayfa arkada açık kalır, geri dönülebilir.
+  bool showStart = true;
+
+  /// Web görünümü bir kez oluşturuldu mu?
+  bool webStarted = false;
+
+  /// Web görünümü oluşturulurken açılacak ilk adres.
+  String? pendingUrl;
+
+  String url = '';
+  String title = '';
+  double progress = 1;
   bool canGoBack = false;
+  bool canGoForward = false;
   InAppWebViewController? controller;
+
+  String get displayTitle {
+    if (showStart) return incognito ? 'Gizli sekme' : 'Yeni sekme';
+    if (title.isNotEmpty) return title;
+    return host.isEmpty ? 'Yükleniyor…' : host;
+  }
+
+  String get host {
+    final u = Uri.tryParse(url);
+    if (u == null || u.host.isEmpty) return url;
+    return u.host.replaceFirst(RegExp(r'^www\.'), '');
+  }
 }
 
 class BrowserPage extends StatefulWidget {
@@ -57,6 +89,9 @@ class _BrowserPageState extends State<BrowserPage> {
   final TextEditingController _urlCtl = TextEditingController();
   final FocusNode _urlFocus = FocusNode();
 
+  /// Telefon düzeninde adres çubuğu düzenleniyor mu? (Düzenlenmiyorken yalnız alan adı görünür.)
+  bool _editing = false;
+
   SharedPreferences? _prefs;
   List<Map<String, String>> _bookmarks = [];
   List<Map<String, String>> _history = [];
@@ -72,10 +107,16 @@ class _BrowserPageState extends State<BrowserPage> {
 
   TabData get _tab => _tabs[_current];
 
+  /// Telefon düzeni: Android ve iOS'ta; bilgisayarda pencere çok daraltılınca da.
+  bool _isMobile(BuildContext context) =>
+      Platform.isAndroid ||
+      Platform.isIOS ||
+      MediaQuery.sizeOf(context).width < 520;
+
   @override
   void initState() {
     super.initState();
-    _addTab();
+    _tabs.add(TabData());
     _loadStorage();
     // Ok tuşları öneri listesinde gezsin; odaktaki düğümde yakalanır, metin kutusundan önce.
     _urlFocus.onKeyEvent = _onAddressKey;
@@ -84,7 +125,11 @@ class _BrowserPageState extends State<BrowserPage> {
         // Öneriye dokunma, odak kaybından sonra gelir; kısa bir gecikmeyle kapat.
         Future.delayed(const Duration(milliseconds: 150), () {
           if (mounted && !_urlFocus.hasFocus) {
-            setState(() => _showSuggestions = false);
+            setState(() {
+              _showSuggestions = false;
+              _editing = false;
+              _urlCtl.text = _addressText(_tab);
+            });
           }
         });
       } else {
@@ -101,6 +146,8 @@ class _BrowserPageState extends State<BrowserPage> {
     _urlFocus.dispose();
     super.dispose();
   }
+
+  String _addressText(TabData t) => t.showStart ? '' : t.url;
 
   // ---------------------------------------------------------------- Depolama
 
@@ -122,17 +169,21 @@ class _BrowserPageState extends State<BrowserPage> {
     _prefs?.setStringList(key, list.map(jsonEncode).toList());
   }
 
-  bool get _isBookmarked => _bookmarks.any((b) => b['url'] == _tab.url);
+  bool get _isBookmarked =>
+      !_tab.showStart && _bookmarks.any((b) => b['url'] == _tab.url);
 
   void _toggleBookmark() {
+    if (_tab.showStart) return;
+    final added = !_isBookmarked;
     setState(() {
-      if (_isBookmarked) {
-        _bookmarks.removeWhere((b) => b['url'] == _tab.url);
+      if (added) {
+        _bookmarks.insert(0, {'title': _tab.displayTitle, 'url': _tab.url});
       } else {
-        _bookmarks.insert(0, {'title': _tab.title, 'url': _tab.url});
+        _bookmarks.removeWhere((b) => b['url'] == _tab.url);
       }
     });
     _save('bookmarks', _bookmarks);
+    _toast(added ? 'Yer imlerine eklendi' : 'Yer imlerinden çıkarıldı');
   }
 
   void _pushHistory(Map<String, String> entry) {
@@ -144,37 +195,61 @@ class _BrowserPageState extends State<BrowserPage> {
 
   void _addHistory(TabData t) {
     if (t.incognito || t.url.isEmpty || t.url == 'about:blank') return;
-    _pushHistory({'title': t.title, 'url': t.url});
+    _pushHistory({'title': t.displayTitle, 'url': t.url});
+  }
+
+  void _toast(String text) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        content: Text(text),
+        duration: const Duration(milliseconds: 1400),
+      ));
   }
 
   // ----------------------------------------------------------------- Sekmeler
 
   void _addTab({String? url, bool incognito = false}) {
     setState(() {
-      _tabs.add(TabData(url ?? _engine.homeUrl, incognito: incognito));
+      final t = TabData(incognito: incognito);
+      if (url != null) {
+        t
+          ..showStart = false
+          ..webStarted = true
+          ..pendingUrl = url
+          ..url = url;
+      }
+      _tabs.add(t);
       _current = _tabs.length - 1;
-      _urlCtl.text = '';
+      _urlCtl.text = _addressText(t);
+      _showSuggestions = false;
     });
   }
 
   void _closeTab(int i) {
     setState(() {
       if (_tabs.length == 1) {
-        _tabs.clear();
-        _tabs.add(TabData(_engine.homeUrl));
+        _tabs
+          ..clear()
+          ..add(TabData());
         _current = 0;
       } else {
         _tabs.removeAt(i);
-        if (_current >= _tabs.length) _current = _tabs.length - 1;
+        if (_current >= _tabs.length) {
+          _current = _tabs.length - 1;
+        } else if (i < _current) {
+          _current--;
+        }
       }
-      _urlCtl.text = _tab.url;
+      _urlCtl.text = _addressText(_tab);
     });
   }
 
   void _selectTab(int i) {
     setState(() {
       _current = i;
-      _urlCtl.text = _tab.url;
+      _urlCtl.text = _addressText(_tab);
+      _showSuggestions = false;
     });
   }
 
@@ -183,7 +258,6 @@ class _BrowserPageState extends State<BrowserPage> {
   /// Adres çubuğuna yazılanı URL'ye ya da seçili motorda aramaya çevirir.
   String _normalize(String input, {bool forceSearch = false}) {
     final text = input.trim();
-    if (text.isEmpty) return _engine.homeUrl;
     if (!forceSearch && looksLikeUrl(text)) {
       final hasScheme = RegExp(r'^[a-zA-Z][a-zA-Z0-9+.-]*://').hasMatch(text);
       return hasScheme ? text : 'https://$text';
@@ -195,25 +269,98 @@ class _BrowserPageState extends State<BrowserPage> {
   }
 
   void _go(String input, {bool forceSearch = false}) {
+    if (input.trim().isEmpty) {
+      _goHome();
+      return;
+    }
     final url = _normalize(input, forceSearch: forceSearch);
-    _tab.controller?.loadUrl(urlRequest: URLRequest(url: WebUri(url)));
-    setState(() => _showSuggestions = false);
+    final t = _tab;
+    setState(() {
+      t.url = url;
+      t.title = '';
+      t.showStart = false;
+      _showSuggestions = false;
+      _editing = false;
+      if (t.controller != null) {
+        t.controller!.loadUrl(urlRequest: URLRequest(url: WebUri(url)));
+      } else {
+        t.pendingUrl = url;
+        t.webStarted = true;
+      }
+      _urlCtl.text = url;
+    });
     _urlFocus.unfocus();
+  }
+
+  void _goHome() {
+    setState(() {
+      _tab.showStart = true;
+      _tab.progress = 1;
+      _showSuggestions = false;
+      _editing = false;
+      _urlCtl.text = '';
+    });
+    _urlFocus.unfocus();
+  }
+
+  bool get _canBack => !_tab.showStart;
+  bool get _canForward =>
+      (_tab.showStart && _tab.webStarted) || (!_tab.showStart && _tab.canGoForward);
+
+  Future<void> _back() async {
+    final t = _tab;
+    if (t.showStart) return;
+    if (await t.controller?.canGoBack() ?? false) {
+      await t.controller!.goBack();
+    } else {
+      // İlk sayfadan geri: OA başlangıç sayfasına dön.
+      _goHome();
+    }
+  }
+
+  void _forward() {
+    final t = _tab;
+    if (t.showStart && t.webStarted) {
+      setState(() {
+        t.showStart = false;
+        _urlCtl.text = t.url;
+      });
+    } else {
+      t.controller?.goForward();
+    }
+  }
+
+  void _reloadOrStop() {
+    final t = _tab;
+    if (t.showStart) return;
+    if (t.progress < 1) {
+      t.controller?.stopLoading();
+    } else {
+      t.controller?.reload();
+    }
   }
 
   Future<void> _refreshNavState(TabData t) async {
     final back = await t.controller?.canGoBack() ?? false;
+    final fwd = await t.controller?.canGoForward() ?? false;
     if (!mounted) return;
-    setState(() => t.canGoBack = back);
+    setState(() {
+      t.canGoBack = back;
+      t.canGoForward = fwd;
+    });
   }
 
-  Future<bool> _handleBack() async {
-    if (_showSuggestions) {
-      setState(() => _showSuggestions = false);
+  Future<bool> _handleSystemBack() async {
+    if (_showSuggestions || _editing) {
+      _urlFocus.unfocus();
+      setState(() {
+        _showSuggestions = false;
+        _editing = false;
+      });
       return true;
     }
-    if (await _tab.controller?.canGoBack() ?? false) {
-      await _tab.controller!.goBack();
+    if (!_tab.showStart) {
+      await _back();
       return true;
     }
     if (_tabs.length > 1) {
@@ -335,48 +482,96 @@ class _BrowserPageState extends State<BrowserPage> {
     }
   }
 
+  void _startEditing() {
+    setState(() {
+      _editing = true;
+      _urlCtl.text = _addressText(_tab);
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _urlFocus.requestFocus();
+      _urlCtl.selection =
+          TextSelection(baseOffset: 0, extentOffset: _urlCtl.text.length);
+    });
+  }
+
   // ---------------------------------------------------------------- Arayüz
 
   @override
   Widget build(BuildContext context) {
+    final mobile = _isMobile(context);
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
-        final handled = await _handleBack();
+        final handled = await _handleSystemBack();
         if (!handled) SystemNavigator.pop();
       },
       child: CallbackShortcuts(
         bindings: {
           const SingleActivator(LogicalKeyboardKey.keyT, control: true): () => _addTab(),
+          const SingleActivator(LogicalKeyboardKey.keyW, control: true): () =>
+              _closeTab(_current),
           const SingleActivator(LogicalKeyboardKey.keyL, control: true): () =>
-              _urlFocus.requestFocus(),
+              mobile ? _startEditing() : _urlFocus.requestFocus(),
         },
         child: Focus(
           autofocus: true,
           child: Scaffold(
-            body: SafeArea(
-              child: Column(
-                children: [
-                  _buildTabBar(),
-                  _buildToolbar(),
-                  _buildProgress(),
-                  Expanded(
-                    child: Stack(
-                      children: [
-                        IndexedStack(
-                          index: _current,
-                          children: [for (final t in _tabs) _buildWebView(t)],
-                        ),
-                        if (_showSuggestions) _buildSuggestions(),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            backgroundColor: OAColors.bg,
+            body: mobile ? _buildMobile() : _buildDesktop(),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _tabContent(TabData t, {required bool compact}) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (t.webStarted) Offstage(offstage: t.showStart, child: _buildWebView(t)),
+        if (t.showStart)
+          StartPage(
+            incognito: t.incognito,
+            engineName: _engine.name,
+            bookmarks: _bookmarks,
+            compact: compact,
+            onGo: (input) => _go(input),
+            onChangeEngine: _showSearchSettings,
+          ),
+      ],
+    );
+  }
+
+  Widget _pages({required bool compact}) => IndexedStack(
+        index: _current,
+        children: [for (final t in _tabs) _tabContent(t, compact: compact)],
+      );
+
+  // ---------------------------------------------------------------- Bilgisayar düzeni
+
+  Widget _buildDesktop() {
+    return SafeArea(
+      child: Column(
+        children: [
+          _buildTabBar(),
+          _buildToolbar(),
+          _buildProgress(),
+          Expanded(
+            child: Stack(
+              children: [
+                _pages(compact: false),
+                if (_showSuggestions)
+                  Positioned(
+                    top: 6,
+                    left: 12,
+                    right: 12,
+                    child: _suggestionPanel(),
+                  ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -429,7 +624,7 @@ class _BrowserPageState extends State<BrowserPage> {
                           ),
                         Expanded(
                           child: Text(
-                            t.title,
+                            t.displayTitle,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
@@ -465,8 +660,8 @@ class _BrowserPageState extends State<BrowserPage> {
   }
 
   Widget _buildToolbar() {
-    final loading = _tab.progress < 1;
-    final secure = _tab.url.startsWith('https');
+    final loading = !_tab.showStart && _tab.progress < 1;
+    final secure = !_tab.showStart && _tab.url.startsWith('https');
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
       decoration: const BoxDecoration(
@@ -478,45 +673,43 @@ class _BrowserPageState extends State<BrowserPage> {
           IconButton(
             tooltip: 'Geri',
             icon: const Icon(Icons.arrow_back),
-            onPressed: _tab.canGoBack ? () => _tab.controller?.goBack() : null,
+            onPressed: _canBack ? _back : null,
           ),
           IconButton(
             tooltip: 'İleri',
             icon: const Icon(Icons.arrow_forward),
-            onPressed: () => _tab.controller?.goForward(),
+            onPressed: _canForward ? _forward : null,
           ),
           IconButton(
             tooltip: loading ? 'Durdur' : 'Yenile',
             icon: Icon(loading ? Icons.close : Icons.refresh),
-            onPressed: () => loading
-                ? _tab.controller?.stopLoading()
-                : _tab.controller?.reload(),
+            onPressed: _tab.showStart ? null : _reloadOrStop,
           ),
           IconButton(
             tooltip: 'Ana sayfa',
             icon: const Icon(Icons.home_outlined),
-            onPressed: () => _go(''),
+            onPressed: _goHome,
           ),
           Expanded(
             child: TextField(
-                controller: _urlCtl,
-                focusNode: _urlFocus,
-                keyboardType: TextInputType.url,
-                textInputAction: TextInputAction.go,
-                autocorrect: false,
-                onChanged: _onAddressChanged,
-                onSubmitted: _onSubmitted,
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                decoration: InputDecoration(
-                  isDense: true,
-                  hintText: '${_engine.name} ile ara veya adres yaz',
-                  prefixIcon: Icon(
-                    secure ? Icons.lock_outline : Icons.search,
-                    size: 18,
-                    color: secure ? OAColors.green : OAColors.muted,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
+              controller: _urlCtl,
+              focusNode: _urlFocus,
+              keyboardType: TextInputType.url,
+              textInputAction: TextInputAction.go,
+              autocorrect: false,
+              onChanged: _onAddressChanged,
+              onSubmitted: _onSubmitted,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: '${_engine.name} ile ara veya adres yaz',
+                prefixIcon: Icon(
+                  secure ? Icons.lock_outline : Icons.search,
+                  size: 18,
+                  color: secure ? OAColors.green : OAColors.muted,
                 ),
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+              ),
             ),
           ),
           IconButton(
@@ -525,29 +718,14 @@ class _BrowserPageState extends State<BrowserPage> {
               _isBookmarked ? Icons.star : Icons.star_border,
               color: _isBookmarked ? OAColors.amber : null,
             ),
-            onPressed: _toggleBookmark,
+            onPressed: _tab.showStart ? null : _toggleBookmark,
           ),
           PopupMenuButton<String>(
-            onSelected: (v) {
-              switch (v) {
-                case 'incognito':
-                  _addTab(incognito: true);
-                case 'bookmarks':
-                  _showList('Yer imleri', _bookmarks, onClear: () {
-                    setState(() => _bookmarks.clear());
-                    _save('bookmarks', _bookmarks);
-                  });
-                case 'history':
-                  _showList('Geçmiş', _history, onClear: () {
-                    setState(() => _history.clear());
-                    _save('history', _history);
-                  });
-                case 'engine':
-                  _showSearchSettings();
-              }
-            },
+            onSelected: _onMenu,
             itemBuilder: (_) => const [
+              PopupMenuItem(value: 'new', child: Text('Yeni sekme')),
               PopupMenuItem(value: 'incognito', child: Text('Yeni gizli sekme')),
+              PopupMenuDivider(),
               PopupMenuItem(value: 'bookmarks', child: Text('Yer imleri')),
               PopupMenuItem(value: 'history', child: Text('Geçmiş')),
               PopupMenuDivider(),
@@ -559,42 +737,491 @@ class _BrowserPageState extends State<BrowserPage> {
     );
   }
 
+  void _onMenu(String v) {
+    switch (v) {
+      case 'new':
+        _addTab();
+      case 'incognito':
+        _addTab(incognito: true);
+      case 'bookmarks':
+        _showList('Yer imleri', _bookmarks, onClear: () {
+          setState(() => _bookmarks.clear());
+          _save('bookmarks', _bookmarks);
+        });
+      case 'history':
+        _showList('Geçmiş', _history, onClear: () {
+          setState(() => _history.clear());
+          _save('history', _history);
+        });
+      case 'engine':
+        _showSearchSettings();
+      case 'home':
+        _goHome();
+      case 'tabs':
+        _showTabSwitcher();
+    }
+  }
+
   Widget _buildProgress() {
-    if (_tab.progress >= 1) return const SizedBox(height: 2);
+    if (_tab.showStart || _tab.progress >= 1) return const SizedBox(height: 2);
     return SizedBox(
       height: 2,
       child: LinearProgressIndicator(value: _tab.progress),
     );
   }
 
-  Widget _buildSuggestions() {
-    final q = _urlCtl.text.trim();
-    return Positioned(
-      top: 6,
-      left: 12,
-      right: 12,
-      child: Align(
-        alignment: Alignment.topCenter,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 760),
-          child: Material(
-            color: OAColors.surface,
-            elevation: 12,
-            shadowColor: Colors.black,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(OARadius.lg),
-              side: const BorderSide(color: OAColors.border2),
+  // ---------------------------------------------------------------- Telefon düzeni
+
+  Widget _buildMobile() {
+    return SafeArea(
+      bottom: false,
+      child: Column(
+        children: [
+          Expanded(
+            child: Stack(
+              children: [
+                _pages(compact: true),
+                if (_showSuggestions)
+                  Positioned(
+                    left: 8,
+                    right: 8,
+                    bottom: 8,
+                    child: _suggestionPanel(),
+                  ),
+              ],
             ),
-            clipBehavior: Clip.antiAlias,
-            child: Padding(
-              padding: const EdgeInsets.all(6),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+          ),
+          _buildProgress(),
+          _buildBottomBar(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBottomBar() {
+    return Container(
+      decoration: const BoxDecoration(
+        color: OAColors.surface,
+        border: Border(top: BorderSide(color: OAColors.border)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _editing ? _mobileAddressEditor() : _mobileAddressPill(),
+              if (!_editing) ...[
+                const SizedBox(height: 4),
+                _mobileActions(),
+              ] else
+                const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Düzenlenmiyorken: ortada alan adı, solda kilit, sağda yenile (Safari gibi).
+  Widget _mobileAddressPill() {
+    final t = _tab;
+    final loading = !t.showStart && t.progress < 1;
+    final secure = !t.showStart && t.url.startsWith('https');
+    return Material(
+      color: OAColors.surface2,
+      shape: const StadiumBorder(side: BorderSide(color: OAColors.border2)),
+      child: InkWell(
+        customBorder: const StadiumBorder(),
+        onTap: _startEditing,
+        child: SizedBox(
+          height: 48,
+          child: Row(
+            children: [
+              const SizedBox(width: 16),
+              Icon(
+                t.incognito
+                    ? Icons.visibility_off
+                    : secure
+                        ? Icons.lock_outline
+                        : Icons.search,
+                size: 17,
+                color: t.incognito
+                    ? OAColors.blue
+                    : secure
+                        ? OAColors.green
+                        : OAColors.muted,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  t.showStart ? '${_engine.name} ile ara veya adres yaz' : t.host,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: t.showStart ? FontWeight.w400 : FontWeight.w600,
+                    color: t.showStart ? OAColors.faint : OAColors.text,
+                  ),
+                ),
+              ),
+              if (t.showStart)
+                const SizedBox(width: 40)
+              else
+                IconButton(
+                  tooltip: loading ? 'Durdur' : 'Yenile',
+                  iconSize: 20,
+                  icon: Icon(loading ? Icons.close : Icons.refresh),
+                  onPressed: _reloadOrStop,
+                ),
+              const SizedBox(width: 4),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _mobileAddressEditor() {
+    return Row(
+      children: [
+        Expanded(
+          child: TextField(
+            controller: _urlCtl,
+            focusNode: _urlFocus,
+            keyboardType: TextInputType.url,
+            textInputAction: TextInputAction.go,
+            autocorrect: false,
+            onChanged: _onAddressChanged,
+            onSubmitted: _onSubmitted,
+            style: const TextStyle(fontSize: 16),
+            decoration: InputDecoration(
+              hintText: '${_engine.name} ile ara veya adres yaz',
+              fillColor: OAColors.surface2,
+              prefixIcon: const Icon(Icons.search, size: 18, color: OAColors.muted),
+              suffixIcon: IconButton(
+                tooltip: 'Temizle',
+                icon: const Icon(Icons.cancel, size: 18, color: OAColors.faint),
+                onPressed: () {
+                  _urlCtl.clear();
+                  _onAddressChanged('');
+                },
+              ),
+              contentPadding: const EdgeInsets.symmetric(vertical: 13),
+            ),
+          ),
+        ),
+        TextButton(
+          onPressed: () {
+            _urlFocus.unfocus();
+            setState(() {
+              _editing = false;
+              _showSuggestions = false;
+              _urlCtl.text = _addressText(_tab);
+            });
+          },
+          child: const Text('İptal', style: TextStyle(fontSize: 16)),
+        ),
+      ],
+    );
+  }
+
+  Widget _mobileActions() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceAround,
+      children: [
+        IconButton(
+          tooltip: 'Geri',
+          icon: const Icon(Icons.arrow_back_ios_new, size: 22),
+          onPressed: _canBack ? _back : null,
+        ),
+        IconButton(
+          tooltip: 'İleri',
+          icon: const Icon(Icons.arrow_forward_ios, size: 22),
+          onPressed: _canForward ? _forward : null,
+        ),
+        IconButton(
+          tooltip: _tab.showStart ? 'Yer imi' : (_isBookmarked ? 'Yer iminden çıkar' : 'Yer imi ekle'),
+          icon: Icon(
+            _isBookmarked ? Icons.star : Icons.star_border,
+            size: 26,
+            color: _isBookmarked ? OAColors.amber : null,
+          ),
+          onPressed: _tab.showStart ? null : _toggleBookmark,
+        ),
+        IconButton(
+          tooltip: 'Sekmeler',
+          onPressed: _showTabSwitcher,
+          icon: Container(
+            width: 24,
+            height: 24,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              border: Border.all(color: OAColors.text2, width: 2),
+              borderRadius: BorderRadius.circular(7),
+            ),
+            child: Text(
+              _tabs.length > 99 ? '99+' : '${_tabs.length}',
+              style: const TextStyle(
+                  fontSize: 12, fontWeight: FontWeight.w700, color: OAColors.text2),
+            ),
+          ),
+        ),
+        IconButton(
+          tooltip: 'Menü',
+          icon: const Icon(Icons.more_horiz, size: 26),
+          onPressed: _showMobileMenu,
+        ),
+      ],
+    );
+  }
+
+  void _showMobileMenu() {
+    showModalBottomSheet(
+      context: context,
+      useSafeArea: true,
+      builder: (ctx) {
+        Widget item(IconData icon, String label, String value) => ListTile(
+              leading: Icon(icon),
+              title: Text(label, style: const TextStyle(fontSize: 16)),
+              onTap: () {
+                Navigator.pop(ctx);
+                _onMenu(value);
+              },
+            );
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(8, 12, 8, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: OAColors.border2,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              item(Icons.add, 'Yeni sekme', 'new'),
+              item(Icons.visibility_off_outlined, 'Yeni gizli sekme', 'incognito'),
+              item(Icons.home_outlined, 'Başlangıç sayfası', 'home'),
+              const Divider(height: 16),
+              item(Icons.star_border, 'Yer imleri', 'bookmarks'),
+              item(Icons.history, 'Geçmiş', 'history'),
+              const Divider(height: 16),
+              item(Icons.search, 'Arama motoru: ${_engine.name}', 'engine'),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showTabSwitcher() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: OAColors.bg,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          return FractionallySizedBox(
+            heightFactor: 0.92,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _tabs.length == 1 ? '1 sekme' : '${_tabs.length} sekme',
+                          style: oaDisplay(22),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text('Bitti', style: TextStyle(fontSize: 16)),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: GridView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                      childAspectRatio: 0.78,
+                    ),
+                    itemCount: _tabs.length,
+                    itemBuilder: (_, i) => _tabCard(i, ctx, setSheet),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                  decoration: const BoxDecoration(
+                    color: OAColors.surface,
+                    border: Border(top: BorderSide(color: OAColors.border)),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            _addTab(incognito: true);
+                          },
+                          icon: const Icon(Icons.visibility_off_outlined, size: 18),
+                          label: const Text('Gizli'),
+                          style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48)),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            _addTab();
+                          },
+                          icon: const Icon(Icons.add, size: 20),
+                          label: const Text('Yeni sekme'),
+                          style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _tabCard(int i, BuildContext sheetCtx, StateSetter setSheet) {
+    final t = _tabs[i];
+    final selected = i == _current;
+    final letter = t.showStart
+        ? 'OA'
+        : (t.host.isEmpty ? '?' : t.host[0].toUpperCase());
+    return Material(
+      color: OAColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(OARadius.lg),
+        side: BorderSide(
+          color: selected ? OAColors.amber : OAColors.border,
+          width: selected ? 2 : 1,
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () {
+          _selectTab(i);
+          Navigator.pop(sheetCtx);
+        },
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 6, 2, 6),
+              child: Row(
                 children: [
-                  for (var i = 0; i < _suggestions.length; i++)
-                    _suggestionRow(_suggestions[i], q, i == _selected),
+                  if (t.incognito)
+                    const Padding(
+                      padding: EdgeInsets.only(right: 6),
+                      child: Icon(Icons.visibility_off, size: 14, color: OAColors.blue),
+                    ),
+                  Expanded(
+                    child: Text(
+                      t.displayTitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Sekmeyi kapat',
+                    iconSize: 18,
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.close),
+                    onPressed: () {
+                      _closeTab(i);
+                      setSheet(() {});
+                    },
+                  ),
                 ],
               ),
+            ),
+            Expanded(
+              child: Container(
+                color: OAColors.bg2,
+                alignment: Alignment.center,
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: t.showStart ? OAColors.text : OAColors.surface2,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Text(
+                        letter,
+                        style: oaDisplay(t.showStart ? 18 : 22,
+                            color: t.showStart ? OAColors.bg : OAColors.text2),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      t.showStart ? 'Başlangıç' : t.host,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 13, color: OAColors.muted),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------- Öneri listesi
+
+  Widget _suggestionPanel() {
+    final q = _urlCtl.text.trim();
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: Material(
+          color: OAColors.surface,
+          elevation: 12,
+          shadowColor: Colors.black,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(OARadius.lg),
+            side: const BorderSide(color: OAColors.border2),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Padding(
+            padding: const EdgeInsets.all(6),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (var i = 0; i < _suggestions.length; i++)
+                  _suggestionRow(_suggestions[i], q, i == _selected),
+              ],
             ),
           ),
         ),
@@ -615,7 +1242,7 @@ class _BrowserPageState extends State<BrowserPage> {
       borderRadius: BorderRadius.circular(10),
       onTap: () => _pick(s),
       child: Container(
-        height: 42,
+        height: 46,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
           color: selected ? OAColors.surface2 : null,
@@ -668,10 +1295,12 @@ class _BrowserPageState extends State<BrowserPage> {
   String _shortUrl(String? url) =>
       (url ?? '').replaceFirst(RegExp(r'^https?://(www\.)?'), '');
 
+  // ---------------------------------------------------------------- Web görünümü
+
   Widget _buildWebView(TabData t) {
     return InAppWebView(
       key: ValueKey(t.id),
-      initialUrlRequest: URLRequest(url: WebUri(t.url)),
+      initialUrlRequest: URLRequest(url: WebUri(t.pendingUrl ?? t.url)),
       initialSettings: InAppWebViewSettings(
         javaScriptEnabled: true,
         incognito: t.incognito,
@@ -682,8 +1311,11 @@ class _BrowserPageState extends State<BrowserPage> {
       onWebViewCreated: (c) => t.controller = c,
       onLoadStart: (c, url) {
         if (url == null) return;
-        setState(() => t.url = url.toString());
-        if (t == _tab && !_urlFocus.hasFocus) _urlCtl.text = t.url;
+        setState(() {
+          t.url = url.toString();
+          t.progress = 0.05;
+        });
+        if (t == _tab && !_urlFocus.hasFocus && !t.showStart) _urlCtl.text = t.url;
       },
       onLoadStop: (c, url) async {
         _refreshNavState(t);
@@ -696,8 +1328,8 @@ class _BrowserPageState extends State<BrowserPage> {
       },
       onUpdateVisitedHistory: (c, url, isReload) {
         if (url == null) return;
-        t.url = url.toString();
-        if (t == _tab && !_urlFocus.hasFocus) _urlCtl.text = t.url;
+        setState(() => t.url = url.toString());
+        if (t == _tab && !_urlFocus.hasFocus && !t.showStart) _urlCtl.text = t.url;
         _refreshNavState(t);
       },
       onCreateWindow: (c, action) async {
@@ -708,9 +1340,7 @@ class _BrowserPageState extends State<BrowserPage> {
       },
       onDownloadStartRequest: (c, req) {
         // TODO: indirme yöneticisi (flutter_downloader / dio)
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('İndirme: ${req.url}')),
-        );
+        _toast('İndirme henüz desteklenmiyor: ${req.suggestedFilename ?? req.url}');
       },
     );
   }
@@ -721,6 +1351,7 @@ class _BrowserPageState extends State<BrowserPage> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheet) {
           void choose(SearchEngine e) {
@@ -815,6 +1446,7 @@ class _BrowserPageState extends State<BrowserPage> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       builder: (ctx) => DraggableScrollableSheet(
         expand: false,
         initialChildSize: 0.7,
