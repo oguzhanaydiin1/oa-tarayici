@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -74,6 +76,13 @@ class RadioPlayer extends ChangeNotifier {
 
   HeadlessInAppWebView? _web;
   InAppWebViewController? _c;
+  String? _html;
+
+  /// Windows: Edge motoru görünmeyen sayfada sesi başlatmıyor (arka plan sekmesi gibi erteliyor).
+  /// Bu yüzden radyo sayfası pencerenin köşesinde 1×1 piksellik görünür bir web görünümünde çalar
+  /// ([host]); Android'de ekranda yer kaplamayan görünmez web görünümü yeterli.
+  bool hostRequested = false;
+  Completer<void>? _hostReady;
   Future<void>? _starting;
   SharedPreferences? _prefs;
 
@@ -116,9 +125,41 @@ class RadioPlayer extends ChangeNotifier {
 
   Future<void> _ensureWeb() => _starting ??= _startWeb();
 
+  InAppWebViewSettings get _settings => InAppWebViewSettings(
+        mediaPlaybackRequiresUserGesture: false,
+        allowsInlineMediaPlayback: true,
+        javaScriptEnabled: true,
+        transparentBackground: true,
+        mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
+      );
+
+  // http taban adresi: pek çok radyo yayını http; https sayfada "karışık içerik" diye engellenir.
+  InAppWebViewInitialData get _initialData =>
+      InAppWebViewInitialData(data: _html!, baseUrl: WebUri('http://oa-radyo.local/'));
+
+  void _attach(InAppWebViewController c) {
+    _c = c;
+    c.addJavaScriptHandler(
+      handlerName: 'radio',
+      callback: (args) {
+        final s = args.isNotEmpty ? args[0].toString() : '';
+        final e = args.length > 1 ? args[1].toString() : '';
+        state = switch (s) {
+          'playing' => RadioState.playing,
+          'loading' => RadioState.loading,
+          'paused' => RadioState.paused,
+          'error' => RadioState.error,
+          _ => state,
+        };
+        error = s == 'error' ? (e.isEmpty ? 'Yayın açılamadı' : 'Yayın açılamadı ($e)') : null;
+        notifyListeners();
+      },
+    );
+  }
+
   Future<void> _startWeb() async {
     final hls = await rootBundle.loadString('assets/hls.min.js');
-    final html = '''<!doctype html><html><head><meta charset="utf-8"></head><body>
+    _html = """<!doctype html><html><head><meta charset="utf-8"></head><body style="margin:0;background:transparent">
 <audio id="a" preload="none"></audio>
 <script>$hls</script>
 <script>
@@ -145,43 +186,47 @@ window.oaPause = function(){ a.pause(); };
 window.oaResume = function(){ a.play().catch(function(e){ send('error', String(e)); }); };
 window.oaStop = function(){ if (h) { h.destroy(); h = null; } a.pause(); a.removeAttribute('src'); a.load(); };
 window.oaVolume = function(v){ a.volume = v; };
-</script></body></html>''';
-    _web = HeadlessInAppWebView(
-      // http taban adresi: pek çok radyo yayını http; https sayfada "karışık içerik" diye engellenir.
-      initialData: InAppWebViewInitialData(data: html, baseUrl: WebUri('http://oa-radyo.local/')),
-      initialSettings: InAppWebViewSettings(
-        mediaPlaybackRequiresUserGesture: false,
-        allowsInlineMediaPlayback: true,
-        javaScriptEnabled: true,
-        mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
-      ),
-      onWebViewCreated: (c) {
-        _c = c;
-        c.addJavaScriptHandler(
-          handlerName: 'radio',
-          callback: (args) {
-            final s = args.isNotEmpty ? args[0].toString() : '';
-            final e = args.length > 1 ? args[1].toString() : '';
-            state = switch (s) {
-              'playing' => RadioState.playing,
-              'loading' => RadioState.loading,
-              'paused' => RadioState.paused,
-              'error' => RadioState.error,
-              _ => state,
-            };
-            error = s == 'error' ? (e.isEmpty ? 'Yayın açılamadı' : 'Yayın açılamadı ($e)') : null;
-            notifyListeners();
-          },
-        );
-      },
-    );
-    await _web!.run();
+</script></body></html>""";
+
+    if (Platform.isWindows) {
+      _hostReady = Completer<void>();
+      hostRequested = true;
+      notifyListeners(); // [host] çizilir, web görünümü oluşunca _hostReady tamamlanır
+      await _hostReady!.future.timeout(const Duration(seconds: 20));
+    } else {
+      _web = HeadlessInAppWebView(
+        initialData: _initialData,
+        initialSettings: _settings,
+        onWebViewCreated: _attach,
+      );
+      await _web!.run();
+    }
     // Sayfanın yüklenmesini bekle
-    for (var i = 0; i < 50; i++) {
+    for (var i = 0; i < 80; i++) {
       final ok = await _c?.evaluateJavascript(source: 'typeof window.oaPlay === "function"');
       if (ok == true) return;
       await Future.delayed(const Duration(milliseconds: 100));
     }
+    throw Exception('radyo sayfası yüklenmedi');
+  }
+
+  /// Windows'ta radyo sayfasını taşıyan 1×1 piksellik web görünümü; pencerenin bir köşesine konur.
+  Widget host() {
+    if (!hostRequested || _html == null) return const SizedBox.shrink();
+    return IgnorePointer(
+      child: SizedBox(
+        width: 1,
+        height: 1,
+        child: InAppWebView(
+          initialData: _initialData,
+          initialSettings: _settings,
+          onWebViewCreated: (c) {
+            _attach(c);
+            if (!(_hostReady?.isCompleted ?? true)) _hostReady!.complete();
+          },
+        ),
+      ),
+    );
   }
 
   Future<void> play(Station s) async {
@@ -194,8 +239,9 @@ window.oaVolume = function(v){ a.volume = v; };
       await _ensureWeb();
       await _c?.evaluateJavascript(source: 'oaVolume(${volume.clamp(0, 1)}); oaPlay(${jsonEncode(s.url)}, ${s.hls});');
     } catch (e) {
+      _starting = null; // bir dahaki sefere yeniden denensin
       state = RadioState.error;
-      error = 'Radyo başlatılamadı';
+      error = 'Radyo başlatılamadı ($e)';
       notifyListeners();
     }
     // Radio Browser'ın "dinlenme" sayacına katkı (OA Radyo da yapıyor).

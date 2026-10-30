@@ -1515,6 +1515,8 @@ class _BrowserPageState extends State<BrowserPage> {
             child: Stack(
               children: [
                 _pages(compact: false),
+                // Windows: radyo sayfası burada, 1×1 piksel (bkz. RadioPlayer.host)
+                Positioned(left: 0, bottom: 0, child: ListenableBuilder(listenable: _radio, builder: (_, __) => _radio.host())),
                 if (_showSuggestions)
                   Positioned(
                     top: 6,
@@ -1814,6 +1816,7 @@ class _BrowserPageState extends State<BrowserPage> {
             child: Stack(
               children: [
                 _pages(compact: true),
+                Positioned(left: 0, bottom: 0, child: ListenableBuilder(listenable: _radio, builder: (_, __) => _radio.host())),
                 if (_showSuggestions)
                   Positioned(
                     left: 8,
