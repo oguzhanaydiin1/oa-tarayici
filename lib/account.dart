@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
+import 'web_env.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
@@ -192,7 +193,7 @@ class OAAccount extends ChangeNotifier {
     user = null;
     await _persist();
     try {
-      await CookieManager.instance()
+      await oaCookies()
           .deleteCookie(url: WebUri(site), name: _cookieName, domain: '.oalabs.dev');
     } catch (_) {}
     notifyListeners();
@@ -222,7 +223,7 @@ class OAAccount extends ChangeNotifier {
     final t = _token;
     if (t == null) return;
     try {
-      await CookieManager.instance().setCookie(
+      await oaCookies().setCookie(
         url: WebUri(site),
         name: _cookieName,
         value: t,
@@ -243,7 +244,7 @@ class OAAccount extends ChangeNotifier {
   /// oalabs.dev sayfası her yüklendiğinde çağrılır.
   Future<void> adoptFromWebView({bool notify = true}) async {
     try {
-      final c = await CookieManager.instance()
+      final c = await oaCookies()
           .getCookie(url: WebUri('$site/'), name: _cookieName);
       final v = c?.value?.toString() ?? '';
       if (RegExp(r'^[0-9a-f]{64}$').hasMatch(v)) {

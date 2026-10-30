@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
+import 'web_env.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -41,6 +42,7 @@ Future<void> main(List<String> args) async {
     final prefs = await SharedPreferences.getInstance();
     themeModeNotifier.value = themeModeFromString(prefs.getString('theme'));
   } catch (_) {}
+  await initWebEnv(); // Windows: Edge ortamı (radyo için sesin kendiliğinden başlamasına izin)
   runApp(BrowserApp());
 }
 
@@ -1076,7 +1078,7 @@ class _BrowserPageState extends State<BrowserPage> {
     }
     final headers = <String, String>{};
     try {
-      final cookies = await CookieManager.instance().getCookies(url: WebUri(url));
+      final cookies = await oaCookies().getCookies(url: WebUri(url));
       if (cookies.isNotEmpty) headers['Cookie'] = cookies.map((c) => '${c.name}=${c.value}').join('; ');
       if (from.url.startsWith('http')) headers['Referer'] = from.url;
     } catch (_) {}
@@ -2586,6 +2588,7 @@ class _BrowserPageState extends State<BrowserPage> {
   Widget _buildWebView(TabData t) {
     return InAppWebView(
       key: ValueKey(t.id),
+      webViewEnvironment: oaWebEnv,
       keepAlive: Platform.isAndroid ? (t.keepAlive ??= InAppWebViewKeepAlive()) : null,
       initialUrlRequest: URLRequest(url: WebUri(t.pendingUrl ?? t.url)),
       initialSettings: InAppWebViewSettings(

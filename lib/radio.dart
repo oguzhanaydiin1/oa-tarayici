@@ -5,6 +5,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'web_env.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -195,6 +196,7 @@ window.oaVolume = function(v){ a.volume = v; };
       await _hostReady!.future.timeout(const Duration(seconds: 20));
     } else {
       _web = HeadlessInAppWebView(
+        webViewEnvironment: oaWebEnv,
         initialData: _initialData,
         initialSettings: _settings,
         onWebViewCreated: _attach,
@@ -218,6 +220,7 @@ window.oaVolume = function(v){ a.volume = v; };
         width: 1,
         height: 1,
         child: InAppWebView(
+          webViewEnvironment: oaWebEnv,
           initialData: _initialData,
           initialSettings: _settings,
           onWebViewCreated: (c) {
