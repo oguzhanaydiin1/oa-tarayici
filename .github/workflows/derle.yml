@@ -45,7 +45,7 @@ jobs:
       - run: flutter pub get
 
       - name: Uygulama ikonu
-        run: dart run flutter_launcher_icons
+        run: dart run flutter_launcher_icons -f icons_windows.yaml
 
       - name: Kod analizi (bilgi için, derlemeyi durdurmaz)
         continue-on-error: true
@@ -129,7 +129,7 @@ jobs:
       - run: flutter pub get
 
       - name: Uygulama ikonu
-        run: dart run flutter_launcher_icons
+        run: dart run flutter_launcher_icons -f icons_android.yaml
 
       - name: Sürüm bilgisi
         continue-on-error: true

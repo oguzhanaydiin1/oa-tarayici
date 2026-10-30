@@ -33,14 +33,3 @@ flutter:
     - assets/reader.js
     - assets/hls.min.js
 
-# Uygulama ikonu: derlemede `dart run flutter_launcher_icons` ile üretilir.
-flutter_launcher_icons:
-  android: "launcher_icon"
-  image_path: "assets/icon/icon.png"
-  adaptive_icon_background: "#F2A541"
-  adaptive_icon_foreground: "assets/icon/foreground.png"
-  min_sdk_android: 21
-  windows:
-    generate: true
-    image_path: "assets/icon/icon_windows.png"
-    icon_size: 256
