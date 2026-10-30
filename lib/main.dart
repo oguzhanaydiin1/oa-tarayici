@@ -163,7 +163,6 @@ class _BrowserPageState extends State<BrowserPage> {
   DateTime _quickUpdated = DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
   Timer? _syncTimer;
   bool _wasSignedIn = false;
-  DateTime? _lastSync;
 
   // Akıllı adres çubuğu cevabı
   SmartAnswer? _answer;
@@ -260,7 +259,6 @@ class _BrowserPageState extends State<BrowserPage> {
       push['quick'] = SyncItem(_quickUpdated, _quick.map((q) => q.toJson()).toList());
     }
     if (push.isNotEmpty) await _account.pushSync(push);
-    _lastSync = DateTime.now();
   }
 
   /// Yerel bir değişiklikten 2 saniye sonra eşitle (art arda değişiklikler tek istekte gider).

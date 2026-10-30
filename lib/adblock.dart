@@ -105,7 +105,7 @@ class AdBlock {
       ContentBlocker(
         trigger: ContentBlockerTrigger(
           urlFilter: pattern,
-          unlessDomain: unless.isEmpty ? null : unless,
+          unlessDomain: unless,
         ),
         action: ContentBlockerAction(type: ContentBlockerActionType.BLOCK),
       ),
@@ -131,7 +131,7 @@ iframe[src*="googlesyndication"], iframe[id^="google_ads_iframe"], .trc_related_
   try {
     if (window.__oaAdblock) return; window.__oaAdblock = true;
     var allowed = ${_jsList(allowedSites)};
-    var h = location.hostname.replace(/^www\./, '');
+    var h = location.hostname.replace(/^www\\./, '');
     while (h.indexOf('.') > 0) { if (allowed.indexOf(h) >= 0) return; h = h.slice(h.indexOf('.') + 1); }
     var css = ${_jsString(cosmeticCss)};
     var add = function(){
