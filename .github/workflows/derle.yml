@@ -52,7 +52,8 @@ jobs:
       - name: Sürüm numarası
         id: ver
         shell: bash
-        run: echo "v=$(grep '^version:' pubspec.yaml | sed 's/version: *//; s/+.*//')" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "v=$(grep '^version:' pubspec.yaml | sed 's/version: *//; s/+.*//')" >> "$GITHUB_OUTPUT"
 
       - name: Sürüme ekle
         uses: softprops/action-gh-release@v2
@@ -106,7 +107,8 @@ jobs:
       - name: Sürüm numarası
         id: ver
         shell: bash
-        run: echo "v=$(grep '^version:' pubspec.yaml | sed 's/version: *//; s/+.*//')" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "v=$(grep '^version:' pubspec.yaml | sed 's/version: *//; s/+.*//')" >> "$GITHUB_OUTPUT"
 
       - name: Sürüme ekle
         uses: softprops/action-gh-release@v2
