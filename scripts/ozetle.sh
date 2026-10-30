@@ -9,8 +9,9 @@ log="ozet-$label.log"
 code=${PIPESTATUS[0]}
 if [[ $code -ne 0 || "$label" == "analiz" ]]; then
   # Hata içeren satırlar ve hemen çevreleri; en fazla 120 satır
-  lines=$(grep -n -iE "error|exception|failed|what went wrong|undefined|isn't|can't|cannot|not found|\.dart:[0-9]+" "$log" \
-          | grep -viE "^[0-9]+:\s*$|deprecated" | head -120 | cut -c1-300)
+  lines=$( { grep -n -A12 "What went wrong" "$log"; \
+             grep -n -iE -B1 -A3 "error[ :]|error C[0-9]|error MSB|exception|\.dart:[0-9]+:[0-9]+|undefined|isn't defined|can't be|cannot|not found|requires|incompatible|minSdk|namespace|nuget"  "$log"; } \
+          | grep -viE "^[0-9]+[:-]\s*$|Node\.js 20" | awk '!seen[$0]++' | head -220 | cut -c1-260)
   [[ -z "$lines" ]] && lines=$(tail -60 "$log" | cut -c1-300)
   msg=$(printf '%s' "$lines" | sed -e 's/%/%25/g' | awk 'BEGIN{ORS="%0A"}{print}')
   level=error; [[ "$label" == "analiz" ]] && level=warning

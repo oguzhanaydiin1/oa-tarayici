@@ -36,7 +36,7 @@ jobs:
 
       - name: Derle
         shell: bash
-        run: bash scripts/ozetle.sh windows flutter build windows --release
+        run: bash scripts/ozetle.sh windows flutter build windows --release -v
 
       - name: Paketle
         shell: pwsh
