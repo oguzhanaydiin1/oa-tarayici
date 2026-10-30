@@ -14,7 +14,7 @@ Her `main` gönderiminde GitHub Actions iki dosya derler: **Actions** sekmesi �
   Windows 10'da WebView2 Runtime yoksa Microsoft'tan ücretsiz kurulur (Windows 11'de hazırdır).
 - **OA-Tarayici-Android** (apk): telefona at ve aç. "Bilinmeyen kaynaklardan yükleme" izni ister.
 
-`v` ile başlayan bir etiket gönderilince (`git tag v0.1.0 && git push --tags`) dosyalar **Releases** sayfasına da eklenir.
+Aynı dosyalar **Releases** sayfasına da `pubspec.yaml`daki sürüm numarasıyla (ör. v0.1.0) deneme sürümü olarak eklenir. Yeni sürüm çıkarmak için `version` satırını artırmak yeterli.
 
 ## Özellikler
 - Çoklu sekme, gizli sekme (gizli sekmede geçmiş tutulmaz, yazılanlar arama motoruna gönderilmez)
