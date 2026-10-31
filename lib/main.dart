@@ -242,6 +242,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   DateTime _bookmarksUpdated = DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
   DateTime _quickUpdated = DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
   Timer? _syncTimer;
+  Timer? _syncPoll;
+  DateTime _lastSyncAt = DateTime.fromMillisecondsSinceEpoch(0);
+  bool _appVisible = true;
   bool _wasSignedIn = false;
 
   /// Telefonda alt çubuk inceltilmiş mi (sayfa aşağı kaydırıldı).
@@ -275,6 +278,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     _tabs.add(TabData());
     WidgetsBinding.instance.addObserver(this);
     _passwords.load();
+    // Açıkken de ara ara eşitle (öbür cihazda eklenenler gelsin).
+    _syncPoll = Timer.periodic(const Duration(minutes: 2), (_) {
+      if (_account.signedIn && _appVisible) _syncNow();
+    });
     if (Platform.isWindows) WidgetsBinding.instance.addPostFrameCallback((_) => _showLastCrash());
     if (Platform.isWindows) {
       _single.setMethodCallHandler((call) async {
@@ -336,6 +343,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   /// Yer imleri ve hızlı erişim OA hesabıyla eşitlenir: hangi taraf daha yeni değiştiyse o kazanır.
   Future<void> _syncNow() async {
+    _lastSyncAt = DateTime.now();
     if (!_account.signedIn || _prefs == null) return;
     final server = await _account.pullSync();
     if (server == null || !mounted) return; // sunucu eşitlemeyi henüz desteklemiyor ya da ağ yok
@@ -379,6 +387,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _findDebounce?.cancel();
+    _syncPoll?.cancel();
     _findCtl.dispose();
     _wx.dispose();
     _findFocus.dispose();
@@ -1029,6 +1038,13 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    _appVisible = state == AppLifecycleState.resumed || state == AppLifecycleState.inactive;
+    // Öbür cihazdaki değişiklikler: uygulamaya dönünce eşitle.
+    if (state == AppLifecycleState.resumed &&
+        _account.signedIn &&
+        DateTime.now().difference(_lastSyncAt) > const Duration(seconds: 20)) {
+      _syncNow();
+    }
     if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
       // Uygulamadan çıkınca gizli sekmeler kilitlenir (küçük pencerede video izlerken değil).
       if (_incognitoLock && !_unlocking && !_miniVideo && _tabs.any((t) => t.incognito) && !_locked) {
