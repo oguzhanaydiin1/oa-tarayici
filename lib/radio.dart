@@ -8,6 +8,8 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'web_env.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:http/http.dart' as http;
+import 'package:just_audio/just_audio.dart';
+import 'package:just_audio_background/just_audio_background.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'oa_theme.dart';
@@ -67,15 +69,36 @@ class Station {
 
 enum RadioState { idle, loading, playing, paused, error }
 
-/// Tarayıcının içindeki radyo çalar. Ses görünmez bir web görünümünde çalar
-/// (HLS yayınları için hls.js, OA Radyo'nun web sürümüyle aynı); böylece Android ve
-/// Windows'ta aynı kodla çalışır, gezinirken sekmeler değişse de radyo susmaz.
+/// Uygulama açılırken bir kez çağrılır (Android): radyo arka planda çalar, bildirimde ve
+/// kilit ekranında oynat/durdur düğmeleri görünür.
+Future<void> initRadioBackground() async {
+  if (!Platform.isAndroid) return;
+  try {
+    await JustAudioBackground.init(
+      androidNotificationChannelId: 'dev.oalabs.oa_tarayici.radyo',
+      androidNotificationChannelName: 'OA Radyo',
+      androidNotificationChannelDescription: 'Çalan radyo istasyonu',
+      androidNotificationOngoing: false,
+      androidStopForegroundOnPause: true,
+    );
+  } catch (_) {}
+}
+
+/// Tarayıcının içindeki radyo çalar.
+/// - Android: telefonun kendi oynatıcısı (ExoPlayer); uygulama kapansa ya da ekran kilitlense de
+///   çalmaya devam eder, bildirimde kontrol edilir.
+/// - Windows: görünmez bir web görünümünde (HLS yayınları için hls.js, OA Radyo'nun web sürümüyle
+///   aynı). Klavyedeki medya tuşları ve Windows'un ses panelindeki çalar da onu kontrol eder.
 class RadioPlayer extends ChangeNotifier {
   static const _servers = ['de1.api.radio-browser.info', 'de2.api.radio-browser.info', 'fi1.api.radio-browser.info'];
   static const _extraUrl =
       'https://raw.githubusercontent.com/oguzhanaydiin1/radyo-app/main/stations/ek-istasyonlar.json';
 
   HeadlessInAppWebView? _web;
+
+  /// Android oynatıcısı
+  AudioPlayer? _ap;
+  bool _stopping = false;
   InAppWebViewController? _c;
   String? _html;
 
@@ -145,6 +168,10 @@ class RadioPlayer extends ChangeNotifier {
       callback: (args) {
         final s = args.isNotEmpty ? args[0].toString() : '';
         final e = args.length > 1 ? args[1].toString() : '';
+        if (s == 'stop') {
+          stop();
+          return;
+        }
         state = switch (s) {
           'playing' => RadioState.playing,
           'loading' => RadioState.loading,
@@ -170,7 +197,23 @@ a.addEventListener('playing', function(){ send('playing'); });
 a.addEventListener('waiting', function(){ send('loading'); });
 a.addEventListener('pause', function(){ send('paused'); });
 a.addEventListener('error', function(){ send('error', a.error ? ('kod ' + a.error.code) : ''); });
-window.oaPlay = function(url, isHls){
+// Klavyedeki medya tuşları ve Windows'un ses panelindeki çalar (Media Session)
+function session(title, art){
+  if (!('mediaSession' in navigator)) return;
+  try {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: title || 'OA Radyo', artist: 'OA Radyo', album: 'OA Tarayıcı',
+      artwork: art ? [{ src: art, sizes: '256x256' }] : []
+    });
+    navigator.mediaSession.setActionHandler('play', function(){ window.oaResume(); });
+    navigator.mediaSession.setActionHandler('pause', function(){ a.pause(); });
+    navigator.mediaSession.setActionHandler('stop', function(){ a.pause(); send('stop'); });
+  } catch (x) {}
+}
+a.addEventListener('play', function(){ try { navigator.mediaSession.playbackState = 'playing'; } catch (x) {} });
+a.addEventListener('pause', function(){ try { navigator.mediaSession.playbackState = 'paused'; } catch (x) {} });
+window.oaPlay = function(url, isHls, title, art){
+  session(title, art);
   if (h) { h.destroy(); h = null; }
   a.pause(); a.removeAttribute('src'); a.load();
   send('loading');
@@ -232,6 +275,45 @@ window.oaVolume = function(v){ a.volume = v; };
     );
   }
 
+  bool get _native => Platform.isAndroid;
+
+  AudioPlayer _player() {
+    final existing = _ap;
+    if (existing != null) return existing;
+    final ap = AudioPlayer();
+    ap.playerStateStream.listen((ps) {
+      if (_stopping || station == null) return;
+      final next = switch (ps.processingState) {
+        ProcessingState.loading || ProcessingState.buffering => ps.playing ? RadioState.loading : RadioState.paused,
+        ProcessingState.ready => ps.playing ? RadioState.playing : RadioState.paused,
+        ProcessingState.completed => RadioState.paused,
+        ProcessingState.idle => state == RadioState.error ? RadioState.error : RadioState.paused,
+      };
+      if (next != state) {
+        state = next;
+        if (next != RadioState.error) error = null;
+        notifyListeners();
+      }
+    }, onError: (Object e) {
+      state = RadioState.error;
+      error = 'Yayın açılamadı';
+      notifyListeners();
+    });
+    return _ap = ap;
+  }
+
+  Future<void> _playNative(Station s) async {
+    final ap = _player();
+    final uri = Uri.parse(s.url);
+    final art = s.favicon.startsWith('http') ? Uri.tryParse(s.favicon) : null;
+    final tag = MediaItem(id: s.id, title: s.name, artist: 'OA Radyo', artUri: art);
+    final source = s.hls ? HlsAudioSource(uri, tag: tag) : AudioSource.uri(uri, tag: tag);
+    _stopping = false;
+    await ap.setVolume(volume.clamp(0, 1).toDouble());
+    await ap.setAudioSource(source);
+    unawaited(ap.play()); // play() radyo durdurulana kadar bitmez; beklenmez
+  }
+
   Future<void> play(Station s) async {
     station = s;
     state = RadioState.loading;
@@ -239,8 +321,17 @@ window.oaVolume = function(v){ a.volume = v; };
     notifyListeners();
     _prefs?.setString('radio_last', jsonEncode(s.toJson()));
     try {
-      await _ensureWeb();
-      await _c?.evaluateJavascript(source: 'oaVolume(${volume.clamp(0, 1)}); oaPlay(${jsonEncode(s.url)}, ${s.hls});');
+      if (_native) {
+        await _playNative(s);
+      } else {
+        await _ensureWeb();
+        await _c?.evaluateJavascript(
+            source: 'oaVolume(${volume.clamp(0, 1)}); oaPlay(${jsonEncode(s.url)}, ${s.hls}, ${jsonEncode(s.name)}, ${jsonEncode(s.favicon)});');
+      }
+    } on PlayerException catch (e) {
+      state = RadioState.error;
+      error = 'Yayın açılamadı${e.message == null ? '' : ' (${e.message})'}';
+      notifyListeners();
     } catch (e) {
       _starting = null; // bir dahaki sefere yeniden denensin
       state = RadioState.error;
@@ -259,6 +350,14 @@ window.oaVolume = function(v){ a.volume = v; };
   Future<void> toggle() async {
     final s = station;
     if (s == null) return;
+    if (_native && _ap != null && state != RadioState.error && _ap!.processingState != ProcessingState.idle) {
+      if (_ap!.playing) {
+        await _ap!.pause();
+      } else {
+        unawaited(_ap!.play());
+      }
+      return;
+    }
     if (state == RadioState.playing || state == RadioState.loading) {
       await _c?.evaluateJavascript(source: 'oaPause();');
       state = RadioState.paused;
@@ -271,6 +370,8 @@ window.oaVolume = function(v){ a.volume = v; };
   }
 
   Future<void> stop() async {
+    _stopping = true;
+    await _ap?.stop();
     await _c?.evaluateJavascript(source: 'oaStop();');
     station = null;
     state = RadioState.idle;
@@ -282,6 +383,7 @@ window.oaVolume = function(v){ a.volume = v; };
   Future<void> setVolume(double v) async {
     volume = v;
     notifyListeners();
+    await _ap?.setVolume(v);
     await _c?.evaluateJavascript(source: 'oaVolume($v);');
   }
 

@@ -3,7 +3,7 @@
 OA Labs'in Windows ve Android tarayıcısı. Flutter + `flutter_inappwebview`: sayfaları Windows'ta
 WebView2 (Edge motoru), Android'de Android WebView çizer; arayüz OA Labs tasarım sistemiyle yazılır.
 
-> Durum: deneme sürümü (0.6.3). Android sürümü sabit OA anahtarıyla imzalı; Windows dosyaları imzasız.
+> Durum: deneme sürümü (0.7.0). Android sürümü sabit OA anahtarıyla imzalı; Windows dosyaları imzasız.
 
 ## İndir ve dene
 
@@ -18,6 +18,13 @@ Her `main` gönderiminde GitHub Actions iki dosya derler: **Actions** sekmesi �
 Aynı dosyalar **Releases** sayfasına da `pubspec.yaml`daki sürüm numarasıyla (ör. v0.1.0) deneme sürümü olarak eklenir. Yeni sürüm çıkarmak için `version` satırını artırmak yeterli.
 
 ## Özellikler
+- Telefonda radyo arka planda çalar: uygulamadan çıkınca ya da ekran kilitlenince susmaz; bildirimde ve kilit ekranında oynat/durdur
+- Windows'ta radyo, klavyedeki medya tuşlarıyla ve Windows'un ses panelindeki çalarla kontrol edilir
+- Windows'ta tek pencere: OA Tarayıcı açıkken bir bağlantıya tıklanınca açık pencerede yeni sekme olarak açılır
+- Gizli sekme kilidi: uygulamadan çıkınca gizli sekmeler kilitlenir; parmak izi, yüz, ekran kilidi ya da Windows Hello ile açılır
+- Sayfada bul (Ctrl+F) ve PDF olarak kaydet (Ctrl+P; telefonda yazdırma ekranından "PDF olarak kaydet")
+- Videoyu küçük pencerede izle: telefonda resim içinde resim; Windows'ta pencere küçülüp her zaman üstte kalır
+- Şifreler: girişte kaydetmeyi sorar, bir dahaki sefere kendiliğinden doldurur; yalnız cihazın güvenli deposunda saklanır, listeyi görmek için kimlik doğrulanır
 - İndirme yöneticisi: ilerleme, İndirilenler listesi (Ctrl+J), bitince aç; Android'de telefonun İndirilenler klasörüne
 - Sekmeler uygulama kapanıp açılınca geri gelir; kapatılan sekmeyi geri aç (Ctrl+Shift+T)
 - Varsayılan tarayıcı olabilir: Android'de bağlantılar OA Tarayıcı'da açılabilir; Windows kurulumu tarayıcı olarak kaydeder
@@ -42,7 +49,7 @@ Aynı dosyalar **Releases** sayfasına da `pubspec.yaml`daki sürüm numarasıyl
 - Yer imleri ve geçmiş (cihazda saklanır)
 - Geri / ileri / yenile-durdur / ana sayfa, yükleme çubuğu
 - `target=_blank` bağlantıları yeni sekmede açılır; Android geri tuşu desteği
-- Klavye: Ctrl+T yeni sekme, Ctrl+L adres çubuğu
+- Klavye: Ctrl+T yeni sekme, Ctrl+W sekmeyi kapat, Ctrl+L adres çubuğu, Ctrl+F sayfada bul, Ctrl+P PDF, Ctrl+J indirilenler
 
 ## Dosyalar
 - `lib/main.dart` — tarayıcı arayüzü (bilgisayar ve telefon düzeni) ve sekmeler
@@ -57,6 +64,9 @@ Aynı dosyalar **Releases** sayfasına da `pubspec.yaml`daki sürüm numarasıyl
 - `lib/downloads.dart` — indirme yöneticisi (background_downloader)
 - `lib/radio.dart`, `assets/hls.min.js` — OA Radyo çalar (Radio Browser, OA Radyo'nun ek istasyonları)
 - `lib/updater.dart` — GitHub sürümlerinden güncelleme denetimi
+- `lib/passwords.dart` — şifre deposu, cihaz kilidiyle doğrulama, Şifreler listesi
+- `lib/page_tools.dart` — sayfada bul, videoyu küçük pencerede izleme, şifre yakalama/doldurma betikleri
+- `platform/windows/runner/` — Windows giriş noktası (tek pencere)
 - `scripts/android_ayarla.py` — Android tarayıcı kaydı, kurulum izni, sabit imza
 - `installer/oa_tarayici.iss` — Windows kurulum programı (Inno Setup)
 - `assets/icon/` — uygulama ikonu
@@ -76,5 +86,4 @@ flutter build apk --release
 ```
 
 ## Sıradakiler
-- Android'de arka planda radyo (bildirimde çalar)
-- Windows'ta tek pencere: bağlantılar açık pencerede yeni sekme olarak açılsın
+- Şifreleri ve açık sekmeleri OA hesabıyla cihazlar arasında (uçtan uca şifreli) eşitleme

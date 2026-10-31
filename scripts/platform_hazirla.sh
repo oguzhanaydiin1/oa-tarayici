@@ -9,11 +9,11 @@ flutter create --platforms="$PLATFORMS" --org dev.oalabs --project-name oa_taray
 # flutter create varsayılan bir test dosyası ekler; bizim uygulamamıza uymuyor.
 rm -f test/widget_test.dart
 
-if [[ -f windows/runner/main.cpp ]]; then
-  # Pencere başlığı: "OA Tarayıcı" (ı harfi ı olarak yazılır, derleyici kodlamasından bağımsız).
-  sed -i 's/L"oa_tarayici"/L"OA Taray\\u0131c\\u0131"/' windows/runner/main.cpp
-  # Açılış boyutu
-  sed -i 's/Win32Window::Size size(1280, 720);/Win32Window::Size size(1360, 860);/' windows/runner/main.cpp
+if [[ -d windows/runner ]]; then
+  # Giriş noktası ve pencere: başlık "OA Tarayıcı", açılış boyutu, tek pencere
+  # (zaten açıksa bağlantı açık pencerede yeni sekmede açılır). Kaynaklar: platform/windows/runner
+  cp platform/windows/runner/main.cpp platform/windows/runner/flutter_window.h \
+     platform/windows/runner/flutter_window.cpp windows/runner/
 fi
 
 if [[ -f windows/runner/Runner.rc ]]; then

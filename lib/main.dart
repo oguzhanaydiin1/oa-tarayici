@@ -10,6 +10,7 @@ import 'web_env.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:window_manager/window_manager.dart';
 
 import 'account.dart';
 import 'account_sheet.dart';
@@ -20,6 +21,8 @@ import 'downloads.dart';
 import 'radio.dart';
 import 'updater.dart';
 import 'oa_theme.dart';
+import 'page_tools.dart';
+import 'passwords.dart';
 import 'qr_page.dart';
 import 'reader.dart';
 import 'search.dart';
@@ -43,6 +46,12 @@ Future<void> main(List<String> args) async {
     themeModeNotifier.value = themeModeFromString(prefs.getString('theme'));
   } catch (_) {}
   await initWebEnv(); // Windows: Edge ortamı (radyo için sesin kendiliğinden başlamasına izin)
+  await initRadioBackground(); // Android: radyo arka planda çalar, bildirimde kontrol edilir
+  if (Platform.isWindows) {
+    try {
+      await windowManager.ensureInitialized(); // videoyu küçük pencerede izleme
+    } catch (_) {}
+  }
   runApp(BrowserApp());
 }
 
@@ -140,7 +149,11 @@ class TabData {
   /// (Arka plandaki web görünümleri Android'de öne çizilebiliyor: başka sekmenin sayfası görünüyordu.)
   InAppWebViewKeepAlive? keepAlive;
 
+  /// Gizli sekme kilidi kapalıyken gizli sekmelerin başlığı da gösterilmez.
+  static bool lockedIncognito = false;
+
   String get displayTitle {
+    if (incognito && lockedIncognito) return 'Gizli sekme (kilitli)';
     if (showStart) return incognito ? 'Gizli sekme' : 'Yeni sekme';
     if (title.isNotEmpty) return title;
     return host.isEmpty ? 'Yükleniyor…' : host;
@@ -160,8 +173,36 @@ class BrowserPage extends StatefulWidget {
   State<BrowserPage> createState() => _BrowserPageState();
 }
 
-class _BrowserPageState extends State<BrowserPage> {
+class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   final List<TabData> _tabs = [];
+
+  /// Windows: OA Tarayıcı açıkken yeniden açılınca (ör. bir bağlantıyla) adres buradan gelir.
+  static const _single = MethodChannel('oa/tek_pencere');
+
+  /// Android: resim içinde resim (videoyu küçük pencerede izleme).
+  static const _pip = MethodChannel('oa/pip');
+
+  // Sayfada bul
+  bool _findOpen = false;
+  final TextEditingController _findCtl = TextEditingController();
+  final FocusNode _findFocus = FocusNode();
+  int _findCount = 0;
+  int _findIndex = 0;
+  Timer? _findDebounce;
+
+  // Videoyu küçük pencerede izleme
+  bool _miniVideo = false;
+  Rect? _savedBounds;
+  bool _savedMax = false;
+
+  // Gizli sekme kilidi
+  bool _incognitoLock = false;
+  bool _locked = false;
+  bool _unlocking = false;
+
+  // Şifreler
+  final PasswordStore _passwords = PasswordStore();
+  String? _lastPwPrompt;
   int _current = 0;
 
   final TextEditingController _urlCtl = TextEditingController();
@@ -227,6 +268,23 @@ class _BrowserPageState extends State<BrowserPage> {
   void initState() {
     super.initState();
     _tabs.add(TabData());
+    WidgetsBinding.instance.addObserver(this);
+    _passwords.load();
+    if (Platform.isWindows) {
+      _single.setMethodCallHandler((call) async {
+        if (call.method != 'ac' || !mounted) return null;
+        final lines = (call.arguments?.toString() ?? '').split('\n');
+        final url = lines.firstWhere((a) => a.startsWith('http'), orElse: () => '');
+        if (url.isNotEmpty) _addTab(url: url);
+        return null;
+      });
+    }
+    if (Platform.isAndroid) {
+      _pip.setMethodCallHandler((call) async {
+        if (call.method == 'degisti' && call.arguments == false) _exitMiniVideo();
+        return null;
+      });
+    }
     _loadStorage().then((_) {
       _restoreSession();
       _listenLinks();
@@ -313,6 +371,10 @@ class _BrowserPageState extends State<BrowserPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _findDebounce?.cancel();
+    _findCtl.dispose();
+    _findFocus.dispose();
     _account.removeListener(_onAccount);
     _account.dispose();
     _downloads.removeListener(_onAccount);
@@ -345,6 +407,7 @@ class _BrowserPageState extends State<BrowserPage> {
       _hiddenPromos = (_prefs!.getStringList('promo_hidden') ?? []).toSet();
       _wallpaperPath = _prefs!.getString('wallpaper_path');
       _readerSize = _prefs!.getInt('reader_size') ?? 19;
+      _incognitoLock = _prefs!.getBool('incognito_lock') ?? false;
       DateTime t(String k) =>
           DateTime.tryParse(_prefs!.getString(k) ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
@@ -890,6 +953,418 @@ class _BrowserPageState extends State<BrowserPage> {
       ));
   }
 
+  // ----------------------------------------------------------------- Gizli sekme kilidi
+
+  void _setLocked(bool v) {
+    _locked = v;
+    TabData.lockedIncognito = v;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      // Uygulamadan çıkınca gizli sekmeler kilitlenir (küçük pencerede video izlerken değil).
+      if (_incognitoLock && !_unlocking && !_miniVideo && _tabs.any((t) => t.incognito) && !_locked) {
+        setState(() => _setLocked(true));
+      }
+    } else if (state == AppLifecycleState.resumed) {
+      if (_locked && _tab.incognito) _unlock();
+    }
+  }
+
+  Future<void> _unlock() async {
+    if (_unlocking) return;
+    _unlocking = true;
+    final ok = await DeviceLock.verify('Gizli sekmeleri açmak için kimliğini doğrula');
+    _unlocking = false;
+    if (ok && mounted) setState(() => _setLocked(false));
+  }
+
+  Future<void> _toggleIncognitoLock() async {
+    if (!_incognitoLock) {
+      if (!await DeviceLock.supported()) {
+        _toast(Platform.isWindows
+            ? 'Bunun için Windows Hello (PIN, parmak izi ya da yüz) açık olmalı'
+            : 'Bunun için telefonda ekran kilidi (PIN, desen, parmak izi) açık olmalı');
+        return;
+      }
+      if (!await DeviceLock.verify('Gizli sekme kilidini açmak için kimliğini doğrula')) return;
+    }
+    setState(() => _incognitoLock = !_incognitoLock);
+    _prefs?.setBool('incognito_lock', _incognitoLock);
+    _toast(_incognitoLock
+        ? 'Gizli sekme kilidi açık: uygulamadan çıkınca gizli sekmeler kilitlenir'
+        : 'Gizli sekme kilidi kapalı');
+  }
+
+  Widget _lockCover() {
+    return ColoredBox(
+      color: OAColors.bg,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.lock_outline, size: 56, color: OAColors.amber),
+              const SizedBox(height: 16),
+              Text('Gizli sekmeler kilitli',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: OAColors.text)),
+              const SizedBox(height: 8),
+              Text(
+                Platform.isWindows ? 'Açmak için Windows Hello ile doğrula.' : 'Açmak için parmak izi, yüz ya da ekran kilidiyle doğrula.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: OAColors.muted),
+              ),
+              const SizedBox(height: 20),
+              FilledButton.icon(
+                icon: const Icon(Icons.fingerprint),
+                label: const Text('Kilidi aç'),
+                onPressed: _unlock,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ----------------------------------------------------------------- Sayfada bul
+
+  void _openFind() {
+    if (_tab.showStart || _tab.controller == null) {
+      _toast('Önce bir sayfa aç');
+      return;
+    }
+    setState(() => _findOpen = true);
+    _findCtl.selection = TextSelection(baseOffset: 0, extentOffset: _findCtl.text.length);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _findFocus.requestFocus());
+    if (_findCtl.text.isNotEmpty) _runFind(_findCtl.text, now: true);
+  }
+
+  void _runFind(String q, {bool now = false}) {
+    _findDebounce?.cancel();
+    _findDebounce = Timer(Duration(milliseconds: now ? 0 : 250), () async {
+      final c = _tab.controller;
+      if (c == null) return;
+      try {
+        final r = await c.evaluateJavascript(source: '$kFindJs\nwindow.__oaFind.find(${jsonEncode(q)})');
+        final n = r is num ? r.toInt() : 0;
+        if (mounted) {
+          setState(() {
+            _findCount = n;
+            _findIndex = n > 0 ? 1 : 0;
+          });
+        }
+      } catch (_) {}
+    });
+  }
+
+  Future<void> _findStep(int d) async {
+    if (_findCount == 0) return;
+    final r = await _tab.controller?.evaluateJavascript(source: 'window.__oaFind ? window.__oaFind.go($d) : 0');
+    if (r is num && mounted) setState(() => _findIndex = r.toInt());
+  }
+
+  void _closeFind({TabData? tab}) {
+    if (!_findOpen) return;
+    (tab ?? _tab).controller?.evaluateJavascript(source: 'window.__oaFind && window.__oaFind.clear()');
+    setState(() {
+      _findOpen = false;
+      _findCount = 0;
+      _findIndex = 0;
+    });
+  }
+
+  Widget _findBar({required bool top}) {
+    final side = BorderSide(color: OAColors.border);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 4, 6, 4),
+      decoration: BoxDecoration(
+        color: OAColors.surface,
+        border: top ? Border(bottom: side) : Border(top: side),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.search, size: 20, color: OAColors.muted),
+          const SizedBox(width: 10),
+          Expanded(
+            child: TextField(
+              controller: _findCtl,
+              focusNode: _findFocus,
+              textInputAction: TextInputAction.search,
+              style: TextStyle(color: OAColors.text, fontSize: 15),
+              decoration: const InputDecoration.collapsed(hintText: 'Sayfada bul'),
+              onChanged: (v) => _runFind(v),
+              onSubmitted: (_) {
+                _findStep(1);
+                _findFocus.requestFocus();
+              },
+            ),
+          ),
+          if (_findCtl.text.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: Text(_findCount == 0 ? 'Bulunamadı' : '$_findIndex / $_findCount',
+                  style: TextStyle(color: _findCount == 0 ? OAColors.danger : OAColors.muted, fontSize: 13)),
+            ),
+          IconButton(
+            tooltip: 'Önceki',
+            icon: const Icon(Icons.keyboard_arrow_up),
+            onPressed: _findCount > 0 ? () => _findStep(-1) : null,
+          ),
+          IconButton(
+            tooltip: 'Sonraki',
+            icon: const Icon(Icons.keyboard_arrow_down),
+            onPressed: _findCount > 0 ? () => _findStep(1) : null,
+          ),
+          IconButton(tooltip: 'Kapat', icon: const Icon(Icons.close), onPressed: _closeFind),
+        ],
+      ),
+    );
+  }
+
+  // ----------------------------------------------------------------- PDF
+
+  Future<void> _savePdf() async {
+    final t = _tab;
+    final c = t.controller;
+    if (t.showStart || c == null) {
+      _toast('Önce bir sayfa aç');
+      return;
+    }
+    if (Platform.isAndroid) {
+      // Android'in yazdırma ekranı: yazıcı olarak "PDF olarak kaydet" seçilir.
+      try {
+        await c.printCurrentPage();
+      } catch (_) {
+        _toast('Yazdırma ekranı açılamadı');
+      }
+      return;
+    }
+    try {
+      final r = await c.callDevToolsProtocolMethod(
+        methodName: 'Page.printToPDF',
+        parameters: {'printBackground': true, 'preferCSSPageSize': true},
+      );
+      final data = r is Map ? r['data']?.toString() : null;
+      if (data == null || data.isEmpty) throw Exception('boş');
+      final dir = await getDownloadsDirectory() ?? await getApplicationDocumentsDirectory();
+      var name = (t.title.isEmpty ? t.host : t.title).replaceAll(RegExp(r'[\\/:*?"<>|\r\n\t]'), ' ').trim();
+      if (name.length > 80) name = name.substring(0, 80).trim();
+      if (name.isEmpty) name = 'sayfa';
+      final sep = Platform.pathSeparator;
+      var f = File('${dir.path}$sep$name.pdf');
+      for (var n = 2; await f.exists(); n++) {
+        f = File('${dir.path}$sep$name ($n).pdf');
+      }
+      await f.writeAsBytes(base64Decode(data));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(
+          content: Text('PDF kaydedildi: İndirilenler/${f.uri.pathSegments.last}'),
+          duration: const Duration(seconds: 5),
+          action: SnackBarAction(label: 'Aç', onPressed: () => Process.run('explorer.exe', [f.path])),
+        ));
+    } catch (_) {
+      _toast('PDF kaydedilemedi');
+    }
+  }
+
+  // ----------------------------------------------------------------- Videoyu küçük pencerede izle
+
+  Future<void> _startMiniVideo() async {
+    final t = _tab;
+    final c = t.controller;
+    if (t.showStart || c == null) {
+      _toast('Önce video olan bir sayfa aç');
+      return;
+    }
+    if (_findOpen) _closeFind();
+    dynamic r;
+    try {
+      r = await c.evaluateJavascript(source: kVideoMiniJs);
+    } catch (_) {}
+    if (r is! List || r.length < 2) {
+      _toast('Bu sayfada video bulunamadı');
+      return;
+    }
+    final w = (r[0] is num ? (r[0] as num).toInt() : 16).clamp(1, 10000);
+    final h = (r[1] is num ? (r[1] as num).toInt() : 9).clamp(1, 10000);
+    if (Platform.isAndroid) {
+      setState(() => _miniVideo = true);
+      bool ok = false;
+      try {
+        ok = await _pip.invokeMethod<bool>('gir', {'w': w, 'h': h}) ?? false;
+      } catch (_) {}
+      if (!ok) {
+        await _exitMiniVideo();
+        _toast('Bu telefon küçük pencereyi desteklemiyor');
+      }
+    } else if (Platform.isWindows) {
+      try {
+        _savedMax = await windowManager.isMaximized();
+        if (_savedMax) await windowManager.unmaximize();
+        final b = await windowManager.getBounds();
+        _savedBounds = b;
+        const width = 520.0;
+        final height = (width * h / w).clamp(180.0, 900.0) + 32; // + pencere başlığı
+        setState(() => _miniVideo = true);
+        await windowManager.setAlwaysOnTop(true);
+        await windowManager.setBounds(Rect.fromLTWH(
+            b.right - width - 16 < 0 ? b.left : b.right - width - 16,
+            b.bottom - height - 16 < 0 ? b.top : b.bottom - height - 16,
+            width,
+            height));
+      } catch (_) {
+        await _exitMiniVideo();
+        _toast('Küçük pencere açılamadı');
+      }
+    }
+  }
+
+  Future<void> _exitMiniVideo() async {
+    if (!_miniVideo) return;
+    setState(() => _miniVideo = false);
+    _tab.controller?.evaluateJavascript(source: kVideoMiniExitJs);
+    if (Platform.isWindows) {
+      try {
+        await windowManager.setAlwaysOnTop(false);
+        if (_savedBounds != null) await windowManager.setBounds(_savedBounds!);
+        if (_savedMax) await windowManager.maximize();
+      } catch (_) {}
+    }
+  }
+
+  Widget _miniExitButton() {
+    return Positioned(
+      top: 8,
+      right: 8,
+      child: Material(
+        color: Colors.black54,
+        shape: const StadiumBorder(),
+        child: IconButton(
+          tooltip: 'Küçük pencereden çık',
+          icon: const Icon(Icons.open_in_full, color: Colors.white),
+          onPressed: _exitMiniVideo,
+        ),
+      ),
+    );
+  }
+
+  // ----------------------------------------------------------------- Şifreler
+
+  void _onPasswordSubmitted(TabData t, List<dynamic> args) {
+    if (t.incognito || args.length < 2) return;
+    final user = args[0]?.toString() ?? '';
+    final pass = args[1]?.toString() ?? '';
+    if (pass.isEmpty) return;
+    final origin = PasswordStore.originOf(t.url);
+    if (origin.isEmpty || _passwords.never.contains(origin)) return;
+    final existing = _passwords.find(origin, user);
+    if (existing != null && existing.pass == pass) {
+      _passwords.touch(existing);
+      return;
+    }
+    final key = '$origin|$user|$pass';
+    if (_lastPwPrompt == key) return;
+    _lastPwPrompt = key;
+    _askSavePassword(origin, user, pass, update: existing != null);
+  }
+
+  void _askSavePassword(String origin, String user, String pass, {required bool update}) {
+    final host = (Uri.tryParse(origin)?.host ?? origin).replaceFirst(RegExp(r'^www\.'), '');
+    showModalBottomSheet(
+      context: context,
+      useSafeArea: true,
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.key_outlined, color: OAColors.amber),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(update ? 'Şifre güncellensin mi?' : 'Şifre kaydedilsin mi?',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: OAColors.text)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text('$host · ${user.isEmpty ? 'kullanıcı adı yok' : user}',
+                style: TextStyle(color: OAColors.text2, fontSize: 15)),
+            const SizedBox(height: 6),
+            Text('Şifre yalnız bu cihazın güvenli deposunda saklanır; bir dahaki girişte kendiliğinden doldurulur.',
+                style: TextStyle(color: OAColors.muted, fontSize: 13)),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                if (!update)
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _passwords.neverFor(origin);
+                    },
+                    child: const Text('Bu sitede asla'),
+                  ),
+                const Spacer(),
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Şimdi değil')),
+                const SizedBox(width: 6),
+                FilledButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _passwords.upsert(origin, user, pass);
+                    _toast(update ? 'Şifre güncellendi' : 'Şifre kaydedildi');
+                  },
+                  child: Text(update ? 'Güncelle' : 'Kaydet'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Kayıtlı giriş varsa sayfadaki giriş formunu doldurur.
+  Future<void> _autofill(TabData t) async {
+    if (t.incognito) return;
+    final origin = PasswordStore.originOf(t.url);
+    if (origin.isEmpty) return;
+    final list = _passwords.forOrigin(origin);
+    if (list.isEmpty) return;
+    final e = list.first;
+    // Giriş formu sayfa açıldıktan biraz sonra gelebilir (tek sayfalık uygulamalar).
+    for (final wait in const [0, 1500]) {
+      if (wait > 0) await Future.delayed(Duration(milliseconds: wait));
+      if (PasswordStore.originOf(t.url) != origin) return;
+      try {
+        final ok = await t.controller?.evaluateJavascript(source: passwordFillJs(e.user, e.pass));
+        if (ok == true) {
+          if (t == _tab && mounted) _toast('Kayıtlı giriş dolduruldu${e.user.isEmpty ? '' : ': ${e.user}'}');
+          return;
+        }
+      } catch (_) {
+        return;
+      }
+    }
+  }
+
+  Future<void> _showPasswords() async {
+    if (!await DeviceLock.verify('Kayıtlı şifreleri görmek için kimliğini doğrula')) return;
+    if (!mounted) return;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => PasswordsSheet(store: _passwords),
+    );
+  }
+
   // ----------------------------------------------------------------- Sekmeler
 
   void _addTab({String? url, bool incognito = false}) {
@@ -945,6 +1420,7 @@ class _BrowserPageState extends State<BrowserPage> {
   }
 
   void _selectTab(int i) {
+    if (i != _current) _closeFind();
     setState(() {
       _barCollapsed = false;
       _current = i;
@@ -952,6 +1428,7 @@ class _BrowserPageState extends State<BrowserPage> {
       _showSuggestions = false;
     });
     _saveSessionSoon();
+    if (_locked && _tab.incognito) _unlock();
   }
 
   void _reopenClosedTab() {
@@ -1404,6 +1881,10 @@ class _BrowserPageState extends State<BrowserPage> {
               _closeTab(_current),
           SingleActivator(LogicalKeyboardKey.keyL, control: true): () =>
               mobile ? _startEditing() : _urlFocus.requestFocus(),
+          SingleActivator(LogicalKeyboardKey.keyF, control: true): _openFind,
+          SingleActivator(LogicalKeyboardKey.keyP, control: true): _savePdf,
+          if (_findOpen) const SingleActivator(LogicalKeyboardKey.escape): _closeFind,
+          if (_miniVideo) const SingleActivator(LogicalKeyboardKey.escape): _exitMiniVideo,
         },
         child: Focus(
           autofocus: true,
@@ -1488,6 +1969,7 @@ class _BrowserPageState extends State<BrowserPage> {
             wallpaperId: _wallpaperId,
             wallpaperPath: _wallpaperPath,
           ),
+        if (t.incognito && _locked) Positioned.fill(child: _lockCover()),
       ],
     );
   }
@@ -1509,16 +1991,23 @@ class _BrowserPageState extends State<BrowserPage> {
     return SafeArea(
       child: Column(
         children: [
-          _buildTabBar(),
-          _buildToolbar(),
-          RadioMiniBar(radio: _radio, onOpen: _showRadio),
-          _buildProgress(),
+          // Küçük pencerede video izlenirken yalnız sayfa görünür. (Sayfanın bulunduğu Expanded
+          // anahtarla korunur; üstteki çubuklar kalkınca web görünümü yeniden oluşturulmaz.)
+          if (!_miniVideo) ...[
+            _buildTabBar(),
+            _buildToolbar(),
+            if (_findOpen) _findBar(top: true),
+            RadioMiniBar(radio: _radio, onOpen: _showRadio),
+            _buildProgress(),
+          ],
           Expanded(
+            key: const ValueKey('sayfalar'),
             child: Stack(
               children: [
                 _pages(compact: false),
                 // Windows: radyo sayfası burada, 1×1 piksel (bkz. RadioPlayer.host)
                 Positioned(left: 0, bottom: 0, child: ListenableBuilder(listenable: _radio, builder: (_, __) => _radio.host())),
+                if (_miniVideo) _miniExitButton(),
                 if (_showSuggestions)
                   Positioned(
                     top: 6,
@@ -1716,10 +2205,17 @@ class _BrowserPageState extends State<BrowserPage> {
                 PopupMenuItem(value: 'quick', child: Text('Bu sayfayı hızlı erişime ekle')),
               if (!_tab.showStart) ...[
                 PopupMenuDivider(),
+                PopupMenuItem(value: 'find', child: Text('Sayfada bul (Ctrl+F)')),
+                PopupMenuItem(value: 'pdf', child: Text('PDF olarak kaydet (Ctrl+P)')),
+                PopupMenuItem(value: 'pip', child: Text('Videoyu küçük pencerede izle')),
                 PopupMenuItem(value: 'reader', child: Text('Okuma modu')),
                 PopupMenuItem(value: 'translate', child: Text('Türkçeye çevir')),
               ],
               PopupMenuDivider(),
+              PopupMenuItem(value: 'passwords', child: Text('Şifreler')),
+              PopupMenuItem(
+                  value: 'lock',
+                  child: Text('Gizli sekme kilidi: ${_incognitoLock ? 'açık' : 'kapalı'}')),
               PopupMenuItem(value: 'adblock', child: Text('Reklam engelleme')),
               PopupMenuItem(value: 'engine', child: Text('Arama motoru')),
               PopupMenuItem(value: 'theme', child: Text('Görünüm: koyu / açık')),
@@ -1785,6 +2281,16 @@ class _BrowserPageState extends State<BrowserPage> {
         _editQuick(null);
       case 'tabs':
         _showTabSwitcher();
+      case 'find':
+        _openFind();
+      case 'pdf':
+        _savePdf();
+      case 'pip':
+        _startMiniVideo();
+      case 'passwords':
+        _showPasswords();
+      case 'lock':
+        _toggleIncognitoLock();
     }
   }
 
@@ -1811,10 +2317,11 @@ class _BrowserPageState extends State<BrowserPage> {
           // Başlangıç sayfasında arka plan saatin olduğu şeridin altına kadar uzanır.
           AnimatedContainer(
             duration: const Duration(milliseconds: 180),
-            height: _tab.showStart && !_editing ? 0 : MediaQuery.paddingOf(context).top,
+            height: (_tab.showStart && !_editing) || _miniVideo ? 0 : MediaQuery.paddingOf(context).top,
             color: band,
           ),
           Expanded(
+            key: const ValueKey('sayfalar'),
             child: Stack(
               children: [
                 _pages(compact: true),
@@ -1829,9 +2336,12 @@ class _BrowserPageState extends State<BrowserPage> {
               ],
             ),
           ),
-          if (!_editing) RadioMiniBar(radio: _radio, onOpen: _showRadio),
-          _buildProgress(),
-          _buildBottomBar(),
+          if (!_miniVideo) ...[
+            if (_findOpen && !_editing) _findBar(top: false),
+            if (!_editing) RadioMiniBar(radio: _radio, onOpen: _showRadio),
+            _buildProgress(),
+            _buildBottomBar(),
+          ],
         ],
       ),
     );
@@ -2244,6 +2754,9 @@ class _BrowserPageState extends State<BrowserPage> {
               item(Icons.radio_outlined, 'OA Radyo', 'radio'),
               if (Platform.isAndroid) item(Icons.qr_code_scanner, 'QR kod okut', 'qr'),
               if (!_tab.showStart) ...[
+                item(Icons.find_in_page_outlined, 'Sayfada bul', 'find'),
+                item(Icons.picture_in_picture_alt_outlined, 'Videoyu küçük pencerede izle', 'pip'),
+                item(Icons.picture_as_pdf_outlined, 'Yazdır / PDF olarak kaydet', 'pdf'),
                 item(Icons.chrome_reader_mode_outlined, 'Okuma modu', 'reader'),
                 item(Icons.translate, 'Türkçeye çevir', 'translate'),
               ],
@@ -2253,6 +2766,9 @@ class _BrowserPageState extends State<BrowserPage> {
               item(_siteBlocking ? Icons.shield : Icons.shield_outlined,
                   'Reklam engelleme: ${_adblockOn ? (_siteBlocking ? 'açık' : 'bu sitede kapalı') : 'kapalı'}', 'adblock'),
               item(Icons.search, 'Arama motoru: ${_engine.name}', 'engine'),
+              item(Icons.key_outlined, 'Şifreler', 'passwords'),
+              item(_incognitoLock ? Icons.lock_outline : Icons.lock_open_outlined,
+                  'Gizli sekme kilidi: ${_incognitoLock ? 'açık' : 'kapalı'}', 'lock'),
               item(Icons.wallpaper_outlined, 'Başlangıç sayfası arka planı', 'wallpaper'),
               if (_account.signedIn) item(Icons.sync, 'Şimdi eşitle', 'sync'),
               item(Icons.system_update_outlined, 'Güncellemeleri denetle', 'update'),
@@ -2600,8 +3116,17 @@ class _BrowserPageState extends State<BrowserPage> {
         contentBlockers: _adblockOn ? AdBlock.contentBlockers(_adblockAllow) : [],
         useShouldInterceptRequest: Platform.isWindows && _adblockOn,
       ),
-      initialUserScripts: UnmodifiableListView(
-          [if (_adblockOn) AdBlock.cosmeticScript(_adblockAllow)]),
+      initialUserScripts: UnmodifiableListView([
+        if (_adblockOn) AdBlock.cosmeticScript(_adblockAllow),
+        // Şifre kaydetme (gizli sekmede değil)
+        if (!t.incognito)
+          UserScript(
+            groupName: 'oa-sifre',
+            source: kPasswordCaptureJs,
+            injectionTime: UserScriptInjectionTime.AT_DOCUMENT_END,
+            forMainFrameOnly: true,
+          ),
+      ]),
       pullToRefreshController: t.pullToRefresh ??= Platform.isAndroid
           ? PullToRefreshController(
               settings: PullToRefreshSettings(
@@ -2621,6 +3146,9 @@ class _BrowserPageState extends State<BrowserPage> {
           : null,
       onWebViewCreated: (c) {
         t.controller = c;
+        if (!t.incognito) {
+          c.addJavaScriptHandler(handlerName: 'oaPassword', callback: (args) => _onPasswordSubmitted(t, args));
+        }
         c.addJavaScriptHandler(
           handlerName: 'oaReaderSize',
           callback: (args) {
@@ -2658,6 +3186,9 @@ class _BrowserPageState extends State<BrowserPage> {
         if (t.coverLoadStarted) _uncover(t);
         _refreshNavState(t);
         _addHistory(t);
+        _autofill(t);
+        // Sayfa değiştiyse eski arama sonuçları geçersiz: yeniden ara.
+        if (_findOpen && t == _tab && _findCtl.text.isNotEmpty) _runFind(_findCtl.text, now: true);
         // Sitede giriş/çıkış yapıldıysa uygulama da öğrensin.
         if (!t.incognito && (url?.host ?? '').endsWith('oalabs.dev')) {
           _account.adoptFromWebView();
