@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "crash_log.h"
 #include "flutter_window.h"
 #include "utils.h"
 
@@ -58,6 +59,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
     }
     // Açık pencere bulunamadıysa normal şekilde açıl.
   }
+
+  // Beklenmedik kapanmaların nedeni %LOCALAPPDATA%\OA Tarayici\cokme.txt dosyasına yazılır.
+  InstallCrashLog();
 
   // Attach to console when present (e.g., 'flutter run') or create a
   // new console when running with a debugger.

@@ -270,6 +270,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     _tabs.add(TabData());
     WidgetsBinding.instance.addObserver(this);
     _passwords.load();
+    if (Platform.isWindows) WidgetsBinding.instance.addPostFrameCallback((_) => _showLastCrash());
     if (Platform.isWindows) {
       _single.setMethodCallHandler((call) async {
         if (call.method != 'ac' || !mounted) return null;
@@ -951,6 +952,59 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         content: Text(text),
         duration: Duration(milliseconds: 1400),
       ));
+  }
+
+  // ----------------------------------------------------------------- Çökme kaydı (Windows)
+
+  /// Uygulama geçen sefer beklenmedik şekilde kapandıysa nedeni gösterilir
+  /// (Windows giriş noktası %LOCALAPPDATA%\OA Tarayici\cokme.txt dosyasına yazar).
+  Future<void> _showLastCrash() async {
+    final base = Platform.environment['LOCALAPPDATA'];
+    if (base == null) return;
+    final dir = '$base\\OA Tarayici';
+    final f = File('$dir\\cokme.txt');
+    if (!await f.exists()) return;
+    String text;
+    try {
+      text = utf8.decode(await f.readAsBytes(), allowMalformed: true).trim();
+      final shown = File('$dir\\cokme_gosterildi.txt');
+      if (await shown.exists()) await shown.delete();
+      await f.rename(shown.path);
+    } catch (_) {
+      return;
+    }
+    if (!mounted || text.isEmpty) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('OA Tarayıcı geçen sefer beklenmedik şekilde kapandı'),
+        content: SizedBox(
+          width: 620,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Kapanmanın nedeni aşağıda. Bu bilgiyi geliştiriciye iletirsen sorun düzeltilebilir.',
+                    style: TextStyle(color: OAColors.muted)),
+                const SizedBox(height: 12),
+                SelectableText(text, style: const TextStyle(fontFamily: 'Consolas', fontSize: 12)),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: text));
+              _toast('Kopyalandı');
+            },
+            child: const Text('Kopyala'),
+          ),
+          FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('Tamam')),
+        ],
+      ),
+    );
   }
 
   // ----------------------------------------------------------------- Gizli sekme kilidi

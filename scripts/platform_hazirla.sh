@@ -13,7 +13,12 @@ if [[ -d windows/runner ]]; then
   # Giriş noktası ve pencere: başlık "OA Tarayıcı", açılış boyutu, tek pencere
   # (zaten açıksa bağlantı açık pencerede yeni sekmede açılır). Kaynaklar: platform/windows/runner
   cp platform/windows/runner/main.cpp platform/windows/runner/flutter_window.h \
-     platform/windows/runner/flutter_window.cpp windows/runner/
+     platform/windows/runner/flutter_window.cpp platform/windows/runner/crash_log.h \
+     platform/windows/runner/crash_log.cpp windows/runner/
+  # crash_log.cpp derlemeye eklensin
+  if ! grep -q 'crash_log.cpp' windows/runner/CMakeLists.txt; then
+    sed -i 's|"flutter_window.cpp"|"flutter_window.cpp"\n  "crash_log.cpp"|' windows/runner/CMakeLists.txt
+  fi
 fi
 
 if [[ -f windows/runner/Runner.rc ]]; then
