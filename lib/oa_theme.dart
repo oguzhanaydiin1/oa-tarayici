@@ -344,33 +344,58 @@ ThemeData buildOATheme(OAPalette p) {
   );
 }
 
-/// OA işareti: kare içinde "OA". Koyu temada açık kare, açık temada koyu kare.
+/// OA Labs işareti: amber A'nın içinden geçen O. O, temanın yazı renginde.
 class OAMark extends StatelessWidget {
   const OAMark({super.key, this.size = 30});
   final double size;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: size,
       height: size,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: OAColors.text,
-        borderRadius: BorderRadius.circular(size * 0.3),
-      ),
-      child: Text(
-        'OA',
-        style: GoogleFonts.bricolageGrotesque(
-          fontSize: size * 0.43,
-          fontWeight: FontWeight.w800,
-          letterSpacing: -0.04 * size * 0.43,
-          color: OAColors.bg,
-          height: 1,
-        ),
-      ),
+      child: CustomPaint(painter: OALabsMarkPainter(ring: OAColors.text, legs: OAColors.amber)),
     );
   }
+}
+
+/// OA Labs işaretini (A'nın içinden geçen O) çizer. 100 birimlik kutuda: A bacakları
+/// (26,86)–(52,14)–(78,86), O merkezi (52,58) yarıçap 28; yatayda 2 birim sola kaydırılır.
+class OALabsMarkPainter extends CustomPainter {
+  OALabsMarkPainter({required this.ring, required this.legs});
+  final Color ring;
+  final Color legs;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.shortestSide / 100;
+    canvas.save();
+    canvas.translate((size.width - 100 * s) / 2 - 2 * s, (size.height - 100 * s) / 2);
+    final w = (size.shortestSide < 24 ? 12.0 : 10.0) * s;
+    final legPaint = Paint()
+      ..color = legs
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = w
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final path = Path()
+      ..moveTo(26 * s, 86 * s)
+      ..lineTo(52 * s, 14 * s)
+      ..lineTo(78 * s, 86 * s);
+    canvas.drawPath(path, legPaint);
+    canvas.drawCircle(
+      Offset(52 * s, 58 * s),
+      28 * s,
+      Paint()
+        ..color = ring
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = w,
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(OALabsMarkPainter old) => old.ring != ring || old.legs != legs;
 }
 
 /// Üye avatarı: baş harfler, amber zemin.
