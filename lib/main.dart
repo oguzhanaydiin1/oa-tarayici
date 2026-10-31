@@ -30,6 +30,7 @@ import 'smart.dart';
 import 'start_mobile.dart';
 import 'start_page.dart';
 import 'wallpaper.dart';
+import 'weather.dart';
 
 /// Windows'ta tarayıcı olarak bir bağlantıyla açılınca adres argüman olarak gelir.
 String? _launchUrl;
@@ -202,6 +203,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   // Şifreler
   final PasswordStore _passwords = PasswordStore();
+
+  // Başlangıç sayfasında saat, tarih ve hava durumu
+  final WeatherService _wx = WeatherService();
+  bool _showClock = true;
   String? _lastPwPrompt;
   int _current = 0;
 
@@ -375,6 +380,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _findDebounce?.cancel();
     _findCtl.dispose();
+    _wx.dispose();
     _findFocus.dispose();
     _account.removeListener(_onAccount);
     _account.dispose();
@@ -397,6 +403,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     _prefs = await SharedPreferences.getInstance();
     await _downloads.init(_prefs!);
     await _radio.init(_prefs!);
+    _wx.init(_prefs!);
     setState(() {
       _bookmarks = _decode(_prefs!.getStringList('bookmarks'));
       _history = _decode(_prefs!.getStringList('history'));
@@ -409,6 +416,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       _wallpaperPath = _prefs!.getString('wallpaper_path');
       _readerSize = _prefs!.getInt('reader_size') ?? 19;
       _incognitoLock = _prefs!.getBool('incognito_lock') ?? false;
+      _showClock = _prefs!.getBool('show_clock') ?? true;
       DateTime t(String k) =>
           DateTime.tryParse(_prefs!.getString(k) ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
@@ -952,6 +960,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         content: Text(text),
         duration: Duration(milliseconds: 1400),
       ));
+  }
+
+  void _toggleClock() {
+    setState(() => _showClock = !_showClock);
+    _prefs?.setBool('show_clock', _showClock);
   }
 
   // ----------------------------------------------------------------- Çökme kaydı (Windows)
@@ -2005,6 +2018,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             },
             wallpaperId: _wallpaperId,
             wallpaperPath: _wallpaperPath,
+            weatherCard: _showClock ? ClockWeatherCard(wx: _wx) : null,
           )
         else if (t.showStart)
           StartPage(
@@ -2022,6 +2036,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             onWallpaper: _showWallpaperPicker,
             wallpaperId: _wallpaperId,
             wallpaperPath: _wallpaperPath,
+            corner: _showClock && !compact ? ClockWeatherCorner(wx: _wx) : null,
           ),
         if (t.incognito && _locked) Positioned.fill(child: _lockCover()),
       ],
@@ -2273,6 +2288,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               PopupMenuItem(value: 'adblock', child: Text('Reklam engelleme')),
               PopupMenuItem(value: 'engine', child: Text('Arama motoru')),
               PopupMenuItem(value: 'theme', child: Text('Görünüm: koyu / açık')),
+              PopupMenuItem(
+                  value: 'clock',
+                  child: Text('Başlangıç sayfasında saat ve hava: ${_showClock ? 'açık' : 'kapalı'}')),
               PopupMenuItem(value: 'update', child: Text('Güncellemeleri denetle')),
               PopupMenuItem(value: 'about', child: Text('Hakkında')),
               PopupMenuItem(
@@ -2345,6 +2363,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         _showPasswords();
       case 'lock':
         _toggleIncognitoLock();
+      case 'clock':
+        _toggleClock();
     }
   }
 
@@ -2690,6 +2710,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                   'Görünüm: koyu / açık', _showThemeSettings),
               item(Icons.search, 'Arama motoru: ${_engine.name}', _showSearchSettings),
               item(Icons.add_box_outlined, 'Hızlı erişime site ekle', () => _editQuick(null)),
+              item(Icons.schedule, 'Saat ve hava durumu: ${_showClock ? 'açık' : 'kapalı'}', _toggleClock),
+              if (_showClock)
+                item(Icons.location_city_outlined,
+                    'Hava durumu şehri: ${_wx.city?.name ?? 'seçilmedi'}', () => pickCity(context, _wx)),
               if (_hiddenPromos.isNotEmpty)
                 item(Icons.view_carousel_outlined, 'Gizlenen kartları geri getir', () {
                   setState(() => _hiddenPromos.clear());

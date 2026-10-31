@@ -106,7 +106,11 @@ class StartPage extends StatefulWidget {
     this.wallpaperId = 'none',
     this.wallpaperPath,
     this.userFirstName,
+    this.corner,
   });
+
+  /// Sağ üst köşedeki saat ve hava (geniş pencerede köşede, dar pencerede başlığın üstünde).
+  final Widget? corner;
 
   final bool incognito;
   final String engineName;
@@ -160,10 +164,13 @@ class _StartPageState extends State<StartPage> {
             ? 'Merhaba ${widget.userFirstName}'
             : 'OA Tarayıcı';
 
+    final wide = MediaQuery.sizeOf(context).width >= 1180;
     return Stack(
       fit: StackFit.expand,
       children: [
         WallpaperLayer(id: widget.wallpaperId, photoPath: widget.wallpaperPath),
+        if (widget.corner != null && wide)
+          Positioned(top: 56, right: 72, child: widget.corner!),
         SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(
             compact ? 20 : 24, compact ? 40 : 56, compact ? 20 : 24, 48),
@@ -173,6 +180,10 @@ class _StartPageState extends State<StartPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (widget.corner != null && !wide) ...[
+                  Align(alignment: Alignment.centerRight, child: widget.corner!),
+                  const SizedBox(height: 20),
+                ],
                 Text(kicker, style: TextStyle(color: OAColors.muted, fontSize: 15)),
                 const SizedBox(height: 14),
                 Text.rich(

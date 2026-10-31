@@ -3,7 +3,7 @@
 OA Labs'in Windows ve Android tarayıcısı. Flutter + `flutter_inappwebview`: sayfaları Windows'ta
 WebView2 (Edge motoru), Android'de Android WebView çizer; arayüz OA Labs tasarım sistemiyle yazılır.
 
-> Durum: deneme sürümü (0.7.3). Android sürümü sabit OA anahtarıyla imzalı; Windows dosyaları imzasız.
+> Durum: deneme sürümü (0.8.0). Android sürümü sabit OA anahtarıyla imzalı; Windows dosyaları imzasız.
 
 ## İndir ve dene
 
@@ -18,6 +18,7 @@ Her `main` gönderiminde GitHub Actions iki dosya derler: **Actions** sekmesi �
 Aynı dosyalar **Releases** sayfasına da `pubspec.yaml`daki sürüm numarasıyla (ör. v0.1.0) deneme sürümü olarak eklenir. Yeni sürüm çıkarmak için `version` satırını artırmak yeterli.
 
 ## Özellikler
+- Başlangıç sayfasında saat, tarih ve hava durumu (Open-Meteo): bilgisayarda sağ üst köşede, telefonda arama kutusunun altında tahminli kart; dokununca saatlik ve 7 günlük tahmin, şehir seçimi
 - Telefonda radyo arka planda çalar: uygulamadan çıkınca ya da ekran kilitlenince susmaz; bildirimde ve kilit ekranında oynat/durdur
 - Windows'ta radyo, klavyedeki medya tuşlarıyla ve Windows'un ses panelindeki çalarla kontrol edilir
 - Windows'ta tek pencere: OA Tarayıcı açıkken bir bağlantıya tıklanınca açık pencerede yeni sekme olarak açılır
@@ -64,6 +65,7 @@ Aynı dosyalar **Releases** sayfasına da `pubspec.yaml`daki sürüm numarasıyl
 - `lib/downloads.dart` — indirme yöneticisi (background_downloader)
 - `lib/radio.dart`, `assets/hls.min.js` — OA Radyo çalar (Radio Browser, OA Radyo'nun ek istasyonları)
 - `lib/updater.dart` — GitHub sürümlerinden güncelleme denetimi
+- `lib/weather.dart` — saat, tarih, hava durumu (Open-Meteo) ve şehir seçimi
 - `lib/passwords.dart` — şifre deposu, cihaz kilidiyle doğrulama, Şifreler listesi
 - `lib/page_tools.dart` — sayfada bul, videoyu küçük pencerede izleme, şifre yakalama/doldurma betikleri
 - `platform/windows/runner/` — Windows giriş noktası (tek pencere)

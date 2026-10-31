@@ -37,6 +37,7 @@ class MobileStartPage extends StatefulWidget {
     required this.signedIn,
     required this.hiddenPromos,
     required this.onHidePromo,
+    this.weatherCard,
     this.onQr,
     this.userName,
     this.wallpaperId = 'none',
@@ -61,6 +62,9 @@ class MobileStartPage extends StatefulWidget {
   final String? userName;
   final Set<String> hiddenPromos;
   final void Function(String id) onHidePromo;
+
+  /// Saat ve hava kartı (gösteriliyorsa OA kartlarının yerine geçer).
+  final Widget? weatherCard;
   final String wallpaperId;
   final String? wallpaperPath;
 
@@ -139,7 +143,10 @@ class _MobileStartPageState extends State<MobileStartPage> {
               ],
               const SizedBox(height: 36),
               _searchBox(),
-              if (promos.isNotEmpty) ...[
+              if (widget.weatherCard != null) ...[
+                const SizedBox(height: 18),
+                widget.weatherCard!,
+              ] else if (promos.isNotEmpty) ...[
                 const SizedBox(height: 18),
                 _promoCarousel(promos),
               ],
