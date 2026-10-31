@@ -169,8 +169,6 @@ class _StartPageState extends State<StartPage> {
       fit: StackFit.expand,
       children: [
         WallpaperLayer(id: widget.wallpaperId, photoPath: widget.wallpaperPath),
-        if (widget.corner != null && wide)
-          Positioned(top: 56, right: 72, child: widget.corner!),
         SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(
             compact ? 20 : 24, compact ? 40 : 56, compact ? 20 : 24, 48),
@@ -278,6 +276,9 @@ class _StartPageState extends State<StartPage> {
           ),
         ),
       ),
+        // Kaydırılan sayfanın üstünde olmalı; altında kalırsa tıklanmıyor.
+        if (widget.corner != null && wide)
+          Positioned(top: 56, right: 72, child: widget.corner!),
         Positioned(
           top: 8,
           right: 8,
