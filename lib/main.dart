@@ -3271,7 +3271,95 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       },
       onDownloadStartRequest: (c, req) =>
           _download(req.url.toString(), name: req.suggestedFilename, from: t),
+      // Site izin isteyince (bildirim, konum, kamera…) mutlaka cevap verilmeli: Windows eklentisi
+      // cevapsız kalan izin isteğinde çöküyordu (flutter_inappwebview_windows 0.6.0).
+      onPermissionRequest: (c, req) => _onPermissionRequest(t, req),
     );
+  }
+
+  // ---------------------------------------------------------------- Site izinleri
+
+  static final Set<PermissionResourceType> _autoGrant = {
+    PermissionResourceType.AUTOPLAY, // sesli/görüntülü içerik kendiliğinden başlasın
+    PermissionResourceType.PROTECTED_MEDIA_ID, // korumalı videolar (dizi/film siteleri)
+  };
+
+  String _permName(PermissionResourceType r) {
+    if (r == PermissionResourceType.CAMERA) return 'kamera';
+    if (r == PermissionResourceType.MICROPHONE) return 'mikrofon';
+    if (r == PermissionResourceType.CAMERA_AND_MICROPHONE) return 'kamera ve mikrofon';
+    if (r == PermissionResourceType.GEOLOCATION) return 'konum';
+    if (r == PermissionResourceType.NOTIFICATIONS) return 'bildirim gönderme';
+    if (r == PermissionResourceType.CLIPBOARD_READ) return 'kopyaladıklarını okuma';
+    if (r == PermissionResourceType.MIDI_SYSEX) return 'MIDI cihazları';
+    if (r == PermissionResourceType.FILE_READ_WRITE) return 'dosya okuma/yazma';
+    if (r == PermissionResourceType.LOCAL_FONTS) return 'yüklü yazı tipleri';
+    if (r == PermissionResourceType.WINDOW_MANAGEMENT) return 'pencere yönetimi';
+    if (r == PermissionResourceType.OTHER_SENSORS) return 'cihaz sensörleri';
+    if (r == PermissionResourceType.MULTIPLE_AUTOMATIC_DOWNLOADS) return 'birden çok dosya indirme';
+    if (r == PermissionResourceType.DEVICE_ORIENTATION_AND_MOTION) return 'cihaz hareketi';
+    return r.toString().toLowerCase();
+  }
+
+  Map<String, dynamic> _sitePerms() {
+    try {
+      return Map<String, dynamic>.from(jsonDecode(_prefs?.getString('site_perms') ?? '{}') as Map);
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<PermissionResponse> _onPermissionRequest(TabData t, PermissionRequest req) async {
+    final resources = req.resources;
+    PermissionResponse answer(bool grant) => PermissionResponse(
+        resources: resources, action: grant ? PermissionResponseAction.GRANT : PermissionResponseAction.DENY);
+    try {
+      if (resources.isEmpty) return answer(false);
+      if (resources.every(_autoGrant.contains)) return answer(true);
+      final host = req.origin.host.replaceFirst(RegExp(r'^www\.'), '');
+      final key = '$host|${resources.map((r) => r.toString()).join(',')}';
+      final saved = _sitePerms();
+      if (!t.incognito && saved[key] is bool) return answer(saved[key] as bool);
+      if (!mounted) return answer(false);
+      var remember = true;
+      final grant = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, setD) => AlertDialog(
+            title: Text('${host.isEmpty ? 'Bu site' : host} izin istiyor'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(resources.map(_permName).join(', '), style: TextStyle(color: OAColors.text, fontSize: 16)),
+                if (!t.incognito) ...[
+                  const SizedBox(height: 12),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: remember,
+                    onChanged: (v) => setD(() => remember = v ?? true),
+                    title: const Text('Bu site için hatırla'),
+                    controlAffinity: ListTileControlAffinity.leading,
+                  ),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Engelle')),
+              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('İzin ver')),
+            ],
+          ),
+        ),
+      );
+      final g = grant ?? false;
+      if (grant != null && remember && !t.incognito) {
+        saved[key] = g;
+        _prefs?.setString('site_perms', jsonEncode(saved));
+      }
+      return answer(g);
+    } catch (_) {
+      return answer(false);
+    }
   }
 
   // ---------------------------------------------------------------- Paneller
