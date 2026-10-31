@@ -44,6 +44,10 @@ jobs:
 
       - run: flutter pub get
 
+      - name: Eklenti düzeltmesi (fare tekerleği hızı)
+        shell: bash
+        run: bash scripts/windows_eklenti_duzelt.sh
+
       - name: Uygulama ikonu
         run: dart run flutter_launcher_icons -f icons_windows.yaml
 
