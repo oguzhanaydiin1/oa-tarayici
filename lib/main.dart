@@ -39,6 +39,8 @@ import 'start_page.dart';
 import 'wallpaper.dart';
 import 'weather.dart';
 
+part 'settings_screen.dart';
+
 /// Windows'ta tarayıcı olarak bir bağlantıyla açılınca adres argüman olarak gelir.
 String? _launchUrl;
 
@@ -210,6 +212,15 @@ class BrowserPage extends StatefulWidget {
 
 class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   final List<TabData> _tabs = [];
+
+  /// Her değişiklikte artar; açık Ayarlar ekranı kendini yeniler.
+  final ValueNotifier<int> _rev = ValueNotifier(0);
+
+  @override
+  void setState(VoidCallback fn) {
+    super.setState(fn);
+    _rev.value++;
+  }
 
   /// Windows: OA Tarayıcı açıkken yeniden açılınca (ör. bir bağlantıyla) adres buradan gelir.
   static const _single = MethodChannel('oa/tek_pencere');
@@ -3257,6 +3268,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               mobile ? _startEditing() : _urlFocus.requestFocus(),
           SingleActivator(LogicalKeyboardKey.keyF, control: true): _openFind,
           SingleActivator(LogicalKeyboardKey.keyP, control: true): _savePdf,
+          SingleActivator(LogicalKeyboardKey.comma, control: true): () => _openSettings(),
           SingleActivator(LogicalKeyboardKey.equal, control: true): () => _zoomStep(1),
           SingleActivator(LogicalKeyboardKey.numpadAdd, control: true): () => _zoomStep(1),
           SingleActivator(LogicalKeyboardKey.minus, control: true): () => _zoomStep(-1),
@@ -3315,7 +3327,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             onQuickAdd: () => _editQuick(null),
             onQuickReorder: _reorderQuick,
             onSearch: _startEditing,
-            onCustomize: _showCustomize,
+            onCustomize: () => _openSettings('baslangic'),
             onAccount: _openAccount,
             onRadio: _showRadio,
             onAdblock: _showAdblockSettings,
@@ -3545,68 +3557,94 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             onPressed: _openAccount,
           ),
           PopupMenuButton<String>(
+            tooltip: 'Menü',
             onSelected: _onMenu,
             itemBuilder: (_) => [
-              PopupMenuItem(value: 'new', child: Text('Yeni sekme')),
-              PopupMenuItem(value: 'incognito', child: Text('Yeni gizli sekme')),
-              PopupMenuDivider(),
-              PopupMenuItem(value: 'bookmarks', child: Text('Yer imleri')),
-              PopupMenuItem(value: 'history', child: Text('Geçmiş')),
-              PopupMenuItem(
-                  value: 'downloads',
-                  child: Text(_downloads.activeCount > 0
-                      ? 'İndirilenler (${_downloads.activeCount} sürüyor)'
-                      : 'İndirilenler')),
-              if (_closedTabs.isNotEmpty)
-                PopupMenuItem(value: 'reopen', child: Text('Kapatılan sekmeyi geri aç (Ctrl+Shift+T)')),
-              PopupMenuItem(value: 'radio', child: Text('OA Radyo')),
-              PopupMenuItem(value: 'devices', child: Text('Öbür cihazlardaki sekmeler')),
-              if (!_tab.showStart) PopupMenuItem(value: 'send', child: Text('Bu sekmeyi öbür cihaza gönder')),
-              PopupMenuItem(
-                  value: 'readlist',
-                  child: Text(_reading.unread > 0 ? 'Okuma listesi (${_reading.unread})' : 'Okuma listesi')),
-              if (!_tab.showStart && _quick.length < kMaxQuickLinks)
-                PopupMenuItem(value: 'quick', child: Text('Bu sayfayı hızlı erişime ekle')),
+              _mi('new', Icons.add, 'Yeni sekme', 'Ctrl+T'),
+              _mi('incognito', Icons.visibility_off_outlined, 'Yeni gizli sekme'),
+              const PopupMenuDivider(),
+              _mi('bookmarks', Icons.star_border, 'Yer imleri'),
+              _mi('history', Icons.history, 'Geçmiş'),
+              _mi('downloads', Icons.download_outlined,
+                  _downloads.activeCount > 0 ? 'İndirilenler (${_downloads.activeCount} sürüyor)' : 'İndirilenler', 'Ctrl+J'),
+              _mi('readlist', Icons.bookmark_added_outlined, 'Okuma listesi', _reading.unread > 0 ? '${_reading.unread}' : null),
+              _mi('devices', Icons.devices_outlined, 'Öbür cihazlar'),
+              _mi('radio', Icons.radio_outlined, 'OA Radyo'),
+              if (_closedTabs.isNotEmpty) _mi('reopen', Icons.restore, 'Kapatılan sekmeyi geri aç', 'Ctrl+Shift+T'),
               if (!_tab.showStart) ...[
-                PopupMenuDivider(),
-                PopupMenuItem(value: 'find', child: Text('Sayfada bul (Ctrl+F)')),
-                PopupMenuItem(value: 'pdf', child: Text('PDF olarak kaydet (Ctrl+P)')),
-                PopupMenuItem(value: 'pip', child: Text('Videoyu küçük pencerede izle')),
-                PopupMenuItem(value: 'later', child: Text('Sonra oku listesine ekle')),
-                PopupMenuItem(value: 'zoom', child: Text('Yakınlaştırma: %${_zoomOf(_tab.host)}')),
-                PopupMenuItem(
-                    value: 'darksite',
-                    child: Text('Bu siteyi koyu göster: ${_isDarkSite(_tab.host) ? 'açık' : 'kapalı'}')),
-                if (Platform.isWindows) PopupMenuItem(value: 'shot', child: Text('Tam sayfa ekran görüntüsü')),
-                PopupMenuItem(value: 'reader', child: Text('Okuma modu')),
-                PopupMenuItem(value: 'translate', child: Text('Türkçeye çevir')),
+                const PopupMenuDivider(),
+                _mi('page', Icons.article_outlined, 'Bu sayfa', '›'),
               ],
-              PopupMenuDivider(),
-              PopupMenuItem(value: 'passwords', child: Text('Şifreler')),
-              PopupMenuItem(value: 'syncset', child: Text('Eşitleme ayarları')),
-              PopupMenuItem(value: 'import', child: Text('Chrome / Edge / Firefox\'tan içe aktar')),
-              PopupMenuItem(
-                  value: 'lock',
-                  child: Text('Gizli sekme kilidi: ${_incognitoLock ? 'açık' : 'kapalı'}')),
-              PopupMenuItem(value: 'adblock', child: Text('Reklam engelleme')),
-              PopupMenuItem(value: 'engine', child: Text('Arama motoru')),
-              PopupMenuItem(value: 'theme', child: Text('Görünüm: koyu / açık')),
-              PopupMenuItem(
-                  value: 'clock',
-                  child: Text('Başlangıç sayfasında saat ve hava: ${_showClock ? 'açık' : 'kapalı'}')),
-              PopupMenuItem(value: 'news', child: Text('Haber akışı: ${_showNews ? 'açık' : 'kapalı'}')),
-              PopupMenuItem(value: 'markets', child: Text('Döviz ve altın: ${_showMarkets ? 'açık' : 'kapalı'}')),
-              PopupMenuItem(value: 'vtabs', child: Text('Dikey sekmeler: ${_verticalTabs ? 'açık' : 'kapalı'}')),
-              PopupMenuItem(value: 'update', child: Text('Güncellemeleri denetle')),
-              PopupMenuItem(value: 'about', child: Text('Hakkında')),
-              PopupMenuItem(
-                  value: 'account',
-                  child: Text(_account.signedIn ? 'Hesabım' : 'OA Labs hesabıyla giriş yap')),
+              const PopupMenuDivider(),
+              _mi('settings', Icons.settings_outlined, 'Ayarlar', 'Ctrl+,'),
             ],
           ),
         ],
       ),
     );
+  }
+
+  PopupMenuItem<String> _mi(String v, IconData icon, String label, [String? hint]) => PopupMenuItem(
+        value: v,
+        height: 42,
+        child: Row(children: [
+          Icon(icon, size: 19, color: OAColors.text2),
+          const SizedBox(width: 12),
+          Expanded(child: Text(label)),
+          if (hint != null) ...[
+            const SizedBox(width: 16),
+            Text(hint, style: TextStyle(color: OAColors.faint, fontSize: 12.5)),
+          ],
+        ]),
+      );
+
+  /// "Bu sayfa" alt menüsü (bilgisayar): sayfaya özel araçlar.
+  Future<void> _pageMenu() async {
+    final size = MediaQuery.sizeOf(context);
+    final v = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(size.width - 320, 100, 16, 0),
+      items: [
+        _mi('find', Icons.find_in_page_outlined, 'Sayfada bul', 'Ctrl+F'),
+        _mi('later', Icons.bookmark_add_outlined, 'Sonra oku listesine ekle'),
+        _mi('send', Icons.send_to_mobile_outlined, 'Öbür cihaza gönder'),
+        if (_quick.length < kMaxQuickLinks) _mi('quick', Icons.add_to_home_screen_outlined, 'Hızlı erişime ekle'),
+        const PopupMenuDivider(),
+        _mi('reader', Icons.chrome_reader_mode_outlined, 'Okuma modu'),
+        _mi('translate', Icons.translate, 'Türkçeye çevir'),
+        _mi('darksite', Icons.contrast, 'Koyu göster', _isDarkSite(_tab.host) ? 'açık' : 'kapalı'),
+        _mi('zoom', Icons.zoom_in, 'Yakınlaştırma', '%${_zoomOf(_tab.host)}'),
+        const PopupMenuDivider(),
+        _mi('pdf', Icons.picture_as_pdf_outlined, 'PDF olarak kaydet', 'Ctrl+P'),
+        if (Platform.isWindows) _mi('shot', Icons.screenshot_monitor_outlined, 'Tam sayfa ekran görüntüsü'),
+        _mi('pip', Icons.picture_in_picture_alt_outlined, 'Videoyu küçük pencerede izle'),
+        _mi('adblock', Icons.shield_outlined, 'Bu sitede reklam engelleme'),
+      ],
+    );
+    if (v != null) _onMenu(v);
+  }
+
+  /// Ayarlar: uygulamanın üzerine yandan kayarak açılan ekran.
+  void _openSettings([String? section]) {
+    Navigator.of(context).push(PageRouteBuilder(
+      transitionDuration: const Duration(milliseconds: 260),
+      reverseTransitionDuration: const Duration(milliseconds: 200),
+      pageBuilder: (_, __, ___) => SettingsScreen(page: this, initial: section),
+      transitionsBuilder: (_, anim, __, child) => SlideTransition(
+        position: Tween(begin: const Offset(1, 0), end: Offset.zero)
+            .animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic)),
+        child: child,
+      ),
+    ));
+  }
+
+  void _clearHistory() {
+    setState(() => _history.clear());
+    _save('history', _history);
+    // Eşitlemede öbür cihazlardaki geçmiş de silinsin.
+    _historyCleared = DateTime.now().millisecondsSinceEpoch;
+    _prefs?.setInt('history_cleared', _historyCleared);
+    _scheduleSync();
   }
 
   void _onMenu(String v) {
@@ -3621,14 +3659,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           _save('bookmarks', _bookmarks);
         });
       case 'history':
-        _showList('Geçmiş', _history, onClear: () {
-          setState(() => _history.clear());
-          _save('history', _history);
-          // Eşitlemede öbür cihazlardaki geçmiş de silinsin.
-          _historyCleared = DateTime.now().millisecondsSinceEpoch;
-          _prefs?.setInt('history_cleared', _historyCleared);
-          _scheduleSync();
-        });
+        _showList('Geçmiş', _history, onClear: _clearHistory);
       case 'engine':
         _showSearchSettings();
       case 'home':
@@ -3700,7 +3731,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       case 'send':
         _sendTab();
       case 'syncset':
-        _showSyncSettings();
+        _openSettings('hesap');
+      case 'settings':
+        _openSettings();
+      case 'page':
+        _pageMenu();
     }
   }
 
@@ -4127,6 +4162,23 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       useSafeArea: true,
       isScrollControlled: true,
       builder: (ctx) {
+        Widget tool(IconData icon, String label, String value) => InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: () {
+                Navigator.pop(ctx);
+                _onMenu(value);
+              },
+              child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(color: OAColors.surface2, borderRadius: BorderRadius.circular(14)),
+                  child: Icon(icon, size: 21, color: OAColors.text),
+                ),
+                const SizedBox(height: 5),
+                Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, color: OAColors.text2)),
+              ]),
+            );
         Widget item(IconData icon, String label, String value) => ListTile(
               leading: Icon(icon),
               title: Text(label, style: TextStyle(fontSize: 16)),
@@ -4164,49 +4216,50 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                 },
               ),
               Divider(height: 16),
+              // Sayfa araçları: tek satırda simgeler
+              if (!_tab.showStart) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+                  child: Text('BU SAYFA',
+                      style: TextStyle(color: OAColors.faint, fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 0.8)),
+                ),
+                GridView.count(
+                  crossAxisCount: 5,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  childAspectRatio: 0.95,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  children: [
+                    tool(Icons.find_in_page_outlined, 'Bul', 'find'),
+                    tool(Icons.bookmark_add_outlined, 'Sonra oku', 'later'),
+                    tool(Icons.send_to_mobile_outlined, 'Gönder', 'send'),
+                    tool(Icons.chrome_reader_mode_outlined, 'Okuma', 'reader'),
+                    tool(Icons.translate, 'Çevir', 'translate'),
+                    tool(Icons.contrast, _isDarkSite(_tab.host) ? 'Koyu: açık' : 'Koyu', 'darksite'),
+                    tool(Icons.zoom_in, '%${_zoomOf(_tab.host)}', 'zoom'),
+                    tool(Icons.picture_as_pdf_outlined, 'PDF', 'pdf'),
+                    tool(Icons.picture_in_picture_alt_outlined, 'Küçük video', 'pip'),
+                    tool(Icons.add_to_home_screen_outlined, 'Hızlı erişim', 'quick'),
+                  ],
+                ),
+                Divider(height: 16),
+              ],
               item(Icons.add, 'Yeni sekme', 'new'),
               item(Icons.visibility_off_outlined, 'Yeni gizli sekme', 'incognito'),
-              item(Icons.home_outlined, 'Başlangıç sayfası', 'home'),
               Divider(height: 16),
               item(Icons.star_border, 'Yer imleri', 'bookmarks'),
               item(Icons.history, 'Geçmiş', 'history'),
               item(Icons.download_outlined,
                   _downloads.activeCount > 0 ? 'İndirilenler (${_downloads.activeCount} sürüyor)' : 'İndirilenler',
                   'downloads'),
-              if (_closedTabs.isNotEmpty) item(Icons.restore, 'Kapatılan sekmeyi geri aç', 'reopen'),
-              item(Icons.devices_outlined, 'Öbür cihazlardaki sekmeler', 'devices'),
-              if (!_tab.showStart) item(Icons.send_to_mobile_outlined, 'Bu sekmeyi öbür cihaza gönder', 'send'),
-              item(Icons.radio_outlined, 'OA Radyo', 'radio'),
               item(Icons.bookmark_added_outlined,
                   _reading.unread > 0 ? 'Okuma listesi (${_reading.unread})' : 'Okuma listesi', 'readlist'),
+              item(Icons.devices_outlined, 'Öbür cihazlar', 'devices'),
+              item(Icons.radio_outlined, 'OA Radyo', 'radio'),
               if (Platform.isAndroid) item(Icons.qr_code_scanner, 'QR kod okut', 'qr'),
-              if (!_tab.showStart) ...[
-                item(Icons.find_in_page_outlined, 'Sayfada bul', 'find'),
-                item(Icons.picture_in_picture_alt_outlined, 'Videoyu küçük pencerede izle', 'pip'),
-                item(Icons.picture_as_pdf_outlined, 'Yazdır / PDF olarak kaydet', 'pdf'),
-                item(Icons.bookmark_add_outlined, 'Sonra oku', 'later'),
-                item(Icons.zoom_in, 'Yakınlaştırma: %${_zoomOf(_tab.host)}', 'zoom'),
-                item(Icons.contrast, 'Bu siteyi koyu göster: ${_isDarkSite(_tab.host) ? 'açık' : 'kapalı'}', 'darksite'),
-                item(Icons.chrome_reader_mode_outlined, 'Okuma modu', 'reader'),
-                item(Icons.translate, 'Türkçeye çevir', 'translate'),
-              ],
-              if (!_tab.showStart && _quick.length < kMaxQuickLinks)
-                item(Icons.add_to_home_screen_outlined, 'Bu sayfayı hızlı erişime ekle', 'quick'),
+              if (_closedTabs.isNotEmpty) item(Icons.restore, 'Kapatılan sekmeyi geri aç', 'reopen'),
               Divider(height: 16),
-              item(_siteBlocking ? Icons.shield : Icons.shield_outlined,
-                  'Reklam engelleme: ${_adblockOn ? (_siteBlocking ? 'açık' : 'bu sitede kapalı') : 'kapalı'}', 'adblock'),
-              item(Icons.search, 'Arama motoru: ${_engine.name}', 'engine'),
-              item(Icons.key_outlined, 'Şifreler', 'passwords'),
-              item(Icons.file_download_outlined, 'Chrome / Firefox\'tan içe aktar', 'import'),
-              item(_incognitoLock ? Icons.lock_outline : Icons.lock_open_outlined,
-                  'Gizli sekme kilidi: ${_incognitoLock ? 'açık' : 'kapalı'}', 'lock'),
-              item(Icons.wallpaper_outlined, 'Başlangıç sayfası arka planı', 'wallpaper'),
-              item(Icons.sync, 'Eşitleme ayarları', 'syncset'),
-              item(Icons.system_update_outlined, 'Güncellemeleri denetle', 'update'),
-              item(Icons.info_outline, 'Hakkında · $appVersion', 'about'),
-              item(OAColors.isDark ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
-                  'Görünüm: ${switch (themeModeNotifier.value) { ThemeMode.dark => 'Koyu', ThemeMode.light => 'Açık', ThemeMode.system => 'Sistem' }}',
-                  'theme'),
+              item(Icons.settings_outlined, 'Ayarlar', 'settings'),
             ],
           ),
         );

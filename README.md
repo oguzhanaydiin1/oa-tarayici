@@ -3,7 +3,7 @@
 OA Labs'in Windows ve Android tarayıcısı. Flutter + `flutter_inappwebview`: sayfaları Windows'ta
 WebView2 (Edge motoru), Android'de Android WebView çizer; arayüz OA Labs tasarım sistemiyle yazılır.
 
-> Durum: deneme sürümü (0.12.0). Android sürümü sabit OA anahtarıyla imzalı; Windows dosyaları imzasız.
+> Durum: deneme sürümü (0.13.0). Android sürümü sabit OA anahtarıyla imzalı; Windows dosyaları imzasız.
 
 ## İndir ve dene
 
@@ -18,6 +18,7 @@ Her `main` gönderiminde GitHub Actions iki dosya derler: **Actions** sekmesi �
 Aynı dosyalar **Releases** sayfasına da `pubspec.yaml`daki sürüm numarasıyla (ör. v0.1.0) deneme sürümü olarak eklenir. Yeni sürüm çıkarmak için `version` satırını artırmak yeterli.
 
 ## Özellikler
+- Ayarlar ayrı bir ekranda (menü → Ayarlar, Ctrl+,): uygulamanın üzerine kayarak açılır; başlıklar, ayarlarda arama; menü kısaldı, sayfa araçları "Bu sayfa" altında
 - Eşitleme (OA hesabı): öbür cihazlardaki açık sekmeler, sekmeyi öbür cihaza gönderme, geçmiş, ve şifreler (eşitleme parolasıyla uçtan uca şifreli; sunucu içini göremez)
 - Haber akışı: başlangıç sayfasında seçilen sitelerin son haberleri (RSS; BBC Türkçe, NTV, DW Türkçe, Webtekno… ve kendi eklediğin kaynaklar)
 - Döviz ve altın: dolar, euro, gram altın ve günlük değişim
@@ -78,6 +79,7 @@ Aynı dosyalar **Releases** sayfasına da `pubspec.yaml`daki sürüm numarasıyl
 - `lib/radio.dart`, `assets/hls.min.js` — OA Radyo çalar (Radio Browser, OA Radyo'nun ek istasyonları)
 - `lib/updater.dart` — GitHub sürümlerinden güncelleme denetimi
 - `lib/weather.dart` — saat, tarih, hava durumu (Open-Meteo) ve şehir seçimi
+- `lib/settings_screen.dart` — Ayarlar ekranı
 - `lib/vault.dart` — şifre kasası (PBKDF2 + AES-256-GCM)
 - `lib/passwords.dart` — şifre deposu, cihaz kilidiyle doğrulama, Şifreler listesi
 - `lib/news.dart`, `lib/markets.dart`, `lib/read_later.dart`, `lib/tab_groups.dart` — haber akışı, döviz/altın, okuma listesi, sekme grupları
