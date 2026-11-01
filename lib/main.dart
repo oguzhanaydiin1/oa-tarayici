@@ -1582,12 +1582,46 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     try {
       _appLinks = AppLinks();
       _appLinks!.getInitialLink().then((u) {
-        if (u != null && u.scheme.startsWith('http')) _addTab(url: u.toString());
+        if (u != null) _onLink(u);
       });
-      _linkSub = _appLinks!.uriLinkStream.listen((u) {
-        if (u.scheme.startsWith('http') && mounted) _addTab(url: u.toString());
-      });
+      _linkSub = _appLinks!.uriLinkStream.listen(_onLink);
     } catch (_) {}
+  }
+
+  String? _lastLink;
+  DateTime _lastLinkAt = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// Dışarıdan gelen adres: web bağlantısı, ya da ana ekran widget'ı / simge kısayolu
+  /// (oatarayici://ara, yeni, gizli, qr, radyo, hava).
+  void _onLink(Uri u) {
+    if (!mounted) return;
+    // Açılış bağlantısı hem getInitialLink hem akıştan gelebilir: aynısını iki kez açma.
+    final now = DateTime.now();
+    if (u.toString() == _lastLink && now.difference(_lastLinkAt) < const Duration(seconds: 3)) return;
+    _lastLink = u.toString();
+    _lastLinkAt = now;
+    if (u.scheme.startsWith('http')) {
+      _addTab(url: u.toString());
+      return;
+    }
+    if (u.scheme != 'oatarayici') return;
+    switch (u.host) {
+      case 'ara':
+        _addTab();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _startEditing();
+        });
+      case 'yeni':
+        _addTab();
+      case 'gizli':
+        _addTab(incognito: true);
+      case 'qr':
+        _scanQr();
+      case 'radyo':
+        _showRadio();
+      case 'hava':
+        showWeatherDetails(context, _wx);
+    }
   }
 
   // ---------------------------------------------------------------- Güncelleme

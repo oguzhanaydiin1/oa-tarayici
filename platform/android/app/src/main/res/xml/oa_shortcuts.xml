@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut android:shortcutId="yeni" android:enabled="true" android:icon="@drawable/oa_sc_yeni"
+        android:shortcutShortLabel="@string/oa_sc_yeni" android:shortcutLongLabel="@string/oa_sc_yeni">
+        <intent android:action="android.intent.action.VIEW" android:data="oatarayici://yeni"
+            android:targetPackage="dev.oalabs.oa_tarayici" android:targetClass="dev.oalabs.oa_tarayici.MainActivity" />
+    </shortcut>
+    <shortcut android:shortcutId="gizli" android:enabled="true" android:icon="@drawable/oa_sc_gizli"
+        android:shortcutShortLabel="@string/oa_sc_gizli" android:shortcutLongLabel="@string/oa_sc_gizli">
+        <intent android:action="android.intent.action.VIEW" android:data="oatarayici://gizli"
+            android:targetPackage="dev.oalabs.oa_tarayici" android:targetClass="dev.oalabs.oa_tarayici.MainActivity" />
+    </shortcut>
+    <shortcut android:shortcutId="qr" android:enabled="true" android:icon="@drawable/oa_sc_qr"
+        android:shortcutShortLabel="@string/oa_sc_qr" android:shortcutLongLabel="@string/oa_sc_qr">
+        <intent android:action="android.intent.action.VIEW" android:data="oatarayici://qr"
+            android:targetPackage="dev.oalabs.oa_tarayici" android:targetClass="dev.oalabs.oa_tarayici.MainActivity" />
+    </shortcut>
+    <shortcut android:shortcutId="radyo" android:enabled="true" android:icon="@drawable/oa_sc_radyo"
+        android:shortcutShortLabel="@string/oa_sc_radyo" android:shortcutLongLabel="@string/oa_sc_radyo">
+        <intent android:action="android.intent.action.VIEW" android:data="oatarayici://radyo"
+            android:targetPackage="dev.oalabs.oa_tarayici" android:targetClass="dev.oalabs.oa_tarayici.MainActivity" />
+    </shortcut>
+</shortcuts>

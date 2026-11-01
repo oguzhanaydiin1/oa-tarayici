@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:minHeight="56dp"
+    android:background="@drawable/oa_w_bg_pill"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:padding="6dp">
+
+    <TextView
+        android:id="@+id/w_logo"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:background="@drawable/oa_w_bg_logo"
+        android:fontFamily="sans-serif-black"
+        android:gravity="center"
+        android:text="OA"
+        android:textColor="#FF14110A"
+        android:textSize="15sp" />
+
+    <LinearLayout
+        android:id="@+id/w_kutu"
+        android:layout_width="0dp"
+        android:layout_height="44dp"
+        android:layout_weight="1"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="12dp"
+        android:paddingEnd="8dp">
+
+        <ImageView
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:src="@drawable/oa_w_ara" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="Ara veya adres yaz"
+            android:textColor="#FF9EA2B3"
+            android:textSize="15sp" />
+    </LinearLayout>
+
+    <ImageView
+        android:id="@+id/w_qr"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:background="@drawable/oa_w_bg_btn"
+        android:contentDescription="QR kod okut"
+        android:padding="10dp"
+        android:src="@drawable/oa_w_qr" />
+
+    <ImageView
+        android:id="@+id/w_gizli"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_marginStart="6dp"
+        android:background="@drawable/oa_w_bg_btn"
+        android:contentDescription="Gizli sekme"
+        android:padding="10dp"
+        android:src="@drawable/oa_w_gizli" />
+</LinearLayout>

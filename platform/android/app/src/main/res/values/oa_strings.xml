@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="oa_w_arama_ad">OA arama</string>
+    <string name="oa_w_arama_acik">Ana ekrandan ara, QR okut, gizli sekme aç</string>
+    <string name="oa_w_hava_ad">OA saat ve hava</string>
+    <string name="oa_w_hava_acik">Saat, tarih, hava durumu ve kısa tahmin</string>
+    <string name="oa_sc_yeni">Yeni sekme</string>
+    <string name="oa_sc_gizli">Gizli sekme</string>
+    <string name="oa_sc_qr">QR kod okut</string>
+    <string name="oa_sc_radyo">OA Radyo</string>
+</resources>

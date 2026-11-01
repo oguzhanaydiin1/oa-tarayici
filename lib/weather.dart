@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -128,6 +130,39 @@ class WeatherService extends ChangeNotifier {
 
   bool get hasData => temp != null;
 
+  static const _widget = MethodChannel('oa/widget');
+
+  /// Android ana ekran widget'ını (saat ve hava) günceller.
+  Future<void> _pushWidget() async {
+    if (!Platform.isAndroid) return;
+    final c = city;
+    final m = <String, dynamic>{
+      'city': c?.name,
+      'lat': c?.lat.toStringAsFixed(4),
+      'lon': c?.lon.toStringAsFixed(4),
+      'temp': temp == null ? null : '${temp!.round()}°',
+      'code': code,
+      'day': isDay,
+      'desc': temp == null ? null : wxText(code),
+    };
+    final cells = <(String, int, bool, String)>[
+      for (final h in hours.skip(1).where((h) => h.time.hour % 3 == 0).take(2))
+        (hhmm(h.time), h.code, h.isDay, '${h.temp.round()}°'),
+      for (final d in days.skip(1).take(2))
+        (_daysShort[d.date.weekday - 1], d.code, true, '${d.max.round()}°/${d.min.round()}'),
+    ];
+    for (var i = 0; i < 4; i++) {
+      final has = i < cells.length;
+      m['f${i}_l'] = has ? cells[i].$1 : null;
+      m['f${i}_c'] = has ? cells[i].$2 : null;
+      m['f${i}_d'] = has ? cells[i].$3 : null;
+      m['f${i}_t'] = has ? cells[i].$4 : null;
+    }
+    try {
+      await _widget.invokeMethod('hava', m);
+    } catch (_) {}
+  }
+
   Future<void> init(SharedPreferences prefs) async {
     _prefs = prefs;
     try {
@@ -137,6 +172,7 @@ class WeatherService extends ChangeNotifier {
       if (cache != null) _parse(jsonDecode(cache) as Map);
     } catch (_) {}
     notifyListeners();
+    _pushWidget();
     refresh();
     _timer = Timer.periodic(const Duration(minutes: 30), (_) => refresh());
   }
@@ -155,6 +191,7 @@ class WeatherService extends ChangeNotifier {
     _prefs?.setString('weather_city', jsonEncode(c.toJson()));
     _prefs?.remove('weather_cache');
     notifyListeners();
+    _pushWidget();
     await refresh(force: true);
   }
 
@@ -181,6 +218,7 @@ class WeatherService extends ChangeNotifier {
       updated = DateTime.now();
       error = null;
       _prefs?.setString('weather_cache', jsonEncode(j));
+      _pushWidget();
     } catch (e) {
       error = 'Hava durumu alınamadı';
     }

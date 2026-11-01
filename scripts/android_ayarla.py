@@ -7,6 +7,8 @@
 - Arka planda radyo (just_audio_background / audio_service): ön plan hizmeti, medya düğmesi alıcısı.
 - Parmak izi / ekran kilidi (local_auth): MainActivity FragmentActivity olur, tema AppCompat olur.
 - Videoyu küçük pencerede izleme (resim içinde resim): MainActivity'de "oa/pip" kanalı.
+- Ana ekran widget'ları (arama, saat ve hava) ve uygulama simgesi kısayolları.
+  Kotlin ve kaynak dosyaları platform/android/ klasöründen kopyalanır.
 - OA_KEYSTORE_PATH ve OA_KEYSTORE_PASSWORD ortam değişkenleri varsa yayın sürümünü bu sabit
   anahtarla imzalar. Sabit anahtar olmadan her derleme farklı imzalanır ve Android yeni sürümü
   eskisinin üzerine kurmaz.
@@ -15,6 +17,7 @@ Kullanım (proje kökünde): python3 scripts/android_ayarla.py
 """
 import os
 import re
+import shutil
 import sys
 
 MANIFEST = 'android/app/src/main/AndroidManifest.xml'
@@ -55,61 +58,21 @@ def manifest():
     print('Manifest: tarayıcı intent filtreleri ve kurulum izni eklendi')
 
 
-MAIN_ACTIVITY = """package dev.oalabs.oa_tarayici
-
-import android.app.PictureInPictureParams
-import android.content.pm.PackageManager
-import android.content.res.Configuration
-import android.os.Build
-import android.util.Rational
-import com.ryanheise.audioservice.AudioServiceFragmentActivity
-import io.flutter.embedding.engine.FlutterEngine
-import io.flutter.plugin.common.MethodChannel
-
-// AudioServiceFragmentActivity: arka planda radyo (audio_service) ve parmak izi (local_auth,
-// FragmentActivity ister) birlikte çalışsın diye.
-class MainActivity : AudioServiceFragmentActivity() {
-    private var pip: MethodChannel? = null
-
-    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
-        super.configureFlutterEngine(flutterEngine)
-        val ch = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "oa/pip")
-        ch.setMethodCallHandler { call, result ->
-            when (call.method) {
-                "destek" -> result.success(
-                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
-                        packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
-                )
-                "gir" -> {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        val w = maxOf(call.argument<Int>("w") ?: 16, 1)
-                        val h = maxOf(call.argument<Int>("h") ?: 9, 1)
-                        // Android en fazla 2.39:1 ile 1:2.39 arası oran kabul eder
-                        var r = Rational(w, h)
-                        if (r.toDouble() > 2.39) r = Rational(239, 100)
-                        if (r.toDouble() < 1 / 2.39) r = Rational(100, 239)
-                        val ok = try {
-                            enterPictureInPictureMode(PictureInPictureParams.Builder().setAspectRatio(r).build())
-                        } catch (e: Exception) {
-                            false
-                        }
-                        result.success(ok)
-                    } else {
-                        result.success(false)
-                    }
-                }
-                else -> result.notImplemented()
-            }
-        }
-        pip = ch
-    }
-
-    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
-        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
-        pip?.invokeMethod("degisti", isInPictureInPictureMode)
-    }
-}
-"""
+WIDGETS = '''
+        <!-- Ana ekran widget'ları -->
+        <receiver android:name=".AramaWidget" android:exported="false" android:label="@string/oa_w_arama_ad">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/oa_widget_arama_info" />
+        </receiver>
+        <receiver android:name=".HavaWidget" android:exported="false" android:label="@string/oa_w_hava_ad">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/oa_widget_hava_info" />
+        </receiver>
+'''
 
 AUDIO_SERVICE = '''
         <!-- OA Radyo: arka planda çalma (audio_service) -->
@@ -148,16 +111,22 @@ def native():
                       'android:name=".MainActivity"\n            android:supportsPictureInPicture="true"\n            android:resizeableActivity="true"', 1)
     open(MANIFEST, 'w', encoding='utf-8').write(s)
 
-    # MainActivity
+    if '.AramaWidget' not in s:
+        i = s.rfind('</application>')
+        s = s[:i] + WIDGETS.strip('\n') + '\n    ' + s[i:]
+    if 'android.app.shortcuts' not in s:
+        i = s.find('</activity>')
+        s = s[:i] + '    <meta-data android:name="android.app.shortcuts" android:resource="@xml/oa_shortcuts" />\n        ' + s[i:]
+    open(MANIFEST, 'w', encoding='utf-8').write(s)
+
+    # Flutter'ın ürettiği MainActivity yerine bizimki (platform/android/...)
     found = False
     for root, _, files in os.walk('android/app/src/main'):
         for f in files:
             if f in ('MainActivity.kt', 'MainActivity.java'):
                 os.remove(os.path.join(root, f))
                 found = True
-    d = 'android/app/src/main/kotlin/dev/oalabs/oa_tarayici'
-    os.makedirs(d, exist_ok=True)
-    open(os.path.join(d, 'MainActivity.kt'), 'w', encoding='utf-8').write(MAIN_ACTIVITY)
+    shutil.copytree('platform/android/app/src/main', 'android/app/src/main', dirs_exist_ok=True)
 
     # local_auth: tema AppCompat olmalı (eski Android sürümlerinde çökmesin)
     for f in ['android/app/src/main/res/values/styles.xml', 'android/app/src/main/res/values-night/styles.xml']:
@@ -178,7 +147,7 @@ def native():
         if 'androidx.appcompat:appcompat' not in t:
             t += "\ndependencies {\n    implementation 'androidx.appcompat:appcompat:1.7.0'\n}\n"
             open(groovy, 'w', encoding='utf-8').write(t)
-    print('Android: radyo hizmeti, resim içinde resim, parmak izi ayarlandı' + ('' if found else ' (MainActivity bulunamadı, yenisi yazıldı)'))
+    print('Android: radyo hizmeti, resim içinde resim, parmak izi, widget ve kısayollar ayarlandı' + ('' if found else ' (MainActivity bulunamadı, yenisi yazıldı)'))
 
 
 def signing():
