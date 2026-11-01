@@ -3321,7 +3321,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       context: context,
       applicationName: 'OA Tarayıcı',
       applicationVersion: appVersion,
-      applicationIcon: const OAMark(size: 44),
+      applicationIcon: OALabsSeal(size: 88, color: OAColors.text, accent: OAColors.amber),
       applicationLegalese: '© 2026 OA Labs · Oğuzhan Aydın',
     );
   }
