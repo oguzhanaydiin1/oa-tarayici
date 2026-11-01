@@ -1,9 +1,12 @@
 package dev.oalabs.oa_tarayici
 
+import android.app.Activity
 import android.app.PictureInPictureParams
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.Build
+import android.speech.RecognizerIntent
 import android.util.Rational
 import com.ryanheise.audioservice.AudioServiceFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -13,6 +16,7 @@ import io.flutter.plugin.common.MethodChannel
 // FragmentActivity ister) birlikte çalışsın diye.
 class MainActivity : AudioServiceFragmentActivity() {
     private var pip: MethodChannel? = null
+    private var sesSonuc: MethodChannel.Result? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -46,6 +50,28 @@ class MainActivity : AudioServiceFragmentActivity() {
         }
         pip = ch
 
+        // Sesli arama: telefonun konuşma tanıma ekranı (izin gerekmez; mikrofonu sistem kullanır).
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "oa/ses").setMethodCallHandler { call, result ->
+            if (call.method != "dinle") {
+                result.notImplemented()
+                return@setMethodCallHandler
+            }
+            val i = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_WEB_SEARCH)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "tr-TR")
+                putExtra(RecognizerIntent.EXTRA_PROMPT, "Ne aramak istersin?")
+                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+            }
+            try {
+                sesSonuc?.success(null)
+                sesSonuc = result
+                startActivityForResult(i, SES_ISTEK)
+            } catch (e: Exception) {
+                sesSonuc = null
+                result.error("yok", "Bu telefonda sesli arama yok", null)
+            }
+        }
+
         // Ana ekran widget'ları: uygulama hava durumunu buraya yazar, widget'lar yenilenir.
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "oa/widget").setMethodCallHandler { call, result ->
             when (call.method) {
@@ -59,6 +85,21 @@ class MainActivity : AudioServiceFragmentActivity() {
                 else -> result.notImplemented()
             }
         }
+    }
+
+    @Deprecated("FlutterFragmentActivity hâlâ bunu kullanıyor")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == SES_ISTEK) {
+            val r = sesSonuc
+            sesSonuc = null
+            val t = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+            r?.success(if (resultCode == Activity.RESULT_OK) t else null)
+        }
+    }
+
+    companion object {
+        private const val SES_ISTEK = 7301
     }
 
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {

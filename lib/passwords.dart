@@ -91,6 +91,27 @@ class PasswordStore extends ChangeNotifier {
     await _save();
   }
 
+  /// Toplu ekleme (içe aktarma). Eklenen ya da güncellenen kayıt sayısını döndürür.
+  Future<int> importMany(Iterable<(String, String, String)> logins) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    var n = 0;
+    for (final (origin, user, pass) in logins) {
+      if (origin.isEmpty || pass.isEmpty) continue;
+      final e = find(origin, user);
+      if (e != null) {
+        if (e.pass == pass) continue;
+        e
+          ..pass = pass
+          ..updated = now;
+      } else {
+        items.add(SavedLogin(origin: origin, user: user, pass: pass, updated: now));
+      }
+      n++;
+    }
+    if (n > 0) await _save();
+    return n;
+  }
+
   Future<void> touch(SavedLogin e) async {
     e.updated = DateTime.now().millisecondsSinceEpoch;
     await _save();

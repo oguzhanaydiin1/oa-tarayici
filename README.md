@@ -3,7 +3,7 @@
 OA Labs'in Windows ve Android tarayıcısı. Flutter + `flutter_inappwebview`: sayfaları Windows'ta
 WebView2 (Edge motoru), Android'de Android WebView çizer; arayüz OA Labs tasarım sistemiyle yazılır.
 
-> Durum: deneme sürümü (0.9.0). Android sürümü sabit OA anahtarıyla imzalı; Windows dosyaları imzasız.
+> Durum: deneme sürümü (0.10.0). Android sürümü sabit OA anahtarıyla imzalı; Windows dosyaları imzasız.
 
 ## İndir ve dene
 
@@ -18,6 +18,12 @@ Her `main` gönderiminde GitHub Actions iki dosya derler: **Actions** sekmesi �
 Aynı dosyalar **Releases** sayfasına da `pubspec.yaml`daki sürüm numarasıyla (ör. v0.1.0) deneme sürümü olarak eklenir. Yeni sürüm çıkarmak için `version` satırını artırmak yeterli.
 
 ## Özellikler
+- Chrome / Edge / Firefox'tan içe aktarma: yer imleri (.html) ve şifreler (.csv)
+- Çerez pencerelerini kendiliğinden reddetme ("Çerezleri kabul et" pencerelerinde reddet / yalnız gerekli)
+- Sesli arama (Android, adres çubuğundaki mikrofon)
+- Sitelere karanlık mod: site başına ya da bütün sitelerde; sayfa zaten koyuysa dokunmaz
+- Site başına yakınlaştırma (Ctrl + / Ctrl − / Ctrl 0), her site için hatırlanır
+- Tam sayfa ekran görüntüsü (Windows)
 - Android ana ekran widget'ları: OA arama (arama kutusu, QR, gizli sekme) ve OA saat ve hava (uygulama kapalıyken de yenilenir); simgeye basılı tutunca kısayollar: yeni sekme, gizli sekme, QR, OA Radyo
 - Başlangıç sayfasında saat, tarih ve hava durumu (Open-Meteo): bilgisayarda sağ üst köşede, telefonda arama kutusunun altında tahminli kart; dokununca saatlik ve 7 günlük tahmin, şehir seçimi
 - Telefonda radyo arka planda çalar: uygulamadan çıkınca ya da ekran kilitlenince susmaz; bildirimde ve kilit ekranında oynat/durdur
@@ -68,6 +74,7 @@ Aynı dosyalar **Releases** sayfasına da `pubspec.yaml`daki sürüm numarasıyl
 - `lib/updater.dart` — GitHub sürümlerinden güncelleme denetimi
 - `lib/weather.dart` — saat, tarih, hava durumu (Open-Meteo) ve şehir seçimi
 - `lib/passwords.dart` — şifre deposu, cihaz kilidiyle doğrulama, Şifreler listesi
+- `lib/extras.dart` — çerez pencereleri, karanlık mod, yakınlaştırma, içe aktarma
 - `lib/page_tools.dart` — sayfada bul, videoyu küçük pencerede izleme, şifre yakalama/doldurma betikleri
 - `platform/android/` — Android'e kopyalanan Kotlin ve kaynaklar (MainActivity, widget'lar, kısayollar)
 - `platform/windows/runner/` — Windows giriş noktası (tek pencere)

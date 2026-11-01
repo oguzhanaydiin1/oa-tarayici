@@ -18,6 +18,7 @@ import 'package:app_links/app_links.dart';
 
 import 'adblock.dart';
 import 'downloads.dart';
+import 'extras.dart';
 import 'radio.dart';
 import 'updater.dart';
 import 'oa_theme.dart';
@@ -200,6 +201,15 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   bool _incognitoLock = false;
   bool _locked = false;
   bool _unlocking = false;
+
+  /// Android: sesli arama (telefonun konuşma tanıma ekranı).
+  static const _ses = MethodChannel('oa/ses');
+
+  // Çerez pencereleri, sitelere karanlık mod, site başına yakınlaştırma
+  bool _cookieOn = true;
+  bool _darkAll = false;
+  Set<String> _darkSites = {};
+  Map<String, int> _siteZoom = {};
 
   // Şifreler
   final PasswordStore _passwords = PasswordStore();
@@ -426,6 +436,13 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       _readerSize = _prefs!.getInt('reader_size') ?? 19;
       _incognitoLock = _prefs!.getBool('incognito_lock') ?? false;
       _showClock = _prefs!.getBool('show_clock') ?? true;
+      _cookieOn = _prefs!.getBool('cookie_block') ?? true;
+      _darkAll = _prefs!.getBool('dark_all') ?? false;
+      _darkSites = (_prefs!.getStringList('dark_sites') ?? []).toSet();
+      try {
+        _siteZoom = Map<String, int>.from(
+            (jsonDecode(_prefs!.getString('site_zoom') ?? '{}') as Map).map((k, v) => MapEntry(k.toString(), (v as num).toInt())));
+      } catch (_) {}
       DateTime t(String k) =>
           DateTime.tryParse(_prefs!.getString(k) ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
@@ -683,6 +700,18 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                       _applyAdblock();
                     },
                   ),
+                SwitchListTile(
+                  value: _cookieOn,
+                  activeThumbColor: OAColors.amberInk,
+                  activeTrackColor: OAColors.amber,
+                  title: const Text('Çerez pencerelerini kendiliğinden reddet',
+                      style: TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: const Text('"Çerezleri kabul et" pencerelerinde reddet / yalnız gerekli seçilir'),
+                  onChanged: (v) {
+                    _setCookieBlock(v);
+                    setSheet(() {});
+                  },
+                ),
                 if (_adblockAllow.isNotEmpty)
                   ListTile(
                     leading: const Icon(Icons.playlist_remove),
@@ -873,6 +902,21 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                     'Cihazın ayarına göre koyu ya da açık'),
                 option(ThemeMode.dark, Icons.dark_mode_outlined, 'Koyu', 'OA Labs sitesi gibi'),
                 option(ThemeMode.light, Icons.light_mode_outlined, 'Açık', 'Aydınlık ortamlar için'),
+                const Divider(height: 20),
+                StatefulBuilder(
+                  builder: (ctx, setD) => SwitchListTile(
+                    value: _darkAll,
+                    activeThumbColor: OAColors.amberInk,
+                    activeTrackColor: OAColors.amber,
+                    secondary: const Icon(Icons.contrast),
+                    title: const Text('Bütün siteleri koyu göster', style: TextStyle(fontWeight: FontWeight.w600)),
+                    subtitle: const Text('Karanlık modu olmayan siteler de koyu görünür'),
+                    onChanged: (v) {
+                      _setDarkAll(v);
+                      setD(() {});
+                    },
+                  ),
+                ),
               ],
             ),
           );
@@ -974,6 +1018,310 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   void _toggleClock() {
     setState(() => _showClock = !_showClock);
     _prefs?.setBool('show_clock', _showClock);
+  }
+
+  // ----------------------------------------------------------------- Site görünümü: yakınlaştırma, karanlık mod
+
+  bool _isDarkSite(String host) => _darkAll || _darkSites.contains(host);
+  int _zoomOf(String host) => _siteZoom[host] ?? 100;
+
+  /// Sayfa açılınca o sitenin yakınlaştırmasını ve karanlık modunu uygular.
+  Future<void> _applySiteLook(TabData t) async {
+    final c = t.controller;
+    if (c == null || t.showStart) return;
+    final host = t.host;
+    try {
+      final z = _zoomOf(host);
+      if (z != 100) await c.evaluateJavascript(source: zoomJs(z));
+      if (_isDarkSite(host)) await c.evaluateJavascript(source: darkModeJs(true));
+    } catch (_) {}
+  }
+
+  void _setZoom(int percent) {
+    final host = _tab.host;
+    if (_tab.showStart || host.isEmpty) return;
+    final z = percent.clamp(30, 300);
+    setState(() {
+      if (z == 100) {
+        _siteZoom.remove(host);
+      } else {
+        _siteZoom[host] = z;
+      }
+    });
+    _prefs?.setString('site_zoom', jsonEncode(_siteZoom));
+    _tab.controller?.evaluateJavascript(source: zoomJs(z));
+  }
+
+  void _zoomStep(int d) {
+    if (_tab.showStart) return;
+    const steps = [30, 50, 67, 75, 80, 90, 100, 110, 125, 150, 175, 200, 250, 300];
+    final cur = _zoomOf(_tab.host);
+    var i = steps.indexWhere((s) => s >= cur);
+    if (i < 0) i = steps.length - 1;
+    if (steps[i] != cur && d < 0) i++;
+    final next = steps[(i + d).clamp(0, steps.length - 1)];
+    _setZoom(next);
+    _toast('Yakınlaştırma: %$next');
+  }
+
+  void _showZoom() {
+    if (_tab.showStart) {
+      _toast('Önce bir sayfa aç');
+      return;
+    }
+    final host = _tab.host;
+    showModalBottomSheet(
+      context: context,
+      useSafeArea: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          final z = _zoomOf(host);
+          void set(int v) {
+            _setZoom(v);
+            setSheet(() {});
+          }
+
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Yakınlaştırma', style: oaDisplay(22)),
+                const SizedBox(height: 4),
+                Text('$host için hatırlanır', style: TextStyle(color: OAColors.muted)),
+                const SizedBox(height: 14),
+                Row(children: [
+                  IconButton.filledTonal(onPressed: () => set(z - 10), icon: const Icon(Icons.remove)),
+                  Expanded(
+                    child: Slider(
+                      value: z.toDouble().clamp(30, 300),
+                      min: 30,
+                      max: 300,
+                      divisions: 27,
+                      label: '%$z',
+                      onChanged: (v) => set(v.round()),
+                    ),
+                  ),
+                  IconButton.filledTonal(onPressed: () => set(z + 10), icon: const Icon(Icons.add)),
+                ]),
+                Row(children: [
+                  Text('%$z', style: oaDisplay(26)),
+                  const Spacer(),
+                  TextButton(onPressed: z == 100 ? null : () => set(100), child: const Text('Sıfırla (%100)')),
+                ]),
+                if (!Platform.isAndroid)
+                  Text('Kısayol: Ctrl + / Ctrl − / Ctrl 0', style: TextStyle(color: OAColors.faint, fontSize: 13)),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _toggleDarkSite() async {
+    final t = _tab;
+    final host = t.host;
+    if (t.showStart || host.isEmpty) {
+      _toast('Önce bir sayfa aç');
+      return;
+    }
+    final on = !_isDarkSite(host);
+    setState(() {
+      if (on) {
+        _darkSites.add(host);
+      } else {
+        _darkSites.remove(host);
+      }
+    });
+    _prefs?.setStringList('dark_sites', _darkSites.toList());
+    if (!on && _darkAll) {
+      _toast('"Bütün siteleri koyu göster" açık; Görünüm ayarından kapatabilirsin');
+      return;
+    }
+    final r = await t.controller?.evaluateJavascript(source: darkModeJs(on));
+    if (on && r == 'zaten') _toast('Bu site zaten koyu');
+  }
+
+  Future<void> _setDarkAll(bool v) async {
+    setState(() => _darkAll = v);
+    _prefs?.setBool('dark_all', v);
+    for (final t in _tabs) {
+      if (t.showStart) continue;
+      try {
+        await t.controller?.evaluateJavascript(source: darkModeJs(_isDarkSite(t.host)));
+      } catch (_) {}
+    }
+  }
+
+  // ----------------------------------------------------------------- Çerez pencereleri
+
+  Future<void> _setCookieBlock(bool v) async {
+    setState(() => _cookieOn = v);
+    _prefs?.setBool('cookie_block', v);
+    for (final t in _tabs) {
+      try {
+        await t.controller?.removeUserScriptsByGroupName(groupName: 'oa-cerez');
+        if (v) await t.controller?.addUserScript(userScript: cookieBannerScript(_adblockAllow));
+      } catch (_) {}
+    }
+  }
+
+  // ----------------------------------------------------------------- Sesli arama
+
+  Future<void> _voiceSearch() async {
+    try {
+      final t = await _ses.invokeMethod<String>('dinle');
+      if (t != null && t.trim().isNotEmpty && mounted) {
+        _urlFocus.unfocus();
+        setState(() {
+          _editing = false;
+          _showSuggestions = false;
+        });
+        _go(t.trim());
+      }
+    } on PlatformException catch (e) {
+      _toast(e.message ?? 'Sesli arama açılamadı');
+    } catch (_) {
+      _toast('Sesli arama açılamadı');
+    }
+  }
+
+  // ----------------------------------------------------------------- Ekran görüntüsü (Windows)
+
+  Future<void> _fullScreenshot() async {
+    final t = _tab;
+    final c = t.controller;
+    if (t.showStart || c == null) {
+      _toast('Önce bir sayfa aç');
+      return;
+    }
+    _toast('Ekran görüntüsü alınıyor…');
+    try {
+      final m = await c.callDevToolsProtocolMethod(methodName: 'Page.getLayoutMetrics');
+      final size = (m is Map ? (m['cssContentSize'] ?? m['contentSize']) : null) as Map?;
+      final w = ((size?['width'] as num?) ?? 1280).toDouble();
+      final h = (((size?['height'] as num?) ?? 2000).toDouble()).clamp(1.0, 16000.0);
+      final r = await c.callDevToolsProtocolMethod(methodName: 'Page.captureScreenshot', parameters: {
+        'format': 'png',
+        'captureBeyondViewport': true,
+        'clip': {'x': 0, 'y': 0, 'width': w, 'height': h, 'scale': 1},
+      });
+      final data = r is Map ? r['data']?.toString() : null;
+      if (data == null || data.isEmpty) throw Exception('boş');
+      final dir = await getDownloadsDirectory() ?? await getApplicationDocumentsDirectory();
+      final now = DateTime.now();
+      String two(int v) => v.toString().padLeft(2, '0');
+      final name = 'Ekran görüntüsü ${t.host} ${now.year}-${two(now.month)}-${two(now.day)} ${two(now.hour)}.${two(now.minute)}.${two(now.second)}.png'
+          .replaceAll(RegExp(r'[\\/:*?"<>|]'), '-');
+      final f = File('${dir.path}${Platform.pathSeparator}$name');
+      await f.writeAsBytes(base64Decode(data));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(
+          content: Text(h >= 16000 ? 'Kaydedildi (çok uzun sayfa: ilk 16000 piksel): İndirilenler' : 'Tam sayfa ekran görüntüsü İndirilenler klasörüne kaydedildi'),
+          duration: const Duration(seconds: 5),
+          action: SnackBarAction(label: 'Aç', onPressed: () => Process.run('explorer.exe', [f.path])),
+        ));
+    } catch (_) {
+      _toast('Ekran görüntüsü alınamadı');
+    }
+  }
+
+  // ----------------------------------------------------------------- İçe aktarma (Chrome, Edge, Firefox)
+
+  void _showImport() {
+    showModalBottomSheet(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      builder: (ctx) => SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Başka tarayıcıdan içe aktar', style: oaDisplay(22)),
+            const SizedBox(height: 6),
+            Text('Chrome, Edge ya da Firefox\'tan yer imlerini ve şifreleri tek seferde al.',
+                style: TextStyle(color: OAColors.muted)),
+            const SizedBox(height: 16),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.star_border),
+              title: const Text('Yer imleri (.html dosyası)', style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: const Text('Chrome: Yer imleri → Yer imi yöneticisi → ⋮ → Yer imlerini dışa aktar'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                Navigator.pop(ctx);
+                _importBookmarks();
+              },
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.key_outlined),
+              title: const Text('Şifreler (.csv dosyası)', style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: const Text('Chrome: Google Şifre Yöneticisi → Ayarlar → Şifreleri dışa aktar'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                Navigator.pop(ctx);
+                _importPasswords();
+              },
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Şifre dosyası şifreleri açık metin olarak içerir: içe aktardıktan sonra dosyayı silmeni öneririz.',
+              style: TextStyle(color: OAColors.faint, fontSize: 13),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<String?> _pickText(List<String> ext) async {
+    try {
+      final r = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ext, withData: true);
+      final f = r?.files.single;
+      if (f == null) return null;
+      final bytes = f.bytes ?? (f.path != null ? await File(f.path!).readAsBytes() : null);
+      if (bytes == null) return null;
+      return utf8.decode(bytes, allowMalformed: true);
+    } catch (_) {
+      _toast('Dosya açılamadı');
+      return null;
+    }
+  }
+
+  Future<void> _importBookmarks() async {
+    final text = await _pickText(['html', 'htm']);
+    if (text == null) return;
+    final list = parseBookmarksHtml(text);
+    if (list.isEmpty) {
+      _toast('Dosyada yer imi bulunamadı');
+      return;
+    }
+    final have = _bookmarks.map((b) => b['url']).toSet();
+    final add = [for (final b in list) if (have.add(b['url'])) b];
+    setState(() => _bookmarks.addAll(add));
+    _save('bookmarks', _bookmarks);
+    _toast(add.isEmpty ? 'Yer imlerinin hepsi zaten vardı' : '${add.length} yer imi içe aktarıldı');
+  }
+
+  Future<void> _importPasswords() async {
+    final text = await _pickText(['csv']);
+    if (text == null) return;
+    final list = parsePasswordsCsv(text);
+    if (list.isEmpty) {
+      _toast('Dosyada şifre bulunamadı (Chrome, Edge ya da Firefox şifre dosyası olmalı)');
+      return;
+    }
+    final n = await _passwords.importMany([
+      for (final l in list) (PasswordStore.originOf(l.url), l.user, l.pass),
+    ]);
+    _toast(n == 0 ? 'Şifrelerin hepsi zaten kayıtlıydı' : '$n şifre içe aktarıldı');
   }
 
   // ----------------------------------------------------------------- Çökme kaydı (Windows)
@@ -2000,6 +2348,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               mobile ? _startEditing() : _urlFocus.requestFocus(),
           SingleActivator(LogicalKeyboardKey.keyF, control: true): _openFind,
           SingleActivator(LogicalKeyboardKey.keyP, control: true): _savePdf,
+          SingleActivator(LogicalKeyboardKey.equal, control: true): () => _zoomStep(1),
+          SingleActivator(LogicalKeyboardKey.numpadAdd, control: true): () => _zoomStep(1),
+          SingleActivator(LogicalKeyboardKey.minus, control: true): () => _zoomStep(-1),
+          SingleActivator(LogicalKeyboardKey.numpadSubtract, control: true): () => _zoomStep(-1),
+          SingleActivator(LogicalKeyboardKey.digit0, control: true): () => _setZoom(100),
           if (_findOpen) const SingleActivator(LogicalKeyboardKey.escape): _closeFind,
           if (_miniVideo) const SingleActivator(LogicalKeyboardKey.escape): _exitMiniVideo,
         },
@@ -2327,11 +2680,17 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                 PopupMenuItem(value: 'find', child: Text('Sayfada bul (Ctrl+F)')),
                 PopupMenuItem(value: 'pdf', child: Text('PDF olarak kaydet (Ctrl+P)')),
                 PopupMenuItem(value: 'pip', child: Text('Videoyu küçük pencerede izle')),
+                PopupMenuItem(value: 'zoom', child: Text('Yakınlaştırma: %${_zoomOf(_tab.host)}')),
+                PopupMenuItem(
+                    value: 'darksite',
+                    child: Text('Bu siteyi koyu göster: ${_isDarkSite(_tab.host) ? 'açık' : 'kapalı'}')),
+                if (Platform.isWindows) PopupMenuItem(value: 'shot', child: Text('Tam sayfa ekran görüntüsü')),
                 PopupMenuItem(value: 'reader', child: Text('Okuma modu')),
                 PopupMenuItem(value: 'translate', child: Text('Türkçeye çevir')),
               ],
               PopupMenuDivider(),
               PopupMenuItem(value: 'passwords', child: Text('Şifreler')),
+              PopupMenuItem(value: 'import', child: Text('Chrome / Edge / Firefox\'tan içe aktar')),
               PopupMenuItem(
                   value: 'lock',
                   child: Text('Gizli sekme kilidi: ${_incognitoLock ? 'açık' : 'kapalı'}')),
@@ -2415,6 +2774,16 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         _toggleIncognitoLock();
       case 'clock':
         _toggleClock();
+      case 'zoom':
+        _showZoom();
+      case 'darksite':
+        _toggleDarkSite();
+      case 'shot':
+        _fullScreenshot();
+      case 'import':
+        _showImport();
+      case 'voice':
+        _voiceSearch();
     }
   }
 
@@ -2666,6 +3035,12 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         ),
         if (Platform.isAndroid)
           IconButton(
+            tooltip: 'Sesli ara',
+            icon: const Icon(Icons.mic_none),
+            onPressed: _voiceSearch,
+          ),
+        if (Platform.isAndroid)
+          IconButton(
             tooltip: 'QR kod okut',
             icon: const Icon(Icons.qr_code_scanner),
             onPressed: _scanQr,
@@ -2885,6 +3260,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                 item(Icons.find_in_page_outlined, 'Sayfada bul', 'find'),
                 item(Icons.picture_in_picture_alt_outlined, 'Videoyu küçük pencerede izle', 'pip'),
                 item(Icons.picture_as_pdf_outlined, 'Yazdır / PDF olarak kaydet', 'pdf'),
+                item(Icons.zoom_in, 'Yakınlaştırma: %${_zoomOf(_tab.host)}', 'zoom'),
+                item(Icons.contrast, 'Bu siteyi koyu göster: ${_isDarkSite(_tab.host) ? 'açık' : 'kapalı'}', 'darksite'),
                 item(Icons.chrome_reader_mode_outlined, 'Okuma modu', 'reader'),
                 item(Icons.translate, 'Türkçeye çevir', 'translate'),
               ],
@@ -2895,6 +3272,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                   'Reklam engelleme: ${_adblockOn ? (_siteBlocking ? 'açık' : 'bu sitede kapalı') : 'kapalı'}', 'adblock'),
               item(Icons.search, 'Arama motoru: ${_engine.name}', 'engine'),
               item(Icons.key_outlined, 'Şifreler', 'passwords'),
+              item(Icons.file_download_outlined, 'Chrome / Firefox\'tan içe aktar', 'import'),
               item(_incognitoLock ? Icons.lock_outline : Icons.lock_open_outlined,
                   'Gizli sekme kilidi: ${_incognitoLock ? 'açık' : 'kapalı'}', 'lock'),
               item(Icons.wallpaper_outlined, 'Başlangıç sayfası arka planı', 'wallpaper'),
@@ -3246,6 +3624,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       ),
       initialUserScripts: UnmodifiableListView([
         if (_adblockOn) AdBlock.cosmeticScript(_adblockAllow),
+        if (_cookieOn) cookieBannerScript(_adblockAllow),
         // Şifre kaydetme (gizli sekmede değil)
         if (!t.incognito)
           UserScript(
@@ -3302,6 +3681,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       onPageCommitVisible: (c, url) {
         _uncover(t);
         _readSiteColor(t);
+        _applySiteLook(t);
       },
       onScrollChanged: (c, x, y) => _onScroll(t, y),
       onReceivedError: (c, req, err) {
@@ -3315,6 +3695,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         _refreshNavState(t);
         _addHistory(t);
         _autofill(t);
+        _applySiteLook(t);
         // Sayfa değiştiyse eski arama sonuçları geçersiz: yeniden ara.
         if (_findOpen && t == _tab && _findCtl.text.isNotEmpty) _runFind(_findCtl.text, now: true);
         // Sitede giriş/çıkış yapıldıysa uygulama da öğrensin.
