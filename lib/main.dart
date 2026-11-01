@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:collection';
 import 'dart:io';
+import 'dart:math' show Random, max;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -25,6 +26,7 @@ import 'read_later.dart';
 import 'tab_groups.dart';
 import 'radio.dart';
 import 'updater.dart';
+import 'vault.dart';
 import 'oa_theme.dart';
 import 'page_tools.dart';
 import 'passwords.dart';
@@ -113,6 +115,27 @@ class _BrowserAppState extends State<BrowserApp> with WidgetsBindingObserver {
 }
 
 final _pageKey = GlobalKey<_BrowserPageState>();
+
+/// OA hesabıyla eşitlenen öbür cihaz ve açık sekmeleri.
+class RemoteDevice {
+  RemoteDevice(this.id, this.name, this.platform, this.at, this.tabs);
+  final String id;
+  final String name;
+  final String platform;
+  final DateTime at;
+  final List<Map<String, String>> tabs;
+
+  static RemoteDevice fromJson(String id, Map m, DateTime at) => RemoteDevice(
+        id,
+        m['name']?.toString() ?? 'Cihaz',
+        m['platform']?.toString() ?? '',
+        at,
+        [
+          for (final t in (m['tabs'] as List? ?? const []).whereType<Map>())
+            {'url': t['u']?.toString() ?? '', 'title': t['t']?.toString() ?? ''}
+        ],
+      );
+}
 
 /// Tek bir sekmenin durumu.
 class TabData {
@@ -232,6 +255,20 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   Set<String> _darkSites = {};
   Map<String, int> _siteZoom = {};
 
+  // Eşitleme: bu cihaz, öbür cihazlar, şifre kasası
+  final Vault _vault = Vault();
+  String _deviceId = '';
+  bool _syncTabs = true;
+  bool _syncHistory = true;
+  List<RemoteDevice> _devices = [];
+  String? _lastTabsSig;
+  int _inboxSeen = 0;
+  int _historyCleared = 0;
+
+  String get _deviceName => Platform.isAndroid
+      ? 'Android telefon'
+      : (Platform.localHostname.trim().isEmpty ? 'Windows bilgisayar' : Platform.localHostname.trim());
+
   // Şifreler
   final PasswordStore _passwords = PasswordStore();
 
@@ -309,6 +346,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     _tabs.add(TabData());
     WidgetsBinding.instance.addObserver(this);
     _passwords.load();
+    _passwords.onLocalChange = () {
+      if (_vault.enabled) _scheduleSync();
+    };
     // Açıkken de ara ara eşitle (öbür cihazda eklenenler gelsin).
     _syncPoll = Timer.periodic(const Duration(minutes: 2), (_) {
       if (_account.signedIn && _appVisible) _syncNow();
@@ -405,6 +445,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     if (sq == null || _quickUpdated.isAfter(sq.updated)) {
       push['quick'] = SyncItem(_quickUpdated, _quick.map((q) => q.toJson()).toList());
     }
+    try {
+      await _syncExtras(server, push);
+    } catch (_) {}
     if (push.isNotEmpty) await _account.pushSync(push);
   }
 
@@ -447,6 +490,17 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     await _downloads.init(_prefs!);
     await _radio.init(_prefs!);
     _wx.init(_prefs!);
+    _deviceId = _prefs!.getString('device_id') ?? '';
+    if (_deviceId.isEmpty) {
+      final r = Random.secure();
+      _deviceId = List.generate(16, (_) => r.nextInt(16).toRadixString(16)).join();
+      _prefs!.setString('device_id', _deviceId);
+    }
+    _syncTabs = _prefs!.getBool('sync_tabs') ?? true;
+    _syncHistory = _prefs!.getBool('sync_history') ?? true;
+    _inboxSeen = _prefs!.getInt('inbox_seen') ?? 0;
+    _historyCleared = _prefs!.getInt('history_cleared') ?? 0;
+    await _vault.load();
     _news.init(_prefs!);
     _market.init(_prefs!);
     _reading.init(_prefs!);
@@ -1025,6 +1079,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   void _pushHistory(Map<String, String> entry) {
     if (_history.isNotEmpty && _history.first['url'] == entry['url']) return;
+    entry['at'] = DateTime.now().millisecondsSinceEpoch.toString();
     _history.insert(0, entry);
     if (_history.length > 300) _history.removeRange(300, _history.length);
     _save('history', _history);
@@ -1735,6 +1790,436 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         ],
       ),
     );
+  }
+
+  // ----------------------------------------------------------------- Eşitleme: sekmeler, geçmiş, şifreler
+
+  /// Geçmişleri birleştirir: her adresin en yeni ziyareti kalır, silme işaretinden eskiler düşer.
+  List<Map<String, String>> _mergeHistory(List<Map<String, String>> local, List<dynamic> remote) {
+    var cleared = _historyCleared;
+    final byUrl = <String, Map<String, String>>{};
+    int at(Map<String, String> e) => int.tryParse(e['at'] ?? '') ?? 0;
+    void add(Map<String, String> e) {
+      final u = e['url'] ?? '';
+      if (u.isEmpty) return;
+      final old = byUrl[u];
+      if (old == null || at(e) > at(old)) byUrl[u] = e;
+    }
+
+    for (final m in remote.whereType<Map>()) {
+      final c = int.tryParse(m['clear']?.toString() ?? '');
+      if (c != null) {
+        cleared = max(cleared, c);
+        continue;
+      }
+      add({for (final e in m.entries) e.key.toString(): e.value.toString()});
+    }
+    for (final e in local) {
+      add(Map<String, String>.from(e));
+    }
+    if (cleared > _historyCleared) {
+      _historyCleared = cleared;
+      _prefs?.setInt('history_cleared', cleared);
+    }
+    final list = byUrl.values.where((e) => at(e) == 0 ? cleared == 0 : at(e) > cleared).toList()
+      ..sort((a, b) => at(b).compareTo(at(a)));
+    return list.take(300).toList();
+  }
+
+  Future<void> _syncExtras(Map<String, SyncItem> server, Map<String, SyncItem> push) async {
+    final now = DateTime.now().toUtc();
+
+    // Öbür cihazlardaki sekmeler
+    final devs = <RemoteDevice>[];
+    server.forEach((k, v) {
+      if (!k.startsWith('tabs:') || k == 'tabs:$_deviceId' || v.data.isEmpty) return;
+      final m = v.data.first;
+      if (m is! Map || now.difference(v.updated) > const Duration(days: 30)) return;
+      devs.add(RemoteDevice.fromJson(k.substring(5), m, v.updated));
+    });
+    devs.sort((a, b) => b.at.compareTo(a.at));
+    if (mounted) setState(() => _devices = devs);
+
+    // Bu cihazın sekmeleri
+    final mine = server['tabs:$_deviceId'];
+    if (_syncTabs) {
+      final tabs = [
+        for (final t in _tabs)
+          if (!t.incognito && !t.showStart && t.url.startsWith('http')) {'u': t.url, 't': t.displayTitle}
+      ].take(60).toList();
+      final sig = jsonEncode(tabs);
+      if (sig != _lastTabsSig || mine == null || now.difference(mine.updated) > const Duration(hours: 6)) {
+        push['tabs:$_deviceId'] = SyncItem(now, [
+          {'name': _deviceName, 'platform': Platform.isAndroid ? 'android' : 'windows', 'tabs': tabs}
+        ]);
+        _lastTabsSig = sig;
+      }
+    } else if (mine != null && mine.data.isNotEmpty) {
+      push['tabs:$_deviceId'] = SyncItem(now, []);
+    }
+
+    // Bu cihaza gönderilen sekmeler
+    final inbox = server['inbox:$_deviceId'];
+    if (inbox != null && inbox.data.isNotEmpty) {
+      final got = [
+        for (final m in inbox.data.whereType<Map>())
+          if (((m['at'] as num?)?.toInt() ?? 0) > _inboxSeen) m
+      ];
+      push['inbox:$_deviceId'] = SyncItem(now, []);
+      if (got.isNotEmpty) {
+        _inboxSeen = got.map((m) => (m['at'] as num).toInt()).reduce(max);
+        _prefs?.setInt('inbox_seen', _inboxSeen);
+        _showReceivedTabs(got);
+      }
+    }
+
+    // Geçmiş
+    if (_syncHistory) {
+      final sh = server['history'];
+      final merged = _mergeHistory(_history, sh?.data ?? const []);
+      String sig(Iterable<dynamic> l) => jsonEncode([for (final e in l.whereType<Map>()) e['url']]);
+      if (sig(merged) != sig(_history)) {
+        _history = merged;
+        _save('history', _history);
+      }
+      final serverEntries = (sh?.data ?? const []).whereType<Map>().where((m) => m['clear'] == null);
+      final serverClear = (sh?.data ?? const []).whereType<Map>().any((m) => m['clear']?.toString() == '$_historyCleared');
+      if (sig(merged) != sig(serverEntries) || (_historyCleared > 0 && !serverClear)) {
+        push['history'] = SyncItem(now, [
+          if (_historyCleared > 0) {'clear': '$_historyCleared'},
+          ...merged,
+        ]);
+      }
+    }
+
+    // Şifreler (cihazda şifrelenmiş kasa)
+    if (_vault.enabled) {
+      final sv = server['vault'];
+      Map? remote;
+      var problem = false;
+      if (sv != null && sv.data.isNotEmpty && sv.data.first is Map) {
+        final box = sv.data.first as Map;
+        remote = _vault.sameSalt(box) ? await _vault.open(box) : null;
+        problem = remote == null;
+      }
+      if (problem) {
+        await _vault.disable();
+        _toast('Şifre eşitlemesi başka bir parolayla kurulmuş. Eşitleme ayarlarından parolayı yeniden gir.');
+      } else {
+        if (remote != null) await _passwords.mergeRemote(remote);
+        final local = _passwords.exportData();
+        if (remote == null ||
+            PasswordStore.canonical(local) != PasswordStore.canonical(Map<String, dynamic>.from(remote))) {
+          push['vault'] = SyncItem(now, [await _vault.seal(local)]);
+        }
+      }
+    }
+  }
+
+  void _showReceivedTabs(List<Map> got) {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(got.length == 1 ? 'Sana bir sekme gönderildi' : 'Sana ${got.length} sekme gönderildi'),
+        content: SizedBox(
+          width: 420,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            for (final m in got)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.send_to_mobile_outlined),
+                title: Text(m['t']?.toString().isNotEmpty == true ? m['t'].toString() : m['u'].toString(),
+                    maxLines: 2, overflow: TextOverflow.ellipsis),
+                subtitle: Text('${m['from'] ?? 'Öbür cihaz'} · ${Uri.tryParse(m['u'].toString())?.host ?? ''}'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _addTab(url: m['u'].toString());
+                },
+              ),
+          ]),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Kapat')),
+          if (got.length > 1)
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                for (final m in got) {
+                  _addTab(url: m['u'].toString());
+                }
+              },
+              child: const Text('Hepsini aç'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  String _agoText(DateTime d) {
+    final m = DateTime.now().toUtc().difference(d.toUtc()).inMinutes;
+    if (m < 2) return 'şimdi';
+    if (m < 60) return '$m dk önce';
+    if (m < 60 * 24) return '${m ~/ 60} sa önce';
+    return '${m ~/ (60 * 24)} gün önce';
+  }
+
+  bool _needSignIn(String what) {
+    if (_account.signedIn) return false;
+    _toast('$what için OA Labs hesabınla giriş yap (bilgisayarda ve telefonda aynı hesap)');
+    _openAccount();
+    return true;
+  }
+
+  Future<void> _showDevices() async {
+    if (_needSignIn('Öbür cihazlardaki sekmeleri görmek')) return;
+    await _syncNow();
+    if (!mounted) return;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (ctx) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.75,
+        maxChildSize: 0.95,
+        builder: (ctx, scroll) => ListView(
+          controller: scroll,
+          padding: const EdgeInsets.fromLTRB(8, 16, 8, 24),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+              child: Text('Öbür cihazlardaki sekmeler', style: oaDisplay(22)),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Text('OA hesabınla giriş yaptığın öbür cihazlarda açık olan sekmeler.',
+                  style: TextStyle(color: OAColors.muted)),
+            ),
+            if (_devices.isEmpty)
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  'Henüz başka cihaz yok. Telefonunda ya da bilgisayarında OA Tarayıcı\'yı açıp aynı hesapla giriş yap.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: OAColors.muted),
+                ),
+              ),
+            for (final d in _devices) ...[
+              ListTile(
+                leading: Icon(d.platform == 'android' ? Icons.smartphone : Icons.computer, color: OAColors.amber),
+                title: Text(d.name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                subtitle: Text('${d.tabs.length} sekme · ${_agoText(d.at)}'),
+              ),
+              for (final t in d.tabs)
+                ListTile(
+                  contentPadding: const EdgeInsets.only(left: 56, right: 16),
+                  dense: true,
+                  title: Text(t['title']!.isEmpty ? t['url']! : t['title']!, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  subtitle: Text(Uri.tryParse(t['url']!)?.host ?? '', maxLines: 1),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _addTab(url: t['url']);
+                  },
+                ),
+              const Divider(height: 12),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _sendTab() async {
+    final t = _tab;
+    if (t.showStart || !t.url.startsWith('http')) {
+      _toast('Önce göndermek istediğin sayfayı aç');
+      return;
+    }
+    if (_needSignIn('Sekme göndermek')) return;
+    if (_devices.isEmpty) await _syncNow();
+    if (!mounted) return;
+    if (_devices.isEmpty) {
+      _toast('Başka cihaz bulunamadı: öbür cihazda OA Tarayıcı\'da aynı hesapla giriş yap');
+      return;
+    }
+    final d = await showModalBottomSheet<RemoteDevice>(
+      context: context,
+      useSafeArea: true,
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(8, 16, 8, 16),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Text('Sekmeyi gönder', style: oaDisplay(22)),
+          ),
+          for (final d in _devices)
+            ListTile(
+              leading: Icon(d.platform == 'android' ? Icons.smartphone : Icons.computer),
+              title: Text(d.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: Text('Son görülme: ${_agoText(d.at)}'),
+              onTap: () => Navigator.pop(ctx, d),
+            ),
+        ]),
+      ),
+    );
+    if (d == null) return;
+    final server = await _account.pullSync();
+    final cur = server?['inbox:${d.id}']?.data.whereType<Map>().toList() ?? <Map>[];
+    final list = [
+      ...cur,
+      {'u': t.url, 't': t.displayTitle, 'from': _deviceName, 'at': DateTime.now().millisecondsSinceEpoch},
+    ];
+    final r = await _account.pushSync({
+      'inbox:${d.id}': SyncItem(DateTime.now().toUtc(), list.length > 20 ? list.sublist(list.length - 20) : list),
+    });
+    _toast(r == null ? 'Gönderilemedi, internet bağlantını kontrol et' : '${d.name} cihazına gönderildi; orada OA Tarayıcı açılınca gelir');
+  }
+
+  void _showSyncSettings() {
+    if (_needSignIn('Eşitleme')) return;
+    showModalBottomSheet(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(8, 16, 8, 20),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+              child: Text('Eşitleme', style: oaDisplay(22)),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Text('${_account.user?.email ?? ''} hesabıyla giriş yapılan bütün cihazlar eşitlenir. Bu cihaz: $_deviceName',
+                  style: TextStyle(color: OAColors.muted)),
+            ),
+            const ListTile(
+              leading: Icon(Icons.check_circle, color: Color(0xFF5BC48C)),
+              title: Text('Yer imleri ve hızlı erişim', style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: Text('Her zaman eşitlenir'),
+            ),
+            SwitchListTile(
+              value: _syncTabs,
+              activeThumbColor: OAColors.amberInk,
+              activeTrackColor: OAColors.amber,
+              secondary: const Icon(Icons.tab_outlined),
+              title: const Text('Açık sekmeler', style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: const Text('Öbür cihazların bu cihazdaki sekmeleri görebilsin; sekme gönderme'),
+              onChanged: (v) {
+                setState(() => _syncTabs = v);
+                _prefs?.setBool('sync_tabs', v);
+                setS(() {});
+                _syncNow();
+              },
+            ),
+            SwitchListTile(
+              value: _syncHistory,
+              activeThumbColor: OAColors.amberInk,
+              activeTrackColor: OAColors.amber,
+              secondary: const Icon(Icons.history),
+              title: const Text('Geçmiş', style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: const Text('Gizli sekmeler hiçbir zaman kaydedilmez'),
+              onChanged: (v) {
+                setState(() => _syncHistory = v);
+                _prefs?.setBool('sync_history', v);
+                setS(() {});
+                _syncNow();
+              },
+            ),
+            ListTile(
+              leading: Icon(_vault.enabled ? Icons.lock : Icons.lock_open_outlined,
+                  color: _vault.enabled ? OAColors.green : null),
+              title: const Text('Şifreler', style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: Text(_vault.enabled
+                  ? 'Açık · uçtan uca şifreli (eşitleme parolanla)'
+                  : 'Kapalı · açmak için bir eşitleme parolası belirle'),
+              trailing: TextButton(
+                onPressed: () async {
+                  if (_vault.enabled) {
+                    await _vault.disable();
+                  } else {
+                    Navigator.pop(ctx);
+                    await _enableVault();
+                    return;
+                  }
+                  setS(() {});
+                },
+                child: Text(_vault.enabled ? 'Kapat' : 'Aç'),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: FilledButton.icon(
+                icon: const Icon(Icons.sync),
+                label: const Text('Şimdi eşitle'),
+                onPressed: () async {
+                  await _syncNow();
+                  _toast('Eşitlendi');
+                },
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _enableVault() async {
+    final server = await _account.pullSync();
+    final sv = server?['vault'];
+    final box = (sv != null && sv.data.isNotEmpty && sv.data.first is Map) ? sv.data.first as Map : null;
+    if (!mounted) return;
+    final p1 = TextEditingController();
+    final p2 = TextEditingController();
+    final pass = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Şifre eşitleme parolası'),
+        content: SizedBox(
+          width: 420,
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(
+              box == null
+                  ? 'Şifrelerin cihazdan bu parolayla şifrelenmiş olarak çıkar; OA Labs dahil kimse içini göremez. '
+                      'Öbür cihazında da aynı parolayı yazacaksın. Parolayı unutursan eşitlenen şifreler açılamaz '
+                      '(cihazdaki şifrelerin silinmez).'
+                  : 'Öbür cihazında şifre eşitlemesi açık. Orada belirlediğin eşitleme parolasını yaz.',
+              style: TextStyle(color: OAColors.muted, height: 1.4),
+            ),
+            const SizedBox(height: 14),
+            TextField(controller: p1, obscureText: true, autofocus: true, decoration: const InputDecoration(labelText: 'Eşitleme parolası')),
+            if (box == null) ...[
+              const SizedBox(height: 10),
+              TextField(controller: p2, obscureText: true, decoration: const InputDecoration(labelText: 'Parolayı tekrar yaz')),
+            ],
+          ]),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Vazgeç')),
+          FilledButton(
+            onPressed: () {
+              if (box == null && p1.text != p2.text) {
+                ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Parolalar aynı değil')));
+                return;
+              }
+              Navigator.pop(ctx, p1.text);
+            },
+            child: const Text('Şifre eşitlemeyi aç'),
+          ),
+        ],
+      ),
+    );
+    if (pass == null || !mounted) return;
+    _toast('Anahtar hazırlanıyor…');
+    final err = await _vault.enable(pass, box);
+    if (err != null) {
+      _toast(err);
+      return;
+    }
+    await _syncNow();
+    _toast('Şifre eşitlemesi açık');
   }
 
   // ----------------------------------------------------------------- Çökme kaydı (Windows)
@@ -3075,6 +3560,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               if (_closedTabs.isNotEmpty)
                 PopupMenuItem(value: 'reopen', child: Text('Kapatılan sekmeyi geri aç (Ctrl+Shift+T)')),
               PopupMenuItem(value: 'radio', child: Text('OA Radyo')),
+              PopupMenuItem(value: 'devices', child: Text('Öbür cihazlardaki sekmeler')),
+              if (!_tab.showStart) PopupMenuItem(value: 'send', child: Text('Bu sekmeyi öbür cihaza gönder')),
               PopupMenuItem(
                   value: 'readlist',
                   child: Text(_reading.unread > 0 ? 'Okuma listesi (${_reading.unread})' : 'Okuma listesi')),
@@ -3096,6 +3583,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               ],
               PopupMenuDivider(),
               PopupMenuItem(value: 'passwords', child: Text('Şifreler')),
+              PopupMenuItem(value: 'syncset', child: Text('Eşitleme ayarları')),
               PopupMenuItem(value: 'import', child: Text('Chrome / Edge / Firefox\'tan içe aktar')),
               PopupMenuItem(
                   value: 'lock',
@@ -3136,6 +3624,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         _showList('Geçmiş', _history, onClear: () {
           setState(() => _history.clear());
           _save('history', _history);
+          // Eşitlemede öbür cihazlardaki geçmiş de silinsin.
+          _historyCleared = DateTime.now().millisecondsSinceEpoch;
+          _prefs?.setInt('history_cleared', _historyCleared);
+          _scheduleSync();
         });
       case 'engine':
         _showSearchSettings();
@@ -3203,6 +3695,12 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         _toggleMarkets();
       case 'vtabs':
         _toggleVerticalTabs();
+      case 'devices':
+        _showDevices();
+      case 'send':
+        _sendTab();
+      case 'syncset':
+        _showSyncSettings();
     }
   }
 
@@ -3676,6 +4174,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                   _downloads.activeCount > 0 ? 'İndirilenler (${_downloads.activeCount} sürüyor)' : 'İndirilenler',
                   'downloads'),
               if (_closedTabs.isNotEmpty) item(Icons.restore, 'Kapatılan sekmeyi geri aç', 'reopen'),
+              item(Icons.devices_outlined, 'Öbür cihazlardaki sekmeler', 'devices'),
+              if (!_tab.showStart) item(Icons.send_to_mobile_outlined, 'Bu sekmeyi öbür cihaza gönder', 'send'),
               item(Icons.radio_outlined, 'OA Radyo', 'radio'),
               item(Icons.bookmark_added_outlined,
                   _reading.unread > 0 ? 'Okuma listesi (${_reading.unread})' : 'Okuma listesi', 'readlist'),
@@ -3701,7 +4201,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               item(_incognitoLock ? Icons.lock_outline : Icons.lock_open_outlined,
                   'Gizli sekme kilidi: ${_incognitoLock ? 'açık' : 'kapalı'}', 'lock'),
               item(Icons.wallpaper_outlined, 'Başlangıç sayfası arka planı', 'wallpaper'),
-              if (_account.signedIn) item(Icons.sync, 'Şimdi eşitle', 'sync'),
+              item(Icons.sync, 'Eşitleme ayarları', 'syncset'),
               item(Icons.system_update_outlined, 'Güncellemeleri denetle', 'update'),
               item(Icons.info_outline, 'Hakkında · $appVersion', 'about'),
               item(OAColors.isDark ? Icons.dark_mode_outlined : Icons.light_mode_outlined,

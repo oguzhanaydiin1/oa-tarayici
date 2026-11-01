@@ -32,6 +32,15 @@ class SavedLogin {
 class PasswordStore extends ChangeNotifier {
   static const _key = 'oa_passwords';
   static const _neverKey = 'oa_passwords_never';
+  static const _delKey = 'oa_passwords_deleted';
+
+  /// Silinen kayıtlar (eşitlemede öbür cihazlardan da silinsin diye): "köken\u0000kullanıcı" → zaman.
+  Map<String, int> deleted = {};
+
+  /// Yerel bir değişiklik olunca (eşitleme için) çağrılır.
+  VoidCallback? onLocalChange;
+
+  static String keyOf(String origin, String user) => '$origin\u0000$user';
   final _store = const FlutterSecureStorage();
 
   List<SavedLogin> items = [];
@@ -51,6 +60,8 @@ class PasswordStore extends ChangeNotifier {
       if (raw != null) {
         items = (jsonDecode(raw) as List).whereType<Map>().map(SavedLogin.fromJson).whereType<SavedLogin>().toList();
       }
+      final d = await _store.read(key: _delKey);
+      if (d != null) deleted = Map<String, int>.from((jsonDecode(d) as Map).map((k, v) => MapEntry(k.toString(), (v as num).toInt())));
       final n = await _store.read(key: _neverKey);
       if (n != null) never = (jsonDecode(n) as List).map((e) => e.toString()).toSet();
     } catch (_) {}
@@ -62,8 +73,53 @@ class PasswordStore extends ChangeNotifier {
     try {
       await _store.write(key: _key, value: jsonEncode(items.map((e) => e.toJson()).toList()));
       await _store.write(key: _neverKey, value: jsonEncode(never.toList()));
+      await _store.write(key: _delKey, value: jsonEncode(deleted));
     } catch (_) {}
     notifyListeners();
+  }
+
+  Future<void> _changed() async {
+    await _save();
+    onLocalChange?.call();
+  }
+
+  /// Eşitleme için kasa içeriği.
+  Map<String, dynamic> exportData() {
+    final cutoff = DateTime.now().subtract(const Duration(days: 120)).millisecondsSinceEpoch;
+    deleted.removeWhere((_, t) => t < cutoff);
+    return {'items': items.map((e) => e.toJson()).toList(), 'del': deleted};
+  }
+
+  static String canonical(Map<String, dynamic> d) {
+    final items = [...(d['items'] as List)]..sort((a, b) => '${a['o']}|${a['u']}'.compareTo('${b['o']}|${b['u']}'));
+    final del = (d['del'] as Map).entries.toList()..sort((a, b) => a.key.toString().compareTo(b.key.toString()));
+    return jsonEncode({'i': items, 'd': [for (final e in del) [e.key, e.value]]});
+  }
+
+  /// Öbür cihazlardan gelen kasayı yerel kayıtlarla birleştirir (her kayıtta en yenisi kazanır,
+  /// silinenler silinir). Yerelde bir şey değiştiyse true.
+  Future<bool> mergeRemote(Map remote) async {
+    final before = canonical(exportData());
+    final rDel = <String, int>{};
+    (remote['del'] as Map? ?? const {}).forEach((k, v) {
+      if (v is num) rDel[k.toString()] = v.toInt();
+    });
+    rDel.forEach((k, t) {
+      if ((deleted[k] ?? 0) < t) deleted[k] = t;
+    });
+    final byKey = <String, SavedLogin>{for (final e in items) keyOf(e.origin, e.user): e};
+    for (final m in (remote['items'] as List? ?? const []).whereType<Map>()) {
+      final r = SavedLogin.fromJson(m);
+      if (r == null) continue;
+      final k = keyOf(r.origin, r.user);
+      final l = byKey[k];
+      if (l == null || r.updated > l.updated) byKey[k] = r;
+    }
+    byKey.removeWhere((k, e) => (deleted[k] ?? 0) >= e.updated);
+    items = byKey.values.toList();
+    final changed = canonical(exportData()) != before;
+    if (changed) await _save();
+    return changed;
   }
 
   /// Bu sitenin girişleri, en son kullanılan önce.
@@ -88,7 +144,8 @@ class PasswordStore extends ChangeNotifier {
       items.add(SavedLogin(origin: origin, user: user, pass: pass, updated: now));
     }
     never.remove(origin);
-    await _save();
+    deleted.remove(keyOf(origin, user));
+    await _changed();
   }
 
   /// Toplu ekleme (içe aktarma). Eklenen ya da güncellenen kayıt sayısını döndürür.
@@ -108,7 +165,7 @@ class PasswordStore extends ChangeNotifier {
       }
       n++;
     }
-    if (n > 0) await _save();
+    if (n > 0) await _changed();
     return n;
   }
 
@@ -119,7 +176,8 @@ class PasswordStore extends ChangeNotifier {
 
   Future<void> remove(SavedLogin e) async {
     items.remove(e);
-    await _save();
+    deleted[keyOf(e.origin, e.user)] = DateTime.now().millisecondsSinceEpoch;
+    await _changed();
   }
 
   Future<void> neverFor(String origin) async {

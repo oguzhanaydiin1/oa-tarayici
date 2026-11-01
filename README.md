@@ -3,7 +3,7 @@
 OA Labs'in Windows ve Android tarayıcısı. Flutter + `flutter_inappwebview`: sayfaları Windows'ta
 WebView2 (Edge motoru), Android'de Android WebView çizer; arayüz OA Labs tasarım sistemiyle yazılır.
 
-> Durum: deneme sürümü (0.11.0). Android sürümü sabit OA anahtarıyla imzalı; Windows dosyaları imzasız.
+> Durum: deneme sürümü (0.12.0). Android sürümü sabit OA anahtarıyla imzalı; Windows dosyaları imzasız.
 
 ## İndir ve dene
 
@@ -18,6 +18,7 @@ Her `main` gönderiminde GitHub Actions iki dosya derler: **Actions** sekmesi �
 Aynı dosyalar **Releases** sayfasına da `pubspec.yaml`daki sürüm numarasıyla (ör. v0.1.0) deneme sürümü olarak eklenir. Yeni sürüm çıkarmak için `version` satırını artırmak yeterli.
 
 ## Özellikler
+- Eşitleme (OA hesabı): öbür cihazlardaki açık sekmeler, sekmeyi öbür cihaza gönderme, geçmiş, ve şifreler (eşitleme parolasıyla uçtan uca şifreli; sunucu içini göremez)
 - Haber akışı: başlangıç sayfasında seçilen sitelerin son haberleri (RSS; BBC Türkçe, NTV, DW Türkçe, Webtekno… ve kendi eklediğin kaynaklar)
 - Döviz ve altın: dolar, euro, gram altın ve günlük değişim
 - Sonra oku: yazılar resimleriyle cihaza kaydedilir, internetsiz okunur
@@ -47,7 +48,7 @@ Aynı dosyalar **Releases** sayfasına da `pubspec.yaml`daki sürüm numarasıyl
 - Akıllı adres çubuğu: hesap makinesi (`125*18`), birim (`10 km`, `30 c kaç f`), döviz (`100 dolar`, `50 euro kaç tl`; Avrupa Merkez Bankası kurları, frankfurter.dev)
 - Okuma modu (Mozilla Readability) ve "Türkçeye çevir" (Google Çeviri)
 - Telefonda: aşağı çekip yenile, adres çubuğunda sağa-sola kaydırıp sekme değiştir, QR kod / barkod okut
-- OA hesabıyla eşitleme: yer imleri ve hızlı erişim cihazlar arasında taşınır (sunucu: radyo-app `/v1/me/sync`)
+- OA hesabıyla eşitleme: yer imleri, hızlı erişim, açık sekmeler, geçmiş ve şifreler (sunucu: radyo-app `/v1/me/sync`)
 - OA Labs hesabıyla giriş: sitedeki üyelikle aynı (e-postaya gelen kodla, şifresiz). Oturum cihazın güvenli deposunda saklanır ve tarayıcının içindeki oalabs.dev'e de aktarılır; sitede giriş yapılırsa uygulama da öğrenir
 - Koyu / açık tema (ya da sistemi izle). DuckDuckGo sonuçları da seçilen temada açılır
 - Hızlı erişim düzenlenebilir: telefonda basılı tut, bilgisayarda sağ tıkla → Düzenle / Kaldır / Yeni sekmede aç; "Ekle" kutusu, menüde "Bu sayfayı hızlı erişime ekle"
@@ -77,6 +78,7 @@ Aynı dosyalar **Releases** sayfasına da `pubspec.yaml`daki sürüm numarasıyl
 - `lib/radio.dart`, `assets/hls.min.js` — OA Radyo çalar (Radio Browser, OA Radyo'nun ek istasyonları)
 - `lib/updater.dart` — GitHub sürümlerinden güncelleme denetimi
 - `lib/weather.dart` — saat, tarih, hava durumu (Open-Meteo) ve şehir seçimi
+- `lib/vault.dart` — şifre kasası (PBKDF2 + AES-256-GCM)
 - `lib/passwords.dart` — şifre deposu, cihaz kilidiyle doğrulama, Şifreler listesi
 - `lib/news.dart`, `lib/markets.dart`, `lib/read_later.dart`, `lib/tab_groups.dart` — haber akışı, döviz/altın, okuma listesi, sekme grupları
 - `lib/extras.dart` — çerez pencereleri, karanlık mod, yakınlaştırma, içe aktarma
