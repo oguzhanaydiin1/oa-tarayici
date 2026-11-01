@@ -3743,19 +3743,6 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     return SafeArea(
       child: Row(
         children: [
-          if (_sidebarOn && !_miniVideo && Platform.isWindows)
-            SidebarDock(
-              key: const ValueKey('dock'),
-              apps: _sideApps,
-              active: _sideOpen,
-              loaded: _sideLoaded,
-              badges: _sideBadges,
-              onTap: _toggleSide,
-              onMenu: _sideMenu,
-              onAdd: _addSideApp,
-            ),
-          // Paneller (kapalıyken de arkada açık kalır)
-          if (Platform.isWindows) KeyedSubtree(key: const ValueKey('panel'), child: _sidePanel()),
           if (_verticalTabs && !_miniVideo) KeyedSubtree(key: const ValueKey('dikey'), child: _verticalTabBar()),
           Expanded(
             key: const ValueKey('masaustu'),
@@ -3780,23 +3767,54 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           ],
           Expanded(
             key: const ValueKey('sayfalar'),
-            child: Stack(
+            // Kenar çubuğu ve paneli adres çubuğunun altında, yalnız sayfanın yanında durur.
+            child: Stack(children: [
+              Positioned.fill(
+                child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (_sidebarOn && !_miniVideo && Platform.isWindows)
+                  SidebarDock(
+                    key: const ValueKey('dock'),
+                    apps: _sideApps,
+                    active: _sideOpen,
+                    loaded: _sideLoaded,
+                    badges: _sideBadges,
+                    onTap: _toggleSide,
+                    onMenu: _sideMenu,
+                    onAdd: _addSideApp,
+                  ),
+                // Paneller (kapalıyken de arkada açık kalır)
+                if (Platform.isWindows) KeyedSubtree(key: const ValueKey('panel'), child: _sidePanel()),
+                Expanded(
+                  key: const ValueKey('sayfa-alani'),
+                  child: _pageArea(),
+                ),
+              ],
+                ),
+              ),
+              // Adres çubuğunun önerileri sayfanın ve kenar çubuğunun üstünde, tam genişlikte
+              if (_showSuggestions)
+                Positioned(
+                  top: 6,
+                  left: 12,
+                  right: 12,
+                  child: _suggestionPanel(),
+                ),
+            ]),
+          ),
+        ],
+    );
+  }
+
+  Widget _pageArea() {
+    return Stack(
               children: [
                 _pages(compact: false),
                 // Windows: radyo sayfası burada, 1×1 piksel (bkz. RadioPlayer.host)
                 Positioned(left: 0, bottom: 0, child: ListenableBuilder(listenable: _radio, builder: (_, __) => _radio.host())),
                 if (_miniVideo) _miniExitButton(),
-                if (_showSuggestions)
-                  Positioned(
-                    top: 6,
-                    left: 12,
-                    right: 12,
-                    child: _suggestionPanel(),
-                  ),
               ],
-            ),
-          ),
-        ],
     );
   }
 
