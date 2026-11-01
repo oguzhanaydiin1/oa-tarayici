@@ -15,6 +15,8 @@ const _sections = <_Section>[
   _Section('hesap', 'Hesap ve eşitleme', Icons.person_outline, 'OA Labs hesabın ve cihazlar arasında eşitlenenler'),
   _Section('gorunum', 'Görünüm', Icons.light_mode_outlined, 'Tema ve sayfaların görünüşü'),
   _Section('baslangic', 'Başlangıç sayfası', Icons.home_outlined, 'Yeni sekmede ne görünsün?'),
+  _Section('kenar', 'Kenar çubuğu', Icons.view_sidebar_outlined, 'WhatsApp, Gmail, Spotify… soldaki panelde'),
+  _Section('performans', 'Performans', Icons.speed, 'Sekme uyutma ve bellek'),
   _Section('arama', 'Arama', Icons.search, 'Adres çubuğu ve arama motoru'),
   _Section('gizlilik', 'Gizlilik ve güvenlik', Icons.shield_outlined, 'Reklamlar, izleyiciler, çerezler ve kilit'),
   _Section('sifreler', 'Şifreler', Icons.key_outlined, 'Kayıtlı girişler ve içe aktarma'),
@@ -40,6 +42,11 @@ class SettingsScreen extends StatefulWidget {
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
+
+List<_Section> get _visibleSections => [
+      for (final s in _sections)
+        if (s.id != 'kenar' || Platform.isWindows) s
+    ];
 
 class _SettingsScreenState extends State<SettingsScreen> {
   String? _sel; // telefonda null: başlık listesi
@@ -268,6 +275,73 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     p._prefs?.setStringList('promo_hidden', []);
                   });
                 }),
+            ]
+          ),
+        ];
+      case 'kenar':
+        return [
+          (
+            null,
+            [
+              _Item('Kenar çubuğunu göster', 'dock', () => _switch(Icons.view_sidebar_outlined, 'Kenar çubuğunu göster', p._sidebarOn, (_) => p._toggleSidebar(),
+                  sub: 'Soldaki simgeler; fareyle üzerine gelince büyür')),
+            ]
+          ),
+          (
+            'Uygulamalar',
+            [
+              for (final a in p._sideApps)
+                _Item(a.name, 'kenar uygulama', () {
+                  final i = p._sideApps.indexOf(a);
+                  return ListTile(
+                    leading: a.id == kSideRadio
+                        ? Icon(Icons.radio_rounded, color: OAColors.amber, size: 28)
+                        : SiteIcon(url: a.url, letter: a.name[0], size: 28),
+                    title: Text(a.name, style: TextStyle(fontWeight: FontWeight.w600, color: OAColors.text)),
+                    subtitle: Text(a.id == kSideRadio ? 'Uygulamanın kendi radyosu' : (Uri.tryParse(a.url)?.host ?? a.url),
+                        style: TextStyle(color: OAColors.muted, fontSize: 13)),
+                    trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                      IconButton(tooltip: 'Yukarı', icon: const Icon(Icons.arrow_upward, size: 18), onPressed: i == 0 ? null : () => p._moveSideApp(a, -1)),
+                      IconButton(
+                          tooltip: 'Aşağı',
+                          icon: const Icon(Icons.arrow_downward, size: 18),
+                          onPressed: i == p._sideApps.length - 1 ? null : () => p._moveSideApp(a, 1)),
+                      IconButton(tooltip: 'Kaldır', icon: const Icon(Icons.close, size: 18), onPressed: () => p._removeSideApp(a)),
+                    ]),
+                  );
+                }),
+              _Item('Uygulama ekle', 'telegram discord', () => _row(Icons.add, 'Uygulama ya da site ekle', sub: 'Telegram, Discord, Google Takvim… ya da istediğin site', onTap: p._addSideApp)),
+            ]
+          ),
+        ];
+      case 'performans':
+        return [
+          (
+            'Sekme uyutma',
+            [
+              _Item('Sekmeleri uyut', 'bellek ram', () {
+                return _row(Icons.bedtime_outlined, 'Kullanılmayan sekmeleri uyut',
+                    sub: 'Uyuyan sekme bellekten çıkar, dokununca yeniden açılır. Ses ya da video çalan sekme uyutulmaz.',
+                    trailing: DropdownButton<int>(
+                      value: p._sleepMinutes,
+                      underline: const SizedBox.shrink(),
+                      items: const [
+                        DropdownMenuItem(value: 15, child: Text('15 dk sonra')),
+                        DropdownMenuItem(value: 30, child: Text('30 dk sonra')),
+                        DropdownMenuItem(value: 60, child: Text('1 saat sonra')),
+                        DropdownMenuItem(value: 120, child: Text('2 saat sonra')),
+                        DropdownMenuItem(value: 0, child: Text('Hiçbir zaman')),
+                      ],
+                      onChanged: (v) {
+                        if (v != null) p._setSleepMinutes(v);
+                      },
+                    ));
+              }),
+              _Item('Uyuyan sekmeler', '', () {
+                return _row(Icons.layers_outlined, 'Uyuyan sekmeler',
+                    sub: '${p._tabs.length} sekmeden ${p._sleepingCount} tanesi uykuda',
+                    trailing: TextButton(onPressed: p._sleepOthers, child: const Text('Diğerlerini şimdi uyut')));
+              }),
             ]
           ),
         ];
@@ -523,7 +597,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   List<Widget> _searchBody() {
     final q = _q.toLowerCase();
     final out = <Widget>[];
-    for (final s in _sections) {
+    for (final s in _visibleSections) {
       final hits = <_Item>[];
       for (final (_, items) in _content(s.id)) {
         hits.addAll(items.where((it) => '${it.title} ${it.sub} ${s.name}'.toLowerCase().contains(q)));
@@ -578,7 +652,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final wide = MediaQuery.sizeOf(context).width >= 760;
     final sel = _sel ?? (wide ? 'hesap' : null);
-    final section = _sections.where((s) => s.id == sel).firstOrNull;
+    final section = _visibleSections.where((s) => s.id == sel).firstOrNull;
     final canPopInside = _q.isNotEmpty || (!wide && _sel != null);
     return PopScope(
       canPop: !canPopInside,
@@ -629,7 +703,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         width: 250,
         decoration: BoxDecoration(color: OAColors.bg2, border: Border(right: BorderSide(color: OAColors.line))),
         child: ListView(padding: const EdgeInsets.all(10), children: [
-          for (final s in _sections)
+          for (final s in _visibleSections)
             Padding(
               padding: const EdgeInsets.only(bottom: 2),
               child: Material(
@@ -694,7 +768,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ..._searchBody()
         else
           _card(null, [
-            for (final s in _sections)
+            for (final s in _visibleSections)
               _row(s.icon, s.name, sub: s.sub, onTap: () => setState(() => _sel = s.id)),
           ]),
       ]);

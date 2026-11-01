@@ -550,8 +550,11 @@ class RadioMiniBar extends StatelessWidget {
 
 /// İstasyon seçme ekranı: popüler istasyonlar, favoriler ve arama.
 class RadioSheet extends StatefulWidget {
-  const RadioSheet({super.key, required this.radio});
+  const RadioSheet({super.key, required this.radio, this.embedded = false});
   final RadioPlayer radio;
+
+  /// Kenar çubuğu panelinde (alt sayfa olarak değil, yerinde) gösterilir.
+  final bool embedded;
 
   @override
   State<RadioSheet> createState() => _RadioSheetState();
@@ -584,11 +587,17 @@ class _RadioSheetState extends State<RadioSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final r = widget.radio;
+    if (widget.embedded) return _body(null);
     return DraggableScrollableSheet(
       expand: false,
       initialChildSize: 0.85,
-      builder: (_, scroll) => ListenableBuilder(
+      builder: (_, scroll) => _body(scroll),
+    );
+  }
+
+  Widget _body(ScrollController? scroll) {
+    final r = widget.radio;
+    return ListenableBuilder(
         listenable: r,
         builder: (context, _) => Column(
           children: [
@@ -681,11 +690,10 @@ class _RadioSheetState extends State<RadioSheet> {
             ),
           ],
         ),
-      ),
     );
   }
 
-  Widget _list(ScrollController scroll, List<Station> list, {required String empty}) {
+  Widget _list(ScrollController? scroll, List<Station> list, {required String empty}) {
     final r = widget.radio;
     if (list.isEmpty) {
       return Center(

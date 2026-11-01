@@ -33,6 +33,7 @@ import 'passwords.dart';
 import 'qr_page.dart';
 import 'reader.dart';
 import 'search.dart';
+import 'sidebar.dart';
 import 'smart.dart';
 import 'start_mobile.dart';
 import 'start_page.dart';
@@ -161,6 +162,10 @@ class TabData {
   /// Sekme grubu (bilgisayar).
   String? groupId;
 
+  /// Sekme uyutma: uzun süre bakılmayan sekmenin sayfası bellekten çıkarılır, dokununca yeniden açılır.
+  DateTime lastActive = DateTime.now();
+  bool sleeping = false;
+
   String url = '';
   String title = '';
   double progress = 1;
@@ -255,6 +260,21 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   final ReadingList _reading = ReadingList();
   bool _showNews = true;
   bool _showMarkets = true;
+
+  // Kenar çubuğu (bilgisayar)
+  List<SideApp> _sideApps = defaultSideApps();
+  bool _sidebarOn = Platform.isWindows;
+  String? _sideOpen;
+  String? _sideLast;
+  final Set<String> _sideLoaded = {};
+  final Map<String, int> _sideBadges = {};
+  final Map<String, InAppWebViewController> _sideCtl = {};
+  double _panelW = 420;
+  final TabData _sideTab = TabData();
+
+  // Sekme uyutma
+  int _sleepMinutes = 30;
+  Timer? _sleepTimer;
 
   // Sekme grupları ve dikey sekmeler (bilgisayar)
   final List<TabGroup> _groups = [];
@@ -361,6 +381,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       if (_vault.enabled) _scheduleSync();
     };
     // Açıkken de ara ara eşitle (öbür cihazda eklenenler gelsin).
+    _sleepTimer = Timer.periodic(const Duration(minutes: 1), (_) => _checkSleep());
     _syncPoll = Timer.periodic(const Duration(minutes: 2), (_) {
       if (_account.signedIn && _appVisible) _syncNow();
     });
@@ -474,6 +495,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _findDebounce?.cancel();
     _syncPoll?.cancel();
+    _sleepTimer?.cancel();
     _findCtl.dispose();
     _wx.dispose();
     _news.dispose();
@@ -532,6 +554,15 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       _showNews = _prefs!.getBool('show_news') ?? true;
       _showMarkets = _prefs!.getBool('show_markets') ?? true;
       _verticalTabs = _prefs!.getBool('vertical_tabs') ?? false;
+      _sidebarOn = _prefs!.getBool('sidebar_on') ?? Platform.isWindows;
+      _panelW = (_prefs!.getDouble('panel_w') ?? 420).clamp(320, 760).toDouble();
+      _sleepMinutes = _prefs!.getInt('sleep_min') ?? 30;
+      try {
+        final sa = _prefs!.getString('sidebar_items');
+        if (sa != null) {
+          _sideApps = (jsonDecode(sa) as List).whereType<Map>().map(SideApp.fromJson).whereType<SideApp>().toList();
+        }
+      } catch (_) {}
       _darkAll = _prefs!.getBool('dark_all') ?? false;
       _darkSites = (_prefs!.getStringList('dark_sites') ?? []).toSet();
       try {
@@ -1592,6 +1623,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         if (g != null) const PopupMenuItem(value: 'out', child: Text('Gruptan çıkar')),
         const PopupMenuDivider(),
         if (!t.showStart) const PopupMenuItem(value: 'later', child: Text('Sonra oku listesine ekle')),
+        if (i != _current && !t.sleeping && !t.showStart) const PopupMenuItem(value: 'sleep', child: Text('Bu sekmeyi uyut')),
+        const PopupMenuItem(value: 'sleepall', child: Text('Diğer sekmeleri uyut')),
         const PopupMenuItem(value: 'close', child: Text('Sekmeyi kapat')),
       ],
     );
@@ -1606,6 +1639,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     } else if (v == 'later') {
       _selectTab(_tabs.indexOf(t));
       _saveForLater();
+    } else if (v == 'sleep') {
+      if (!await _sleepTab(t)) _toast('Bu sekme şu an uyutulamıyor (ses ya da video çalıyor olabilir)');
+    } else if (v == 'sleepall') {
+      _sleepOthers();
     } else if (v == 'close') {
       _closeTab(_tabs.indexOf(t));
     }
@@ -1705,6 +1742,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             padding: const EdgeInsets.only(right: 6),
             child: Icon(Icons.visibility_off, size: 14, color: OAColors.blue),
           ),
+        if (t.sleeping)
+          Padding(
+            padding: const EdgeInsets.only(right: 6),
+            child: Tooltip(message: 'Uykuda: tıklayınca yeniden açılır', child: Icon(Icons.bedtime_outlined, size: 14, color: OAColors.faint)),
+          ),
         Expanded(
           child: Text(
             t.displayTitle,
@@ -1713,7 +1755,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w500,
-              color: selected ? OAColors.text : OAColors.muted,
+              color: selected ? OAColors.text : (t.sleeping ? OAColors.faint : OAColors.muted),
             ),
           ),
         ),
@@ -2231,6 +2273,296 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     }
     await _syncNow();
     _toast('Şifre eşitlemesi açık');
+  }
+
+  // ----------------------------------------------------------------- Sekme uyutma
+
+  int get _sleepingCount => _tabs.where((t) => t.sleeping).length;
+
+  Future<void> _checkSleep() async {
+    if (_sleepMinutes <= 0 || !mounted) return;
+    final now = DateTime.now();
+    for (final t in List.of(_tabs)) {
+      if (now.difference(t.lastActive).inMinutes < _sleepMinutes) continue;
+      await _sleepTab(t);
+    }
+  }
+
+  /// Sekmenin sayfasını bellekten çıkarır; sekmeye dönünce sayfa yeniden açılır.
+  /// Ses ya da video çalan sekme uyutulmaz.
+  Future<bool> _sleepTab(TabData t) async {
+    if (t == _tab || t.sleeping || !t.webStarted || t.showStart || t.incognito || t.pendingHtml != null) return false;
+    if (!t.url.startsWith('http')) return false;
+    try {
+      final playing = await t.controller?.evaluateJavascript(
+          source: "[].some.call(document.querySelectorAll('video,audio'),function(m){return !m.paused&&!m.muted&&m.currentTime>0})");
+      if (playing == true) return false;
+    } catch (_) {}
+    if (!mounted || t == _tab) return false;
+    _disposeTab(t);
+    setState(() {
+      t
+        ..sleeping = true
+        ..webStarted = false
+        ..pendingUrl = t.url
+        ..controller = null
+        ..keepAlive = null
+        ..pullToRefresh = null;
+    });
+    return true;
+  }
+
+  Future<void> _sleepOthers() async {
+    var n = 0;
+    for (final t in List.of(_tabs)) {
+      if (await _sleepTab(t)) n++;
+    }
+    _toast(n == 0 ? 'Uyutulacak sekme yok' : '$n sekme uyutuldu; dokununca yeniden açılır');
+  }
+
+  void _setSleepMinutes(int m) {
+    setState(() => _sleepMinutes = m);
+    _prefs?.setInt('sleep_min', m);
+  }
+
+  // ----------------------------------------------------------------- Kenar çubuğu (bilgisayar)
+
+  void _saveSideApps() => _prefs?.setString('sidebar_items', jsonEncode(_sideApps.map((e) => e.toJson()).toList()));
+
+  void _toggleSidebar() {
+    setState(() {
+      _sidebarOn = !_sidebarOn;
+      if (!_sidebarOn) _sideOpen = null;
+    });
+    _prefs?.setBool('sidebar_on', _sidebarOn);
+  }
+
+  void _toggleSide(SideApp a) {
+    setState(() {
+      if (_sideOpen == a.id) {
+        _sideOpen = null;
+      } else {
+        _sideOpen = a.id;
+        _sideLast = a.id;
+        _sideLoaded.add(a.id);
+      }
+    });
+  }
+
+  void _unloadSide(SideApp a) {
+    setState(() {
+      _sideLoaded.remove(a.id);
+      _sideCtl.remove(a.id);
+      _sideBadges.remove(a.id);
+      if (_sideOpen == a.id) _sideOpen = null;
+      if (_sideLast == a.id) _sideLast = null;
+    });
+  }
+
+  void _removeSideApp(SideApp a) {
+    _unloadSide(a);
+    setState(() => _sideApps.removeWhere((x) => x.id == a.id));
+    _saveSideApps();
+  }
+
+  void _moveSideApp(SideApp a, int d) {
+    final i = _sideApps.indexOf(a);
+    final j = i + d;
+    if (i < 0 || j < 0 || j >= _sideApps.length) return;
+    setState(() {
+      _sideApps.removeAt(i);
+      _sideApps.insert(j, a);
+    });
+    _saveSideApps();
+  }
+
+  Future<void> _sideMenu(SideApp a, Offset pos) async {
+    final v = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(pos.dx, pos.dy, pos.dx + 1, pos.dy + 1),
+      items: [
+        _mi('tab', Icons.open_in_new, 'Sekmede aç'),
+        if (_sideLoaded.contains(a.id) && a.id != kSideRadio) _mi('reload', Icons.refresh, 'Yeniden yükle'),
+        if (_sideLoaded.contains(a.id) && a.id != kSideRadio) _mi('unload', Icons.power_settings_new, 'Kapat (bellekten çıkar)'),
+        const PopupMenuDivider(),
+        _mi('remove', Icons.remove_circle_outline, 'Kenar çubuğundan kaldır'),
+      ],
+    );
+    switch (v) {
+      case 'tab':
+        _addTab(url: a.url);
+      case 'reload':
+        _sideCtl[a.id]?.reload();
+      case 'unload':
+        _unloadSide(a);
+      case 'remove':
+        _removeSideApp(a);
+    }
+  }
+
+  Future<void> _addSideApp() async {
+    final have = _sideApps.map((e) => e.url).toSet();
+    final options = [...defaultSideApps(), ...suggestedSideApps()].where((e) => !have.contains(e.url)).toList();
+    final name = TextEditingController();
+    final url = TextEditingController();
+    final r = await showDialog<SideApp>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Kenar çubuğuna ekle'),
+        content: SizedBox(
+          width: 440,
+          child: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              if (options.isNotEmpty) ...[
+                Text('Öneriler', style: TextStyle(color: OAColors.muted, fontSize: 13)),
+                const SizedBox(height: 8),
+                Wrap(spacing: 8, runSpacing: 8, children: [
+                  for (final o in options)
+                    ActionChip(
+                      avatar: SiteIcon(url: o.url, letter: o.name[0], size: 20),
+                      label: Text(o.name),
+                      onPressed: () => Navigator.pop(ctx, o),
+                    ),
+                ]),
+                const SizedBox(height: 18),
+              ],
+              Text('Ya da istediğin bir site', style: TextStyle(color: OAColors.muted, fontSize: 13)),
+              const SizedBox(height: 8),
+              TextField(controller: name, decoration: const InputDecoration(labelText: 'Adı')),
+              const SizedBox(height: 8),
+              TextField(
+                controller: url,
+                keyboardType: TextInputType.url,
+                decoration: const InputDecoration(labelText: 'Adres', hintText: 'https://…'),
+              ),
+            ]),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Vazgeç')),
+          FilledButton(
+            onPressed: () {
+              var u = url.text.trim();
+              if (u.isEmpty) return;
+              if (!u.startsWith('http')) u = 'https://$u';
+              final n = name.text.trim().isEmpty ? (Uri.tryParse(u)?.host ?? u) : name.text.trim();
+              Navigator.pop(ctx, SideApp('ozel-${DateTime.now().millisecondsSinceEpoch}', n, u));
+            },
+            child: const Text('Ekle'),
+          ),
+        ],
+      ),
+    );
+    if (r == null) return;
+    setState(() => _sideApps.add(r));
+    _saveSideApps();
+    _toggleSide(r);
+  }
+
+  Widget _sideWebView(SideApp a) {
+    // OA Radyo: uygulamanın kendi radyosu (web sayfası değil; aynı çalar, mini çalarla birlikte)
+    if (a.id == kSideRadio) return RadioSheet(radio: _radio, embedded: true);
+    return InAppWebView(
+      key: ValueKey('kenar-${a.id}'),
+      webViewEnvironment: oaWebEnv,
+      initialUrlRequest: URLRequest(url: WebUri(a.url)),
+      initialSettings: InAppWebViewSettings(
+        javaScriptEnabled: true,
+        mediaPlaybackRequiresUserGesture: false,
+        isInspectable: false,
+      ),
+      onWebViewCreated: (c) => _sideCtl[a.id] = c,
+      onTitleChanged: (c, title) {
+        final n = unreadFromTitle(title);
+        if ((_sideBadges[a.id] ?? 0) != n) setState(() => _sideBadges[a.id] = n);
+      },
+      onCreateWindow: (c, action) async {
+        final u = action.request.url;
+        if (u != null) _addTab(url: u.toString());
+        return false;
+      },
+      onPermissionRequest: (c, req) => _onPermissionRequest(_sideTab, req),
+      onDownloadStartRequest: (c, req) => _download(req.url.toString(), name: req.suggestedFilename, from: _sideTab),
+    );
+  }
+
+  /// Açılan panel. Kapatılınca da arkada açık kalır (müzik çalmaya, mesajlar gelmeye devam eder).
+  Widget _sidePanel() {
+    final open = _sideOpen != null && _sidebarOn && !_miniVideo;
+    final loaded = _sideApps.where((a) => _sideLoaded.contains(a.id)).toList();
+    final showId = _sideOpen ?? _sideLast;
+    final idx = loaded.indexWhere((a) => a.id == showId);
+    final app = idx >= 0 ? loaded[idx] : null;
+    return Offstage(
+      offstage: !open,
+      child: SizedBox(
+        width: _panelW,
+        child: Stack(children: [
+          Container(
+            decoration: BoxDecoration(
+              color: OAColors.bg,
+              border: Border(right: BorderSide(color: OAColors.line)),
+            ),
+            child: Column(children: [
+              Container(
+                height: 46,
+                padding: const EdgeInsets.only(left: 12, right: 4),
+                decoration: BoxDecoration(color: OAColors.surface, border: Border(bottom: BorderSide(color: OAColors.border))),
+                child: Row(children: [
+                  if (app != null && app.id == kSideRadio) Icon(Icons.radio_rounded, size: 22, color: OAColors.amber),
+                  if (app != null && app.id != kSideRadio) SiteIcon(url: app.url, letter: app.name[0], size: 22),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(app?.name ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  ),
+                  IconButton(
+                    tooltip: 'Yeniden yükle',
+                    iconSize: 18,
+                    icon: const Icon(Icons.refresh),
+                    onPressed: app == null || app.id == kSideRadio ? null : () => _sideCtl[app.id]?.reload(),
+                  ),
+                  IconButton(
+                    tooltip: 'Sekmede aç',
+                    iconSize: 18,
+                    icon: const Icon(Icons.open_in_new),
+                    onPressed: app == null || app.id == kSideRadio ? null : () => _addTab(url: app.url),
+                  ),
+                  IconButton(
+                    tooltip: 'Paneli kapat',
+                    iconSize: 18,
+                    icon: const Icon(Icons.chevron_left),
+                    onPressed: () => setState(() => _sideOpen = null),
+                  ),
+                ]),
+              ),
+              Expanded(
+                child: loaded.isEmpty
+                    ? const SizedBox.shrink()
+                    : IndexedStack(
+                        index: idx < 0 ? 0 : idx,
+                        children: [for (final a in loaded) KeyedSubtree(key: ValueKey('panel-${a.id}'), child: _sideWebView(a))],
+                      ),
+              ),
+            ]),
+          ),
+          // Sağ kenardan sürükleyerek genişlik
+          Positioned(
+            right: 0,
+            top: 0,
+            bottom: 0,
+            width: 6,
+            child: MouseRegion(
+              cursor: SystemMouseCursors.resizeLeftRight,
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onHorizontalDragUpdate: (d) => setState(() => _panelW = (_panelW + d.delta.dx).clamp(320, 760).toDouble()),
+                onHorizontalDragEnd: (_) => _prefs?.setDouble('panel_w', _panelW),
+              ),
+            ),
+          ),
+        ]),
+      ),
+    );
   }
 
   // ----------------------------------------------------------------- Çökme kaydı (Windows)
@@ -2761,6 +3093,18 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   void _selectTab(int i) {
     if (i != _current) _closeFind();
+    final now = DateTime.now();
+    if (_current < _tabs.length) _tabs[_current].lastActive = now;
+    final next = _tabs[i];
+    next.lastActive = now;
+    if (next.sleeping) {
+      next
+        ..sleeping = false
+        ..webStarted = true
+        ..pendingUrl = next.url
+        ..covering = true
+        ..coverLoadStarted = false;
+    }
     setState(() {
       _barCollapsed = false;
       _current = i;
@@ -3399,7 +3743,20 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     return SafeArea(
       child: Row(
         children: [
-          if (_verticalTabs && !_miniVideo) _verticalTabBar(),
+          if (_sidebarOn && !_miniVideo && Platform.isWindows)
+            SidebarDock(
+              key: const ValueKey('dock'),
+              apps: _sideApps,
+              active: _sideOpen,
+              loaded: _sideLoaded,
+              badges: _sideBadges,
+              onTap: _toggleSide,
+              onMenu: _sideMenu,
+              onAdd: _addSideApp,
+            ),
+          // Paneller (kapalıyken de arkada açık kalır)
+          if (Platform.isWindows) KeyedSubtree(key: const ValueKey('panel'), child: _sidePanel()),
+          if (_verticalTabs && !_miniVideo) KeyedSubtree(key: const ValueKey('dikey'), child: _verticalTabBar()),
           Expanded(
             key: const ValueKey('masaustu'),
             child: _desktopMain(),
