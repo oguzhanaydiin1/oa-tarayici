@@ -19,6 +19,10 @@ import 'package:app_links/app_links.dart';
 import 'adblock.dart';
 import 'downloads.dart';
 import 'extras.dart';
+import 'markets.dart';
+import 'news.dart';
+import 'read_later.dart';
+import 'tab_groups.dart';
 import 'radio.dart';
 import 'updater.dart';
 import 'oa_theme.dart';
@@ -126,6 +130,12 @@ class TabData {
   /// Web görünümü oluşturulurken açılacak ilk adres.
   String? pendingUrl;
 
+  /// Okuma listesinden açılan kayıtlı yazı (adres yerine bu sayfa gösterilir).
+  String? pendingHtml;
+
+  /// Sekme grubu (bilgisayar).
+  String? groupId;
+
   String url = '';
   String title = '';
   double progress = 1;
@@ -204,6 +214,17 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   /// Android: sesli arama (telefonun konuşma tanıma ekranı).
   static const _ses = MethodChannel('oa/ses');
+
+  // Haber akışı, döviz ve altın, okuma listesi
+  final NewsService _news = NewsService();
+  final MarketService _market = MarketService();
+  final ReadingList _reading = ReadingList();
+  bool _showNews = true;
+  bool _showMarkets = true;
+
+  // Sekme grupları ve dikey sekmeler (bilgisayar)
+  final List<TabGroup> _groups = [];
+  bool _verticalTabs = false;
 
   // Çerez pencereleri, sitelere karanlık mod, site başına yakınlaştırma
   bool _cookieOn = true;
@@ -314,6 +335,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       Future.delayed(const Duration(seconds: 6), () => _checkUpdate());
     });
     _downloads.addListener(_onAccount);
+    _reading.addListener(_onAccount);
     _radio.addListener(_onAccount);
     _account.addListener(_onAccount);
     _account.load().then((_) {
@@ -400,6 +422,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     _syncPoll?.cancel();
     _findCtl.dispose();
     _wx.dispose();
+    _news.dispose();
+    _market.dispose();
     _findFocus.dispose();
     _account.removeListener(_onAccount);
     _account.dispose();
@@ -423,6 +447,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     await _downloads.init(_prefs!);
     await _radio.init(_prefs!);
     _wx.init(_prefs!);
+    _news.init(_prefs!);
+    _market.init(_prefs!);
+    _reading.init(_prefs!);
     setState(() {
       _bookmarks = _decode(_prefs!.getStringList('bookmarks'));
       _history = _decode(_prefs!.getStringList('history'));
@@ -437,6 +464,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       _incognitoLock = _prefs!.getBool('incognito_lock') ?? false;
       _showClock = _prefs!.getBool('show_clock') ?? true;
       _cookieOn = _prefs!.getBool('cookie_block') ?? true;
+      _showNews = _prefs!.getBool('show_news') ?? true;
+      _showMarkets = _prefs!.getBool('show_markets') ?? true;
+      _verticalTabs = _prefs!.getBool('vertical_tabs') ?? false;
       _darkAll = _prefs!.getBool('dark_all') ?? false;
       _darkSites = (_prefs!.getStringList('dark_sites') ?? []).toSet();
       try {
@@ -1324,6 +1354,389 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     _toast(n == 0 ? 'Şifrelerin hepsi zaten kayıtlıydı' : '$n şifre içe aktarıldı');
   }
 
+  // ----------------------------------------------------------------- Haber, döviz, okuma listesi
+
+  void _toggleNews() {
+    setState(() => _showNews = !_showNews);
+    _prefs?.setBool('show_news', _showNews);
+  }
+
+  void _toggleMarkets() {
+    setState(() => _showMarkets = !_showMarkets);
+    _prefs?.setBool('show_markets', _showMarkets);
+  }
+
+  Future<void> _saveForLater() async {
+    final t = _tab;
+    final c = t.controller;
+    if (t.showStart || c == null) {
+      _toast('Önce bir yazı aç');
+      return;
+    }
+    _toast('Kaydediliyor…');
+    final r = await _reading.save(c, t.url);
+    _toast(switch (r) {
+      SaveResult.saved => 'Okuma listesine eklendi; internetsiz de okunur',
+      SaveResult.already => 'Bu yazı zaten okuma listende',
+      SaveResult.notArticle => 'Bu sayfada kaydedilecek bir yazı bulunamadı',
+      SaveResult.failed => 'Kaydedilemedi',
+    });
+  }
+
+  void _showReadingList() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => ReadingListSheet(list: _reading, onOpen: _openArticle),
+    );
+  }
+
+  Future<void> _openArticle(SavedArticle a) async {
+    final html = await _reading.html(a);
+    if (html == null) {
+      _toast('Kayıtlı yazı bulunamadı; çevrimiçi sürümü açılıyor');
+      _addTab(url: a.url);
+      return;
+    }
+    _reading.markRead(a);
+    setState(() {
+      final t = TabData()
+        ..showStart = false
+        ..webStarted = true
+        ..pendingHtml = html
+        ..pendingUrl = a.url
+        ..url = a.url
+        ..title = a.title;
+      _tabs.add(t);
+      _current = _tabs.length - 1;
+      _urlCtl.text = _addressText(t);
+      _showSuggestions = false;
+    });
+  }
+
+  // ----------------------------------------------------------------- Sekme grupları ve dikey sekmeler
+
+  TabGroup? _groupOf(TabData t) {
+    final id = t.groupId;
+    if (id == null) return null;
+    for (final g in _groups) {
+      if (g.id == id) return g;
+    }
+    return null;
+  }
+
+  /// Sekmeyi grubun öbür sekmelerinin yanına taşır.
+  void _moveIntoGroup(TabData t, TabGroup g) {
+    final selected = _tab;
+    _tabs.remove(t);
+    t.groupId = g.id;
+    final last = _tabs.lastIndexWhere((x) => x.groupId == g.id);
+    if (last >= 0) {
+      _tabs.insert(last + 1, t);
+    } else {
+      _tabs.add(t);
+    }
+    _current = _tabs.indexOf(selected);
+  }
+
+  Future<void> _newGroupFor(TabData t) async {
+    final r = await editGroupDialog(context, color: _groups.length % kGroupColors.length);
+    if (r == null || !mounted) return;
+    final g = TabGroup(id: UniqueKey().toString(), name: r.$1, color: r.$2);
+    setState(() {
+      _groups.add(g);
+      _moveIntoGroup(t, g);
+    });
+    _saveSessionSoon();
+  }
+
+  void _addToGroup(TabData t, TabGroup g) {
+    setState(() => _moveIntoGroup(t, g));
+    _saveSessionSoon();
+  }
+
+  void _ungroupTab(TabData t) {
+    setState(() {
+      t.groupId = null;
+      _groups.removeWhere((g) => !_tabs.any((x) => x.groupId == g.id));
+    });
+    _saveSessionSoon();
+  }
+
+  Future<void> _editGroup(TabGroup g) async {
+    final r = await editGroupDialog(context, name: g.name, color: g.color, isNew: false);
+    if (r == null) return;
+    setState(() {
+      g.name = r.$1;
+      g.color = r.$2;
+    });
+    _saveSessionSoon();
+  }
+
+  void _toggleGroup(TabGroup g) {
+    setState(() {
+      g.collapsed = !g.collapsed;
+      // Açık sekme daraltılan gruptaysa grubun dışındaki bir sekmeye geç.
+      if (g.collapsed && _tab.groupId == g.id) {
+        final other = _tabs.indexWhere((x) => x.groupId != g.id);
+        if (other >= 0) _current = other;
+      }
+    });
+    _saveSessionSoon();
+  }
+
+  void _ungroupAll(TabGroup g) {
+    setState(() {
+      for (final t in _tabs) {
+        if (t.groupId == g.id) t.groupId = null;
+      }
+      _groups.remove(g);
+    });
+    _saveSessionSoon();
+  }
+
+  void _closeGroup(TabGroup g) {
+    final ids = [for (final t in _tabs) if (t.groupId == g.id) t.id];
+    for (final id in ids) {
+      final i = _tabs.indexWhere((x) => x.id == id);
+      if (i >= 0) _closeTab(i);
+    }
+    setState(() => _groups.remove(g));
+  }
+
+  Future<void> _tabMenu(int i, Offset pos) async {
+    final t = _tabs[i];
+    final g = _groupOf(t);
+    final v = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(pos.dx, pos.dy, pos.dx + 1, pos.dy + 1),
+      items: [
+        const PopupMenuItem(value: 'new', child: Text('Yeni gruba ekle…')),
+        for (final x in _groups)
+          if (x.id != t.groupId)
+            PopupMenuItem(
+              value: 'g:${x.id}',
+              child: Row(children: [
+                CircleAvatar(radius: 6, backgroundColor: x.c),
+                const SizedBox(width: 10),
+                Text('"${x.name.isEmpty ? 'Adsız grup' : x.name}" grubuna ekle'),
+              ]),
+            ),
+        if (g != null) const PopupMenuItem(value: 'out', child: Text('Gruptan çıkar')),
+        const PopupMenuDivider(),
+        if (!t.showStart) const PopupMenuItem(value: 'later', child: Text('Sonra oku listesine ekle')),
+        const PopupMenuItem(value: 'close', child: Text('Sekmeyi kapat')),
+      ],
+    );
+    if (v == null || !mounted) return;
+    if (v == 'new') {
+      _newGroupFor(t);
+    } else if (v.startsWith('g:')) {
+      final x = _groups.firstWhere((e) => e.id == v.substring(2));
+      _addToGroup(t, x);
+    } else if (v == 'out') {
+      _ungroupTab(t);
+    } else if (v == 'later') {
+      _selectTab(_tabs.indexOf(t));
+      _saveForLater();
+    } else if (v == 'close') {
+      _closeTab(_tabs.indexOf(t));
+    }
+  }
+
+  Future<void> _groupMenu(TabGroup g, Offset pos) async {
+    final v = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(pos.dx, pos.dy, pos.dx + 1, pos.dy + 1),
+      items: [
+        PopupMenuItem(value: 'fold', child: Text(g.collapsed ? 'Grubu genişlet' : 'Grubu daralt')),
+        const PopupMenuItem(value: 'edit', child: Text('Adını ve rengini değiştir')),
+        const PopupMenuItem(value: 'add', child: Text('Gruba yeni sekme ekle')),
+        const PopupMenuItem(value: 'ungroup', child: Text('Grubu dağıt')),
+        const PopupMenuItem(value: 'close', child: Text('Gruptaki sekmeleri kapat')),
+      ],
+    );
+    if (v == null || !mounted) return;
+    switch (v) {
+      case 'fold':
+        _toggleGroup(g);
+      case 'edit':
+        _editGroup(g);
+      case 'add':
+        _addTab();
+        _addToGroup(_tab, g);
+      case 'ungroup':
+        _ungroupAll(g);
+      case 'close':
+        _closeGroup(g);
+    }
+  }
+
+  void _toggleVerticalTabs() {
+    setState(() => _verticalTabs = !_verticalTabs);
+    _prefs?.setBool('vertical_tabs', _verticalTabs);
+  }
+
+  /// Sekme şeridindeki öğeler: grup başlıkları ve sekmeler (daraltılan grupların sekmeleri gizli).
+  List<Widget> _tabEntries({required bool vertical}) {
+    final out = <Widget>[];
+    String? prevGroup;
+    for (var i = 0; i < _tabs.length; i++) {
+      final t = _tabs[i];
+      final g = _groupOf(t);
+      if (g != null && g.id != prevGroup) out.add(_groupChip(g, vertical: vertical));
+      prevGroup = g?.id;
+      if (g != null && g.collapsed && i != _current) continue;
+      out.add(_tabChip(i, vertical: vertical));
+    }
+    return out;
+  }
+
+  Widget _groupChip(TabGroup g, {required bool vertical}) {
+    final count = _tabs.where((t) => t.groupId == g.id).length;
+    final label = Row(
+      mainAxisSize: vertical ? MainAxisSize.max : MainAxisSize.min,
+      children: [
+        Icon(g.collapsed ? Icons.chevron_right : Icons.expand_more, size: 16, color: const Color(0xFF14110A)),
+        const SizedBox(width: 2),
+        Flexible(
+          child: Text(
+            g.name.isEmpty ? (g.collapsed ? '$count' : '') : (g.collapsed ? '${g.name} · $count' : g.name),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Color(0xFF14110A), fontSize: 12.5, fontWeight: FontWeight.w700),
+          ),
+        ),
+      ],
+    );
+    return GestureDetector(
+      onTap: () => _toggleGroup(g),
+      onSecondaryTapUp: (d) => _groupMenu(g, d.globalPosition),
+      onLongPressStart: (d) => _groupMenu(g, d.globalPosition),
+      child: Tooltip(
+        message: 'Tıkla: daralt / genişlet · sağ tıkla: grup seçenekleri',
+        child: Container(
+          margin: vertical ? const EdgeInsets.fromLTRB(8, 10, 8, 4) : const EdgeInsets.fromLTRB(6, 12, 2, 6),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          height: vertical ? 28 : null,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(color: g.c, borderRadius: BorderRadius.circular(8)),
+          child: label,
+        ),
+      ),
+    );
+  }
+
+  Widget _tabChip(int i, {required bool vertical}) {
+    final t = _tabs[i];
+    final selected = i == _current;
+    final g = _groupOf(t);
+    final row = Row(
+      children: [
+        if (t.incognito)
+          Padding(
+            padding: const EdgeInsets.only(right: 6),
+            child: Icon(Icons.visibility_off, size: 14, color: OAColors.blue),
+          ),
+        Expanded(
+          child: Text(
+            t.displayTitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: selected ? OAColors.text : OAColors.muted,
+            ),
+          ),
+        ),
+        IconButton(
+          iconSize: 14,
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+          icon: const Icon(Icons.close),
+          onPressed: () => _closeTab(i),
+        ),
+      ],
+    );
+    final Decoration deco;
+    if (vertical) {
+      deco = BoxDecoration(
+        color: selected ? OAColors.surface : Colors.transparent,
+        borderRadius: BorderRadius.circular(10),
+        border: Border(
+          left: BorderSide(color: g?.c ?? (selected ? OAColors.amber : Colors.transparent), width: 3),
+        ),
+      );
+    } else {
+      deco = BoxDecoration(
+        color: selected ? OAColors.surface : Colors.transparent,
+        border: selected
+            ? Border(
+                top: BorderSide(color: g?.c ?? OAColors.border, width: g != null ? 2 : 1),
+                left: BorderSide(color: OAColors.border),
+                right: BorderSide(color: OAColors.border),
+              )
+            : Border(bottom: BorderSide(color: g?.c ?? Colors.transparent, width: 2)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+      );
+    }
+    return GestureDetector(
+      onTap: () => _selectTab(i),
+      onSecondaryTapUp: (d) => _tabMenu(i, d.globalPosition),
+      onTertiaryTapUp: (_) => _closeTab(i),
+      child: Container(
+        width: vertical ? null : 184,
+        height: vertical ? 38 : null,
+        margin: vertical ? const EdgeInsets.fromLTRB(8, 2, 8, 0) : const EdgeInsets.fromLTRB(2, 8, 0, 0),
+        padding: const EdgeInsets.only(left: 12),
+        decoration: deco,
+        child: row,
+      ),
+    );
+  }
+
+  Widget _verticalTabBar() {
+    return Container(
+      width: 250,
+      decoration: BoxDecoration(
+        color: OAColors.bg2,
+        border: Border(right: BorderSide(color: OAColors.line)),
+      ),
+      child: Column(
+        children: [
+          SizedBox(
+            height: 50,
+            child: Row(children: [
+              const Padding(padding: EdgeInsets.fromLTRB(12, 0, 8, 0), child: OAMark()),
+              Expanded(child: Text('Sekmeler · ${_tabs.length}', style: TextStyle(color: OAColors.muted, fontSize: 13))),
+              IconButton(
+                tooltip: 'Yatay sekmeler',
+                icon: const Icon(Icons.view_week_outlined, size: 20),
+                onPressed: _toggleVerticalTabs,
+              ),
+            ]),
+          ),
+          Expanded(
+            child: ListView(padding: const EdgeInsets.only(bottom: 8), children: _tabEntries(vertical: true)),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(8),
+            child: SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Yeni sekme'),
+                onPressed: () => _addTab(),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ----------------------------------------------------------------- Çökme kaydı (Windows)
 
   /// Uygulama geçen sefer beklenmedik şekilde kapandıysa nedeni gösterilir
@@ -1883,13 +2296,18 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     final tabs = [
       for (final t in _tabs)
         if (!t.incognito && !t.showStart && t.url.startsWith('http'))
-          {'url': t.url, 'title': t.displayTitle}
+          {'url': t.url, 'title': t.displayTitle, if (t.groupId != null) 'g': t.groupId!}
     ];
     final current = _tabs[_current];
     final idx = current.incognito || current.showStart
         ? -1
         : tabs.indexWhere((m) => m['url'] == current.url);
-    _prefs?.setString('session', jsonEncode({'tabs': tabs, 'current': idx}));
+    final usedGroups = {for (final t in tabs) t['g']};
+    _prefs?.setString('session', jsonEncode({
+      'tabs': tabs,
+      'current': idx,
+      'groups': [for (final g in _groups) if (usedGroups.contains(g.id)) g.toJson()],
+    }));
   }
 
   void _restoreSession() {
@@ -1900,13 +2318,19 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       final list = (j['tabs'] as List).whereType<Map>().toList();
       if (list.isEmpty) return;
       setState(() {
+        for (final g in (j['groups'] as List? ?? const []).whereType<Map>()) {
+          final tg = TabGroup.fromJson(g);
+          if (tg != null) _groups.add(tg);
+        }
         for (final m in list) {
           final url = m['url'].toString();
+          final gid = m['g']?.toString();
           _tabs.add(TabData()
             ..showStart = false
             ..webStarted = true
             ..pendingUrl = url
             ..url = url
+            ..groupId = _groups.any((g) => g.id == gid) ? gid : null
             ..title = m['title']?.toString() ?? '');
         }
         // İlk (boş) başlangıç sekmesi kalsın; kaldığın sekme açılsın.
@@ -2421,7 +2845,14 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             },
             wallpaperId: _wallpaperId,
             wallpaperPath: _wallpaperPath,
-            weatherCard: _showClock ? ClockWeatherCard(wx: _wx) : null,
+            weatherCard: _showClock || _showMarkets
+                ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                    if (_showClock) ClockWeatherCard(wx: _wx),
+                    if (_showClock && _showMarkets) const SizedBox(height: 10),
+                    if (_showMarkets) MarketStrip(market: _market),
+                  ])
+                : null,
+            news: _showNews && !t.incognito ? NewsFeed(news: _news, onOpen: (u) => _go(u), compact: true) : null,
           )
         else if (t.showStart)
           StartPage(
@@ -2439,7 +2870,14 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             onWallpaper: _showWallpaperPicker,
             wallpaperId: _wallpaperId,
             wallpaperPath: _wallpaperPath,
-            corner: _showClock && !compact ? ClockWeatherCorner(wx: _wx) : null,
+            corner: (_showClock || _showMarkets) && !compact
+                ? Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [
+                    if (_showClock) ClockWeatherCorner(wx: _wx),
+                    if (_showClock && _showMarkets) const SizedBox(height: 12),
+                    if (_showMarkets) SizedBox(width: 330, child: MarketStrip(market: _market, alignEnd: true)),
+                  ])
+                : null,
+            news: _showNews && !t.incognito && !compact ? NewsFeed(news: _news, onOpen: (u) => _go(u)) : null,
           ),
         if (t.incognito && _locked) Positioned.fill(child: _lockCover()),
       ],
@@ -2453,7 +2891,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     }
     return IndexedStack(
       index: _current,
-      children: [for (final t in _tabs) _tabContent(t, compact: compact)],
+      // Anahtar: sekmeler gruplanınca yer değiştirse de sayfalar yeniden yüklenmesin.
+      children: [for (final t in _tabs) KeyedSubtree(key: ValueKey(t.id), child: _tabContent(t, compact: compact))],
     );
   }
 
@@ -2461,12 +2900,25 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   Widget _buildDesktop() {
     return SafeArea(
-      child: Column(
+      child: Row(
+        children: [
+          if (_verticalTabs && !_miniVideo) _verticalTabBar(),
+          Expanded(
+            key: const ValueKey('masaustu'),
+            child: _desktopMain(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _desktopMain() {
+    return Column(
         children: [
           // Küçük pencerede video izlenirken yalnız sayfa görünür. (Sayfanın bulunduğu Expanded
           // anahtarla korunur; üstteki çubuklar kalkınca web görünümü yeniden oluşturulmaz.)
           if (!_miniVideo) ...[
-            _buildTabBar(),
+            if (!_verticalTabs) _buildTabBar(),
             _buildToolbar(),
             if (_findOpen) _findBar(top: true),
             RadioMiniBar(radio: _radio, onOpen: _showRadio),
@@ -2491,7 +2943,6 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             ),
           ),
         ],
-      ),
     );
   }
 
@@ -2509,64 +2960,15 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             child: OAMark(),
           ),
           Expanded(
-            child: ListView.builder(
+            child: ListView(
               scrollDirection: Axis.horizontal,
-              itemCount: _tabs.length,
-              itemBuilder: (context, i) {
-                final t = _tabs[i];
-                final selected = i == _current;
-                return GestureDetector(
-                  onTap: () => _selectTab(i),
-                  child: Container(
-                    width: 184,
-                    margin: EdgeInsets.fromLTRB(2, 8, 0, 0),
-                    padding: EdgeInsets.only(left: 14),
-                    decoration: BoxDecoration(
-                      color: selected ? OAColors.surface : Colors.transparent,
-                      border: selected
-                          ? Border(
-                              top: BorderSide(color: OAColors.border),
-                              left: BorderSide(color: OAColors.border),
-                              right: BorderSide(color: OAColors.border),
-                            )
-                          : null,
-                      borderRadius:
-                          BorderRadius.vertical(top: Radius.circular(12)),
-                    ),
-                    child: Row(
-                      children: [
-                        if (t.incognito)
-                          Padding(
-                            padding: EdgeInsets.only(right: 6),
-                            child: Icon(Icons.visibility_off,
-                                size: 14, color: OAColors.blue),
-                          ),
-                        Expanded(
-                          child: Text(
-                            t.displayTitle,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                              color: selected ? OAColors.text : OAColors.muted,
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          iconSize: 14,
-                          padding: EdgeInsets.zero,
-                          constraints:
-                              BoxConstraints(minWidth: 28, minHeight: 28),
-                          icon: Icon(Icons.close),
-                          onPressed: () => _closeTab(i),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
+              children: _tabEntries(vertical: false),
             ),
+          ),
+          IconButton(
+            tooltip: 'Dikey sekmeler',
+            icon: Icon(Icons.view_sidebar_outlined, size: 20),
+            onPressed: _toggleVerticalTabs,
           ),
           IconButton(
             tooltip: 'Yeni sekme (Ctrl+T)',
@@ -2673,6 +3075,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               if (_closedTabs.isNotEmpty)
                 PopupMenuItem(value: 'reopen', child: Text('Kapatılan sekmeyi geri aç (Ctrl+Shift+T)')),
               PopupMenuItem(value: 'radio', child: Text('OA Radyo')),
+              PopupMenuItem(
+                  value: 'readlist',
+                  child: Text(_reading.unread > 0 ? 'Okuma listesi (${_reading.unread})' : 'Okuma listesi')),
               if (!_tab.showStart && _quick.length < kMaxQuickLinks)
                 PopupMenuItem(value: 'quick', child: Text('Bu sayfayı hızlı erişime ekle')),
               if (!_tab.showStart) ...[
@@ -2680,6 +3085,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                 PopupMenuItem(value: 'find', child: Text('Sayfada bul (Ctrl+F)')),
                 PopupMenuItem(value: 'pdf', child: Text('PDF olarak kaydet (Ctrl+P)')),
                 PopupMenuItem(value: 'pip', child: Text('Videoyu küçük pencerede izle')),
+                PopupMenuItem(value: 'later', child: Text('Sonra oku listesine ekle')),
                 PopupMenuItem(value: 'zoom', child: Text('Yakınlaştırma: %${_zoomOf(_tab.host)}')),
                 PopupMenuItem(
                     value: 'darksite',
@@ -2700,6 +3106,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               PopupMenuItem(
                   value: 'clock',
                   child: Text('Başlangıç sayfasında saat ve hava: ${_showClock ? 'açık' : 'kapalı'}')),
+              PopupMenuItem(value: 'news', child: Text('Haber akışı: ${_showNews ? 'açık' : 'kapalı'}')),
+              PopupMenuItem(value: 'markets', child: Text('Döviz ve altın: ${_showMarkets ? 'açık' : 'kapalı'}')),
+              PopupMenuItem(value: 'vtabs', child: Text('Dikey sekmeler: ${_verticalTabs ? 'açık' : 'kapalı'}')),
               PopupMenuItem(value: 'update', child: Text('Güncellemeleri denetle')),
               PopupMenuItem(value: 'about', child: Text('Hakkında')),
               PopupMenuItem(
@@ -2784,6 +3193,16 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         _showImport();
       case 'voice':
         _voiceSearch();
+      case 'later':
+        _saveForLater();
+      case 'readlist':
+        _showReadingList();
+      case 'news':
+        _toggleNews();
+      case 'markets':
+        _toggleMarkets();
+      case 'vtabs':
+        _toggleVerticalTabs();
     }
   }
 
@@ -3136,6 +3555,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               item(Icons.search, 'Arama motoru: ${_engine.name}', _showSearchSettings),
               item(Icons.add_box_outlined, 'Hızlı erişime site ekle', () => _editQuick(null)),
               item(Icons.schedule, 'Saat ve hava durumu: ${_showClock ? 'açık' : 'kapalı'}', _toggleClock),
+              item(Icons.currency_lira, 'Döviz ve altın: ${_showMarkets ? 'açık' : 'kapalı'}', _toggleMarkets),
+              item(Icons.newspaper_outlined, 'Haber akışı: ${_showNews ? 'açık' : 'kapalı'}', _toggleNews),
+              if (_showNews) item(Icons.rss_feed, 'Haber kaynakları', () => showNewsSources(context, _news)),
               if (_showClock)
                 item(Icons.location_city_outlined,
                     'Hava durumu şehri: ${_wx.city?.name ?? 'seçilmedi'}', () => pickCity(context, _wx)),
@@ -3255,11 +3677,14 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                   'downloads'),
               if (_closedTabs.isNotEmpty) item(Icons.restore, 'Kapatılan sekmeyi geri aç', 'reopen'),
               item(Icons.radio_outlined, 'OA Radyo', 'radio'),
+              item(Icons.bookmark_added_outlined,
+                  _reading.unread > 0 ? 'Okuma listesi (${_reading.unread})' : 'Okuma listesi', 'readlist'),
               if (Platform.isAndroid) item(Icons.qr_code_scanner, 'QR kod okut', 'qr'),
               if (!_tab.showStart) ...[
                 item(Icons.find_in_page_outlined, 'Sayfada bul', 'find'),
                 item(Icons.picture_in_picture_alt_outlined, 'Videoyu küçük pencerede izle', 'pip'),
                 item(Icons.picture_as_pdf_outlined, 'Yazdır / PDF olarak kaydet', 'pdf'),
+                item(Icons.bookmark_add_outlined, 'Sonra oku', 'later'),
                 item(Icons.zoom_in, 'Yakınlaştırma: %${_zoomOf(_tab.host)}', 'zoom'),
                 item(Icons.contrast, 'Bu siteyi koyu göster: ${_isDarkSite(_tab.host) ? 'açık' : 'kapalı'}', 'darksite'),
                 item(Icons.chrome_reader_mode_outlined, 'Okuma modu', 'reader'),
@@ -3612,7 +4037,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       key: ValueKey(t.id),
       webViewEnvironment: oaWebEnv,
       keepAlive: Platform.isAndroid ? (t.keepAlive ??= InAppWebViewKeepAlive()) : null,
-      initialUrlRequest: URLRequest(url: WebUri(t.pendingUrl ?? t.url)),
+      initialUrlRequest: t.pendingHtml == null ? URLRequest(url: WebUri(t.pendingUrl ?? t.url)) : null,
+      initialData: t.pendingHtml == null
+          ? null
+          : InAppWebViewInitialData(data: t.pendingHtml!, baseUrl: WebUri(t.pendingUrl ?? 'about:blank')),
       initialSettings: InAppWebViewSettings(
         javaScriptEnabled: true,
         incognito: t.incognito,

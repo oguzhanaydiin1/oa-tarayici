@@ -107,7 +107,11 @@ class StartPage extends StatefulWidget {
     this.wallpaperPath,
     this.userFirstName,
     this.corner,
+    this.news,
   });
+
+  /// Haber akışı (hızlı erişimin altında).
+  final Widget? news;
 
   /// Sağ üst köşedeki saat ve hava (geniş pencerede köşede, dar pencerede başlığın üstünde).
   final Widget? corner;
@@ -239,6 +243,10 @@ class _StartPageState extends State<StartPage> {
                     _arranging ? _arrangeTile(i) : _quickTile(i),
                   if (widget.quickLinks.length < kMaxQuickLinks && !_arranging) _addTile(),
                 ]),
+                if (widget.news != null) ...[
+                  const SizedBox(height: 40),
+                  widget.news!,
+                ],
                 const SizedBox(height: 40),
                 Text('Yer imleri', style: oaDisplay(22)),
                 const SizedBox(height: 14),

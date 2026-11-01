@@ -3,7 +3,7 @@
 OA Labs'in Windows ve Android tarayıcısı. Flutter + `flutter_inappwebview`: sayfaları Windows'ta
 WebView2 (Edge motoru), Android'de Android WebView çizer; arayüz OA Labs tasarım sistemiyle yazılır.
 
-> Durum: deneme sürümü (0.10.0). Android sürümü sabit OA anahtarıyla imzalı; Windows dosyaları imzasız.
+> Durum: deneme sürümü (0.11.0). Android sürümü sabit OA anahtarıyla imzalı; Windows dosyaları imzasız.
 
 ## İndir ve dene
 
@@ -18,6 +18,10 @@ Her `main` gönderiminde GitHub Actions iki dosya derler: **Actions** sekmesi �
 Aynı dosyalar **Releases** sayfasına da `pubspec.yaml`daki sürüm numarasıyla (ör. v0.1.0) deneme sürümü olarak eklenir. Yeni sürüm çıkarmak için `version` satırını artırmak yeterli.
 
 ## Özellikler
+- Haber akışı: başlangıç sayfasında seçilen sitelerin son haberleri (RSS; BBC Türkçe, NTV, DW Türkçe, Webtekno… ve kendi eklediğin kaynaklar)
+- Döviz ve altın: dolar, euro, gram altın ve günlük değişim
+- Sonra oku: yazılar resimleriyle cihaza kaydedilir, internetsiz okunur
+- Sekme grupları (sağ tık → gruba ekle; adlı, renkli, daraltılabilir) ve dikey sekmeler (Windows)
 - Chrome / Edge / Firefox'tan içe aktarma: yer imleri (.html) ve şifreler (.csv)
 - Çerez pencerelerini kendiliğinden reddetme ("Çerezleri kabul et" pencerelerinde reddet / yalnız gerekli)
 - Sesli arama (Android, adres çubuğundaki mikrofon)
@@ -74,6 +78,7 @@ Aynı dosyalar **Releases** sayfasına da `pubspec.yaml`daki sürüm numarasıyl
 - `lib/updater.dart` — GitHub sürümlerinden güncelleme denetimi
 - `lib/weather.dart` — saat, tarih, hava durumu (Open-Meteo) ve şehir seçimi
 - `lib/passwords.dart` — şifre deposu, cihaz kilidiyle doğrulama, Şifreler listesi
+- `lib/news.dart`, `lib/markets.dart`, `lib/read_later.dart`, `lib/tab_groups.dart` — haber akışı, döviz/altın, okuma listesi, sekme grupları
 - `lib/extras.dart` — çerez pencereleri, karanlık mod, yakınlaştırma, içe aktarma
 - `lib/page_tools.dart` — sayfada bul, videoyu küçük pencerede izleme, şifre yakalama/doldurma betikleri
 - `platform/android/` — Android'e kopyalanan Kotlin ve kaynaklar (MainActivity, widget'lar, kısayollar)
