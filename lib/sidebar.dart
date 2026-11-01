@@ -75,17 +75,17 @@ class SidebarDock extends StatefulWidget {
   final void Function(SideApp a, Offset pos) onMenu;
   final VoidCallback onAdd;
 
-  static const double width = 78;
+  static const double width = 56;
 
   @override
   State<SidebarDock> createState() => _SidebarDockState();
 }
 
 class _SidebarDockState extends State<SidebarDock> with SingleTickerProviderStateMixin {
-  static const double _base = 40; // dinlenirken simge boyu
-  static const double _gap = 12;
-  static const double _maxScale = 1.55; // farenin tam üstündeki simge
-  static const double _reach = 120; // büyümenin yayıldığı mesafe
+  static const double _base = 30; // dinlenirken simge boyu
+  static const double _gap = 10;
+  static const double _maxScale = 1.5; // farenin tam üstündeki simge
+  static const double _reach = 100; // büyümenin yayıldığı mesafe
   double? _hoverY;
   String? _bouncing;
   late final AnimationController _bounce =
@@ -100,7 +100,7 @@ class _SidebarDockState extends State<SidebarDock> with SingleTickerProviderStat
   double _scaleFor(int i) {
     final y = _hoverY;
     if (y == null) return 1;
-    final center = 14 + i * (_base + _gap) + _base / 2;
+    final center = 10 + i * (_base + _gap) + _base / 2;
     final d = (y - center).abs();
     if (d > _reach) return 1;
     final t = math.cos((d / _reach) * math.pi / 2); // 1 → 0
@@ -124,9 +124,9 @@ class _SidebarDockState extends State<SidebarDock> with SingleTickerProviderStat
           // Açık olan uygulamanın göstergesi (macOS'taki nokta gibi)
           AnimatedContainer(
             duration: const Duration(milliseconds: 150),
-            width: 4,
-            height: active ? 26 : (widget.loaded.contains(a.id) ? 6 : 0),
-            margin: const EdgeInsets.only(right: 6),
+            width: 3,
+            height: active ? 20 : (widget.loaded.contains(a.id) ? 6 : 0),
+            margin: const EdgeInsets.only(right: 5),
             decoration: BoxDecoration(
               color: active ? OAColors.amber : OAColors.text2,
               borderRadius: const BorderRadius.horizontal(right: Radius.circular(3)),
@@ -170,11 +170,11 @@ class _SidebarDockState extends State<SidebarDock> with SingleTickerProviderStat
                     ),
                     if (badge > 0)
                       Positioned(
-                        right: -4,
-                        top: -4,
+                        right: -3,
+                        top: -3,
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                          constraints: const BoxConstraints(minWidth: 18),
+                          constraints: const BoxConstraints(minWidth: 15),
                           decoration: BoxDecoration(
                             color: const Color(0xFFE5484D),
                             borderRadius: BorderRadius.circular(9),
@@ -182,7 +182,7 @@ class _SidebarDockState extends State<SidebarDock> with SingleTickerProviderStat
                           ),
                           child: Text(badge > 99 ? '99+' : '$badge',
                               textAlign: TextAlign.center,
-                              style: const TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.w700)),
+                              style: const TextStyle(color: Colors.white, fontSize: 9.5, fontWeight: FontWeight.w700)),
                         ),
                       ),
                   ]),
@@ -207,13 +207,13 @@ class _SidebarDockState extends State<SidebarDock> with SingleTickerProviderStat
         onHover: (e) => setState(() => _hoverY = e.localPosition.dy),
         onExit: (_) => setState(() => _hoverY = null),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.only(top: 14, bottom: 14),
+          padding: const EdgeInsets.only(top: 10, bottom: 10),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               for (var i = 0; i < widget.apps.length; i++) _icon(i, widget.apps[i]),
               Padding(
-                padding: const EdgeInsets.only(left: 10, top: 2),
+                padding: const EdgeInsets.only(left: 8, top: 2),
                 child: Tooltip(
                   message: 'Kenar çubuğuna ekle',
                   child: InkWell(
