@@ -1053,6 +1053,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   void _openAccount() {
     final mobile = _isMobile(context);
+    _account.refreshIfStale(); // hesap menüsü açılırken fotoğraf/ad güncel olsun
     if (!_account.signedIn) {
       showSignIn(context, _account, mobile: mobile, openUrl: (u) => _addTab(url: u));
       return;
@@ -2634,6 +2635,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         DateTime.now().difference(_lastSyncAt) > const Duration(seconds: 20)) {
       _syncNow();
     }
+    // Sitede değişen hesap bilgileri (ad, profil fotoğrafı) da gelsin.
+    if (state == AppLifecycleState.resumed) _account.refreshIfStale();
     if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
       // Uygulamadan çıkınca gizli sekmeler kilitlenir (küçük pencerede video izlerken değil).
       if (_incognitoLock && !_unlocking && !_miniVideo && _tabs.any((t) => t.incognito) && !_locked) {
