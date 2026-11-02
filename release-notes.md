@@ -36,3 +36,18 @@ En yeni sürüm en üstte olsun.
 • Bilgisayarda yeni sekme (+) düğmesi artık sekme şeridinin en sağında değil, en son sekmenin hemen yanında.
 
 • On desktop, the new tab (+) button now sits right next to the last tab instead of at the far right of the tab strip.
+
+## 0.15.0
+• Sabitlenmiş sekmeler: sekmeye sağ tıkla → "Sekmeyi sabitle". Şeridin başında küçük simge olarak durur, yanlışlıkla kapanmaz.
+• Komut kutusu (Ctrl+K): komutlara, açık sekmelere, ayarlara ve yer imlerine klavyeden ulaş.
+• Fare hareketleri (bilgisayar): sağ tuşa basılı tutup çek; sola geri, sağa ileri, yukarı yenile, aşağı sekmeyi kapat.
+• QR kod ile telefona aktar: açık sayfanın QR kodunu telefonla okut.
+• Vurgu rengi ve hazır temalar: Ayarlar → Görünüm.
+• Sayfa açılamayınca OA hata sayfası; internet yoksa küçük bir oyun.
+
+• Pinned tabs: right-click a tab → "Pin tab". It stays at the start of the strip as a small icon and can't be closed by accident.
+• Command box (Ctrl+K): reach commands, open tabs, settings and bookmarks from the keyboard.
+• Mouse gestures (desktop): hold the right button and drag; left for back, right for forward, up to reload, down to close the tab.
+• Send to phone with a QR code: scan the current page's QR code with your phone.
+• Accent colour and ready-made themes: Settings → Appearance.
+• OA error page when a page can't be opened, with a small game when you're offline.

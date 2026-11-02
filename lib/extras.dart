@@ -217,3 +217,36 @@ List<List<String>> _csvRows(String s) {
   }
   return rows;
 }
+
+// ---------------------------------------------------------------- Fare hareketleri (bilgisayar)
+
+/// Sağ tuşa basılı tutup çekince: sola geri, sağa ileri, yukarı yenile, aşağı sekmeyi kapat.
+/// Hareket olduysa sağ tık menüsü açılmaz.
+UserScript mouseGestureScript() => UserScript(
+      groupName: 'oa-hareket',
+      injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+      forMainFrameOnly: true,
+      source: r'''
+(function(){
+  if (window.__oaGest) return; window.__oaGest = 1;
+  var sx = 0, sy = 0, down = false, moved = false, block = 0;
+  addEventListener('mousedown', function(e){ if (e.button === 2) { down = true; moved = false; sx = e.clientX; sy = e.clientY; } }, true);
+  addEventListener('mousemove', function(e){
+    if (!down) return;
+    if (Math.abs(e.clientX - sx) > 50 || Math.abs(e.clientY - sy) > 50) moved = true;
+  }, true);
+  addEventListener('mouseup', function(e){
+    if (e.button !== 2 || !down) return;
+    down = false;
+    if (!moved) return;
+    var dx = e.clientX - sx, dy = e.clientY - sy;
+    var d = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'L' : 'R') : (dy < 0 ? 'U' : 'D');
+    block = Date.now();
+    try { window.flutter_inappwebview.callHandler('oaGesture', d); } catch (x) {}
+  }, true);
+  addEventListener('contextmenu', function(e){
+    if (moved || Date.now() - block < 500) { e.preventDefault(); e.stopPropagation(); moved = false; }
+  }, true);
+})();
+''',
+    );

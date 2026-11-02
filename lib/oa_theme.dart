@@ -125,6 +125,67 @@ class OAColors {
 /// Kullanıcının tema seçimi: sistem, koyu ya da açık.
 final themeModeNotifier = ValueNotifier<ThemeMode>(ThemeMode.system);
 
+/// Vurgu rengi: düğmeler, seçili öğeler, başlangıç sayfası ışığı. Varsayılan OA turuncusu.
+class OAAccent {
+  const OAAccent(this.id, this.name, this.fill, this.hi, this.lightText);
+  final String id;
+  final String name;
+  final Color fill; // dolgu (koyu ve açık temada)
+  final Color hi; // koyu temada üzerine gelince
+  final Color lightText; // açık temada yazı rengi olarak okunur hali
+}
+
+const kAccents = <OAAccent>[
+  OAAccent('turuncu', 'OA turuncusu', Color(0xFFF2A541), Color(0xFFF7BF6E), Color(0xFF9A5800)),
+  OAAccent('mor', 'Mor', Color(0xFFA78BFA), Color(0xFFC4B5FD), Color(0xFF6D4BD8)),
+  OAAccent('mavi', 'Mavi', Color(0xFF6EA8FE), Color(0xFF9CC3FF), Color(0xFF2A63C4)),
+  OAAccent('yesil', 'Yeşil', Color(0xFF5BC48C), Color(0xFF86D9AB), Color(0xFF1D7A4A)),
+  OAAccent('pembe', 'Pembe', Color(0xFFF0729A), Color(0xFFF59DB8), Color(0xFFB8325C)),
+  OAAccent('kirmizi', 'Kırmızı', Color(0xFFF08A7E), Color(0xFFF5AEA5), Color(0xFFB93A2C)),
+  OAAccent('camgobegi', 'Camgöbeği', Color(0xFF5CC8D7), Color(0xFF8EDCE6), Color(0xFF1E7F8C)),
+];
+
+OAAccent accentById(String? id) => kAccents.firstWhere((a) => a.id == id, orElse: () => kAccents.first);
+
+final accentNotifier = ValueNotifier<String>('turuncu');
+
+/// Paletin vurgu rengini değiştirir.
+OAPalette withAccent(OAPalette p, OAAccent a) {
+  if (a.id == 'turuncu') return p;
+  return OAPalette(
+    brightness: p.brightness,
+    bg: p.bg,
+    bg2: p.bg2,
+    surface: p.surface,
+    surface2: p.surface2,
+    line: p.line,
+    border: p.border,
+    border2: p.border2,
+    text: p.text,
+    text2: p.text2,
+    muted: p.muted,
+    faint: p.faint,
+    amber: a.fill,
+    amberHi: p.isDark ? a.hi : a.lightText,
+    amberInk: p.amberInk,
+    accent: p.isDark ? a.fill : a.lightText,
+    green: p.green,
+    blue: p.blue,
+    danger: p.danger,
+    selection: a.fill.withValues(alpha: 0.33),
+  );
+}
+
+/// Hazır temalar: vurgu rengi + başlangıç sayfası arka planı.
+const kThemePresets = <(String, String, String)>[
+  ('OA', 'turuncu', 'glow'),
+  ('Gece', 'mor', 'glow'),
+  ('Okyanus', 'mavi', 'rings'),
+  ('Orman', 'yesil', 'dots'),
+  ('Gün batımı', 'pembe', 'dusk'),
+  ('Kadran', 'kirmizi', 'dial'),
+];
+
 ThemeMode themeModeFromString(String? s) => switch (s) {
       'dark' => ThemeMode.dark,
       'light' => ThemeMode.light,

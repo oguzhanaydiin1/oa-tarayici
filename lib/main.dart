@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:collection';
 import 'dart:io';
-import 'dart:math' show Random, max;
+import 'dart:math' show Random, max, min;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,6 +10,7 @@ import 'package:file_picker/file_picker.dart';
 import 'web_env.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -28,6 +29,7 @@ import 'radio.dart';
 import 'updater.dart';
 import 'vault.dart';
 import 'oa_theme.dart';
+import 'offline_page.dart';
 import 'page_tools.dart';
 import 'passwords.dart';
 import 'qr_page.dart';
@@ -55,6 +57,7 @@ Future<void> main(List<String> args) async {
   try {
     final prefs = await SharedPreferences.getInstance();
     themeModeNotifier.value = themeModeFromString(prefs.getString('theme'));
+    accentNotifier.value = prefs.getString('accent') ?? 'turuncu';
   } catch (_) {}
   await initWebEnv(); // Windows: Edge ortamı (radyo için sesin kendiliğinden başlamasına izin)
   await initRadioBackground(); // Android: radyo arka planda çalar, bildirimde kontrol edilir
@@ -79,12 +82,14 @@ class _BrowserAppState extends State<BrowserApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     themeModeNotifier.addListener(_onTheme);
+    accentNotifier.addListener(_onTheme);
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     themeModeNotifier.removeListener(_onTheme);
+    accentNotifier.removeListener(_onTheme);
     super.dispose();
   }
 
@@ -100,7 +105,7 @@ class _BrowserAppState extends State<BrowserApp> with WidgetsBindingObserver {
         (mode == ThemeMode.system &&
             WidgetsBinding.instance.platformDispatcher.platformBrightness ==
                 Brightness.dark);
-    return dark ? kOADark : kOALight;
+    return withAccent(dark ? kOADark : kOALight, accentById(accentNotifier.value));
   }
 
   @override
@@ -165,6 +170,12 @@ class TabData {
   /// Sekme uyutma: uzun süre bakılmayan sekmenin sayfası bellekten çıkarılır, dokununca yeniden açılır.
   DateTime lastActive = DateTime.now();
   bool sleeping = false;
+
+  /// Sabitlenmiş sekme: şeridin başında küçük simge, kapatma düğmesi yok, uyutulmaz.
+  bool pinned = false;
+
+  /// Açılamayan sayfanın adresi (OA hata sayfası gösterilirken adres çubuğunda bu kalır).
+  String? errorUrl;
 
   String url = '';
   String title = '';
@@ -271,6 +282,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   final Map<String, InAppWebViewController> _sideCtl = {};
   double _panelW = 420;
   final TabData _sideTab = TabData();
+
+  // Fare hareketleri (Windows)
+  bool _gesturesOn = Platform.isWindows;
 
   // Sekme uyutma
   int _sleepMinutes = 30;
@@ -557,6 +571,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       _sidebarOn = _prefs!.getBool('sidebar_on') ?? Platform.isWindows;
       _panelW = (_prefs!.getDouble('panel_w') ?? 420).clamp(320, 760).toDouble();
       _sleepMinutes = _prefs!.getInt('sleep_min') ?? 30;
+      _gesturesOn = _prefs!.getBool('gestures') ?? Platform.isWindows;
       try {
         final sa = _prefs!.getString('sidebar_items');
         if (sa != null) {
@@ -1610,7 +1625,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       context: context,
       position: RelativeRect.fromLTRB(pos.dx, pos.dy, pos.dx + 1, pos.dy + 1),
       items: [
-        const PopupMenuItem(value: 'new', child: Text('Yeni gruba ekle…')),
+        PopupMenuItem(value: 'pin', child: Text(t.pinned ? 'Sabitlemeyi kaldır' : 'Sekmeyi sabitle')),
+        if (!t.pinned) const PopupMenuItem(value: 'new', child: Text('Yeni gruba ekle…')),
         for (final x in _groups)
           if (x.id != t.groupId)
             PopupMenuItem(
@@ -1630,7 +1646,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       ],
     );
     if (v == null || !mounted) return;
-    if (v == 'new') {
+    if (v == 'pin') {
+      _togglePin(t);
+    } else if (v == 'new') {
       _newGroupFor(t);
     } else if (v.startsWith('g:')) {
       final x = _groups.firstWhere((e) => e.id == v.substring(2));
@@ -1760,15 +1778,52 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             ),
           ),
         ),
-        IconButton(
-          iconSize: 14,
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-          icon: const Icon(Icons.close),
-          onPressed: () => _closeTab(i),
-        ),
+        if (t.pinned)
+          Padding(
+            padding: const EdgeInsets.only(right: 10),
+            child: Icon(Icons.push_pin, size: 13, color: OAColors.faint),
+          )
+        else
+          IconButton(
+            iconSize: 14,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+            icon: const Icon(Icons.close),
+            onPressed: () => _closeTab(i),
+          ),
       ],
     );
+    // Sabitlenmiş sekme yatay şeritte yalnız sitenin simgesi
+    if (t.pinned && !vertical) {
+      return GestureDetector(
+        onTap: () => _selectTab(i),
+        onSecondaryTapUp: (d) => _tabMenu(i, d.globalPosition),
+        child: Tooltip(
+          message: t.displayTitle,
+          waitDuration: const Duration(milliseconds: 400),
+          child: Container(
+            width: 46,
+            margin: const EdgeInsets.fromLTRB(2, 8, 0, 0),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: selected ? OAColors.surface : Colors.transparent,
+              border: selected
+                  ? Border(
+                      top: BorderSide(color: OAColors.border),
+                      left: BorderSide(color: OAColors.border),
+                      right: BorderSide(color: OAColors.border),
+                    )
+                  : null,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+            ),
+            child: Opacity(
+              opacity: t.sleeping ? 0.5 : 1,
+              child: SiteIcon(url: t.url, letter: t.host.isEmpty ? '•' : t.host[0].toUpperCase(), size: 20),
+            ),
+          ),
+        ),
+      );
+    }
     final Decoration deco;
     if (vertical) {
       deco = BoxDecoration(
@@ -2292,7 +2347,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   /// Sekmenin sayfasını bellekten çıkarır; sekmeye dönünce sayfa yeniden açılır.
   /// Ses ya da video çalan sekme uyutulmaz.
   Future<bool> _sleepTab(TabData t) async {
-    if (t == _tab || t.sleeping || !t.webStarted || t.showStart || t.incognito || t.pendingHtml != null) return false;
+    if (t == _tab || t.sleeping || t.pinned || !t.webStarted || t.showStart || t.incognito || t.pendingHtml != null) return false;
     if (!t.url.startsWith('http')) return false;
     try {
       final playing = await t.controller?.evaluateJavascript(
@@ -2563,6 +2618,277 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           ),
         ]),
       ),
+    );
+  }
+
+  // ----------------------------------------------------------------- Hata sayfası ve çevrimdışı oyun
+
+  void _showErrorPage(TabData t, String url, WebResourceError err) {
+    final kind = '${err.type}'.toUpperCase();
+    final d = err.description.toUpperCase();
+    // İptal edilen yüklemeler (kullanıcı durdurdu, yönlendirme) hata değildir.
+    if (kind.contains('CANCEL') || kind.contains('ABORT') || d.contains('ERR_ABORTED') || d.contains('CANCEL')) return;
+    if (!url.startsWith('http')) return;
+    final offline = ['HOST_LOOKUP', 'NOT_CONNECTED', 'DISCONNECTED', 'NAME_NOT_RESOLVED', 'INTERNET', 'CANNOT_CONNECT', 'TIMEOUT', 'TIMED_OUT', 'NETWORK']
+        .any((k) => kind.contains(k) || d.contains(k));
+    t.errorUrl = url;
+    t.controller?.loadData(
+      data: offlinePageHtml(url: url, detail: err.description, offline: offline),
+      baseUrl: WebUri('about:blank'),
+    );
+    if (mounted) setState(() => t.url = url);
+  }
+
+  // ----------------------------------------------------------------- Sabitlenmiş sekmeler
+
+  void _togglePin(TabData t) {
+    final selected = _tab;
+    setState(() {
+      _tabs.remove(t);
+      t.pinned = !t.pinned;
+      if (t.pinned) t.groupId = null;
+      final firstUnpinned = _tabs.indexWhere((x) => !x.pinned);
+      _tabs.insert(firstUnpinned < 0 ? _tabs.length : firstUnpinned, t);
+      _current = _tabs.indexOf(selected);
+    });
+    _saveSessionSoon();
+    if (t.sleeping) _toast(t.pinned ? 'Sekme sabitlendi' : 'Sabitleme kaldırıldı');
+  }
+
+  // ----------------------------------------------------------------- QR ile paylaş
+
+  void _showQrShare() {
+    final t = _tab;
+    if (t.showStart || !t.url.startsWith('http')) {
+      _toast('Önce paylaşmak istediğin sayfayı aç');
+      return;
+    }
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Telefonla okut'),
+        content: SizedBox(
+          width: 300,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+              child: QrImageView(data: t.url, size: 240, backgroundColor: Colors.white),
+            ),
+            const SizedBox(height: 12),
+            Text(t.displayTitle, maxLines: 2, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center,
+                style: TextStyle(color: OAColors.text, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            Text(t.host, style: TextStyle(color: OAColors.muted, fontSize: 13)),
+          ]),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: t.url));
+              _toast('Bağlantı kopyalandı');
+            },
+            child: const Text('Bağlantıyı kopyala'),
+          ),
+          FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('Tamam')),
+        ],
+      ),
+    );
+  }
+
+  // ----------------------------------------------------------------- Vurgu rengi ve temalar
+
+  void _setAccent(String id) {
+    accentNotifier.value = id;
+    _prefs?.setString('accent', id);
+    setState(() {});
+  }
+
+  void _applyPreset(String accent, String wallpaper) {
+    _setAccent(accent);
+    _setWallpaper(wallpaper);
+  }
+
+  void _setGestures(bool v) {
+    setState(() => _gesturesOn = v);
+    _prefs?.setBool('gestures', v);
+    for (final t in _tabs) {
+      try {
+        t.controller?.removeUserScriptsByGroupName(groupName: 'oa-hareket');
+        if (v) t.controller?.addUserScript(userScript: mouseGestureScript());
+      } catch (_) {}
+    }
+  }
+
+  // ----------------------------------------------------------------- Komut kutusu (Ctrl+K)
+
+  static String _norm(String s) => s
+      .toLowerCase()
+      .replaceAll('ı', 'i')
+      .replaceAll('i̇', 'i')
+      .replaceAll('ş', 's')
+      .replaceAll('ğ', 'g')
+      .replaceAll('ü', 'u')
+      .replaceAll('ö', 'o')
+      .replaceAll('ç', 'c');
+
+  List<(IconData, String, String, VoidCallback)> _commands() {
+    void menu(String v) => _onMenu(v);
+    final page = !_tab.showStart;
+    return [
+      (Icons.add, 'Yeni sekme', 'ac', () => _addTab()),
+      (Icons.visibility_off_outlined, 'Yeni gizli sekme', 'incognito', () => _addTab(incognito: true)),
+      (Icons.star_border, 'Yer imleri', 'bookmark', () => menu('bookmarks')),
+      (Icons.history, 'Geçmiş', 'history', () => menu('history')),
+      (Icons.download_outlined, 'İndirilenler', 'download', () => menu('downloads')),
+      (Icons.bookmark_added_outlined, 'Okuma listesi', 'sonra oku', () => menu('readlist')),
+      (Icons.devices_outlined, 'Öbür cihazlardaki sekmeler', 'telefon bilgisayar eşitleme', () => menu('devices')),
+      (Icons.radio_outlined, 'OA Radyo', 'muzik', () => menu('radio')),
+      if (_closedTabs.isNotEmpty) (Icons.restore, 'Kapatılan sekmeyi geri aç', 'geri getir', () => menu('reopen')),
+      (Icons.settings_outlined, 'Ayarlar', 'tercihler', () => _openSettings()),
+      for (final sec in _visibleSections) (sec.icon, 'Ayarlar: ${sec.name}', sec.sub, () => _openSettings(sec.id)),
+      (Icons.contrast, 'Tema: ${themeModeNotifier.value == ThemeMode.dark ? 'açık temaya geç' : 'koyu temaya geç'}', 'koyu acik gece', () {
+        final m = themeModeNotifier.value == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+        themeModeNotifier.value = m;
+        _prefs?.setString('theme', themeModeToString(m));
+      }),
+      for (final a in kAccents) (Icons.palette_outlined, 'Vurgu rengi: ${a.name}', 'renk tema', () => _setAccent(a.id)),
+      (Icons.dark_mode_outlined, 'Bütün siteleri koyu göster: ${_darkAll ? 'kapat' : 'aç'}', 'karanlik', () => _setDarkAll(!_darkAll)),
+      (Icons.shield_outlined, 'Reklam engelleme: ${_adblockOn ? 'kapat' : 'aç'}', 'reklam', () {
+        _adblockOn = !_adblockOn;
+        _applyAdblock();
+      }),
+      if (Platform.isWindows) (Icons.view_sidebar_outlined, 'Kenar çubuğu: ${_sidebarOn ? 'gizle' : 'göster'}', 'whatsapp dock', _toggleSidebar),
+      if (Platform.isWindows) (Icons.view_week_outlined, 'Dikey sekmeler: ${_verticalTabs ? 'kapat' : 'aç'}', 'sekme', _toggleVerticalTabs),
+      (Icons.bedtime_outlined, 'Diğer sekmeleri uyut', 'bellek performans', _sleepOthers),
+      (Icons.delete_sweep_outlined, 'Geçmişi temizle', 'sil', _clearHistory),
+      (Icons.file_download_outlined, 'Chrome / Firefox\'tan içe aktar', 'import', _showImport),
+      (Icons.key_outlined, 'Şifreler', 'parola', _showPasswords),
+      (Icons.system_update_outlined, 'Güncellemeleri denetle', 'surum', () => _checkUpdate(manual: true)),
+      if (page) ...[
+        (Icons.push_pin_outlined, _tab.pinned ? 'Sekmenin sabitlemesini kaldır' : 'Sekmeyi sabitle', 'pin', () => _togglePin(_tab)),
+        (Icons.find_in_page_outlined, 'Sayfada bul', 'ara', () => menu('find')),
+        (Icons.qr_code_2, 'QR kod ile telefona aktar', 'paylas', _showQrShare),
+        (Icons.send_to_mobile_outlined, 'Bu sekmeyi öbür cihaza gönder', 'paylas', () => menu('send')),
+        (Icons.bookmark_add_outlined, 'Sonra oku listesine ekle', 'kaydet', () => menu('later')),
+        (Icons.chrome_reader_mode_outlined, 'Okuma modu', 'reader', () => menu('reader')),
+        (Icons.translate, 'Türkçeye çevir', 'translate', () => menu('translate')),
+        (Icons.picture_as_pdf_outlined, 'PDF olarak kaydet', 'yazdir', () => menu('pdf')),
+        if (Platform.isWindows) (Icons.screenshot_monitor_outlined, 'Tam sayfa ekran görüntüsü', 'resim', () => menu('shot')),
+        (Icons.zoom_in, 'Yakınlaştırma', 'zoom', () => menu('zoom')),
+      ],
+      for (var i = 0; i < _tabs.length; i++)
+        if (i != _current) (Icons.tab_outlined, 'Sekmeye git: ${_tabs[i].displayTitle}', _tabs[i].host, () => _selectTab(i)),
+      if (Platform.isWindows)
+        for (final a in _sideApps) (Icons.view_sidebar_outlined, 'Kenar çubuğu: ${a.name}', 'uygulama', () {
+          if (!_sidebarOn) _toggleSidebar();
+          if (_sideOpen != a.id) _toggleSide(a);
+        }),
+      for (final b in _bookmarks.take(50)) (Icons.star_border, 'Yer imi: ${b['title'] ?? ''}', b['url'] ?? '', () => _go(b['url'] ?? '')),
+    ];
+  }
+
+  Future<void> _showCommands() async {
+    final all = _commands();
+    final ctl = TextEditingController();
+    var sel = 0;
+    await showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Kapat',
+      barrierColor: Colors.black45,
+      pageBuilder: (ctx, _, __) => StatefulBuilder(builder: (ctx, setD) {
+        final q = _norm(ctl.text.trim());
+        final words = q.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+        final hits = [
+          for (final c in all)
+            if (words.every((w) => _norm('${c.$2} ${c.$3}').contains(w))) c
+        ];
+        final raw = ctl.text.trim();
+        final extra = <(IconData, String, String, VoidCallback)>[
+          if (raw.isNotEmpty) (looksLikeUrl(raw) ? Icons.public : Icons.search, looksLikeUrl(raw) ? 'Git: $raw' : '"$raw" için ${_engine.name} ile ara', '', () => _go(raw)),
+        ];
+        final list = [...(hits.length > 9 ? hits.sublist(0, 9) : hits), ...extra];
+        if (sel >= list.length) sel = list.isEmpty ? 0 : list.length - 1;
+        void run(int i) {
+          if (i < 0 || i >= list.length) return;
+          Navigator.pop(ctx);
+          list[i].$4();
+        }
+
+        return Align(
+          alignment: const Alignment(0, -0.6),
+          child: Material(
+            color: OAColors.surface,
+            elevation: 12,
+            borderRadius: BorderRadius.circular(18),
+            child: SizedBox(
+              width: min(600, MediaQuery.sizeOf(ctx).width - 32),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Focus(
+                  onKeyEvent: (_, e) {
+                    if (e is! KeyDownEvent && e is! KeyRepeatEvent) return KeyEventResult.ignored;
+                    if (e.logicalKey == LogicalKeyboardKey.arrowDown) {
+                      setD(() => sel = (sel + 1) % max(1, list.length));
+                      return KeyEventResult.handled;
+                    }
+                    if (e.logicalKey == LogicalKeyboardKey.arrowUp) {
+                      setD(() => sel = (sel - 1 + list.length) % max(1, list.length));
+                      return KeyEventResult.handled;
+                    }
+                    if (e.logicalKey == LogicalKeyboardKey.enter || e.logicalKey == LogicalKeyboardKey.numpadEnter) {
+                      run(sel);
+                      return KeyEventResult.handled;
+                    }
+                    if (e.logicalKey == LogicalKeyboardKey.escape) {
+                      Navigator.pop(ctx);
+                      return KeyEventResult.handled;
+                    }
+                    return KeyEventResult.ignored;
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: TextField(
+                      controller: ctl,
+                      autofocus: true,
+                      style: TextStyle(color: OAColors.text, fontSize: 16),
+                      decoration: InputDecoration(
+                        hintText: 'Bir komut, sekme, ayar ya da arama yaz…',
+                        prefixIcon: Icon(Icons.bolt, color: OAColors.amber),
+                        fillColor: OAColors.bg2,
+                      ),
+                      onChanged: (_) => setD(() => sel = 0),
+                    ),
+                  ),
+                ),
+                if (list.isNotEmpty) Divider(height: 1, color: OAColors.line),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 440),
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    itemCount: list.length,
+                    itemBuilder: (_, i) => Material(
+                      color: i == sel ? OAColors.amber.withValues(alpha: 0.14) : Colors.transparent,
+                      child: ListTile(
+                        dense: true,
+                        leading: Icon(list[i].$1, size: 20, color: i == sel ? OAColors.accent : OAColors.text2),
+                        title: Text(list[i].$2, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: OAColors.text, fontSize: 14.5)),
+                        trailing: i == sel ? Text('Enter', style: TextStyle(color: OAColors.faint, fontSize: 12)) : null,
+                        onTap: () => run(i),
+                      ),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+                  child: Text('↑ ↓ seç · Enter çalıştır · Esc kapat', style: TextStyle(color: OAColors.faint, fontSize: 12)),
+                ),
+              ]),
+            ),
+          ),
+        );
+      }),
     );
   }
 
@@ -3159,7 +3485,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     final tabs = [
       for (final t in _tabs)
         if (!t.incognito && !t.showStart && t.url.startsWith('http'))
-          {'url': t.url, 'title': t.displayTitle, if (t.groupId != null) 'g': t.groupId!}
+          {'url': t.url, 'title': t.displayTitle, if (t.groupId != null) 'g': t.groupId!, if (t.pinned) 'p': '1'}
     ];
     final current = _tabs[_current];
     final idx = current.incognito || current.showStart
@@ -3194,6 +3520,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             ..pendingUrl = url
             ..url = url
             ..groupId = _groups.any((g) => g.id == gid) ? gid : null
+            ..pinned = m['p'] != null
             ..title = m['title']?.toString() ?? '');
         }
         // İlk (boş) başlangıç sekmesi kalsın; kaldığın sekme açılsın.
@@ -3636,6 +3963,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           SingleActivator(LogicalKeyboardKey.keyF, control: true): _openFind,
           SingleActivator(LogicalKeyboardKey.keyP, control: true): _savePdf,
           SingleActivator(LogicalKeyboardKey.comma, control: true): () => _openSettings(),
+          SingleActivator(LogicalKeyboardKey.keyK, control: true): _showCommands,
           SingleActivator(LogicalKeyboardKey.equal, control: true): () => _zoomStep(1),
           SingleActivator(LogicalKeyboardKey.numpadAdd, control: true): () => _zoomStep(1),
           SingleActivator(LogicalKeyboardKey.minus, control: true): () => _zoomStep(-1),
@@ -3982,6 +4310,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                 _mi('page', Icons.article_outlined, 'Bu sayfa', '›'),
               ],
               const PopupMenuDivider(),
+              _mi('commands', Icons.bolt, 'Komut kutusu', 'Ctrl+K'),
               _mi('settings', Icons.settings_outlined, 'Ayarlar', 'Ctrl+,'),
             ],
           ),
@@ -4014,6 +4343,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         _mi('find', Icons.find_in_page_outlined, 'Sayfada bul', 'Ctrl+F'),
         _mi('later', Icons.bookmark_add_outlined, 'Sonra oku listesine ekle'),
         _mi('send', Icons.send_to_mobile_outlined, 'Öbür cihaza gönder'),
+        _mi('qrshare', Icons.qr_code_2, 'QR kod ile telefona aktar'),
+        _mi('pin', Icons.push_pin_outlined, _tab.pinned ? 'Sabitlemeyi kaldır' : 'Sekmeyi sabitle'),
         if (_quick.length < kMaxQuickLinks) _mi('quick', Icons.add_to_home_screen_outlined, 'Hızlı erişime ekle'),
         const PopupMenuDivider(),
         _mi('reader', Icons.chrome_reader_mode_outlined, 'Okuma modu'),
@@ -4142,6 +4473,12 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         _openSettings();
       case 'page':
         _pageMenu();
+      case 'qrshare':
+        _showQrShare();
+      case 'pin':
+        _togglePin(_tab);
+      case 'commands':
+        _showCommands();
     }
   }
 
@@ -4646,6 +4983,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                     tool(Icons.picture_as_pdf_outlined, 'PDF', 'pdf'),
                     tool(Icons.picture_in_picture_alt_outlined, 'Küçük video', 'pip'),
                     tool(Icons.add_to_home_screen_outlined, 'Hızlı erişim', 'quick'),
+                    tool(Icons.push_pin_outlined, _tab.pinned ? 'Sabit: açık' : 'Sabitle', 'pin'),
                   ],
                 ),
                 Divider(height: 16),
@@ -5012,6 +5350,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       initialUserScripts: UnmodifiableListView([
         if (_adblockOn) AdBlock.cosmeticScript(_adblockAllow),
         if (_cookieOn) cookieBannerScript(_adblockAllow),
+        if (_gesturesOn && Platform.isWindows) mouseGestureScript(),
         // Şifre kaydetme (gizli sekmede değil)
         if (!t.incognito)
           UserScript(
@@ -5040,6 +5379,23 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           : null,
       onWebViewCreated: (c) {
         t.controller = c;
+        c.addJavaScriptHandler(handlerName: 'oaGesture', callback: (args) {
+          if (t != _tab || args.isEmpty) return;
+          switch (args.first.toString()) {
+            case 'L':
+              _back();
+            case 'R':
+              _forward();
+            case 'U':
+              t.controller?.reload();
+            case 'D':
+              _closeTab(_tabs.indexOf(t));
+          }
+        });
+        c.addJavaScriptHandler(handlerName: 'oaRetry', callback: (_) {
+          final u = t.errorUrl ?? t.url;
+          if (u.startsWith('http')) c.loadUrl(urlRequest: URLRequest(url: WebUri(u)));
+        });
         if (!t.incognito) {
           c.addJavaScriptHandler(handlerName: 'oaPassword', callback: (args) => _onPasswordSubmitted(t, args));
         }
@@ -5058,6 +5414,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         t.lastScrollY = 0;
         if (t == _tab && _barCollapsed) setState(() => _barCollapsed = false);
         if (url == null) return;
+        // OA hata sayfası yüklenirken adres çubuğunda açılamayan adres kalsın.
+        if (t.errorUrl != null && !url.toString().startsWith('http')) return;
+        t.errorUrl = null;
         setState(() {
           t.url = url.toString();
           t.progress = 0.05;
@@ -5074,6 +5433,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       onReceivedError: (c, req, err) {
         if (req.isForMainFrame ?? true) _uncover(t);
         t.pullToRefresh?.endRefreshing();
+        if (req.isForMainFrame ?? false) _showErrorPage(t, req.url.toString(), err);
       },
       onLoadStop: (c, url) async {
         t.pullToRefresh?.endRefreshing();
@@ -5101,6 +5461,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       },
       onUpdateVisitedHistory: (c, url, isReload) {
         if (url == null) return;
+        if (t.errorUrl != null && !url.toString().startsWith('http')) return;
         setState(() => t.url = url.toString());
         if (t == _tab && !_urlFocus.hasFocus && !t.showStart) _urlCtl.text = t.url;
         _refreshNavState(t);

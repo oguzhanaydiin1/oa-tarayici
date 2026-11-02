@@ -231,11 +231,67 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       },
                     ));
               }),
+              _Item('Vurgu rengi', 'renk tema turuncu mor mavi', () {
+                return _row(Icons.palette_outlined, 'Vurgu rengi',
+                    sub: accentById(accentNotifier.value).name,
+                    trailing: Wrap(spacing: 6, children: [
+                      for (final a in kAccents)
+                        Tooltip(
+                          message: a.name,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(20),
+                            onTap: () => p._setAccent(a.id),
+                            child: Container(
+                              width: 24,
+                              height: 24,
+                              decoration: BoxDecoration(
+                                color: a.fill,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                    color: accentNotifier.value == a.id ? OAColors.text : Colors.transparent, width: 2),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ]));
+              }),
+              _Item('Hazır temalar', 'tema arka plan', () {
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Hazır temalar', style: TextStyle(fontWeight: FontWeight.w600, color: OAColors.text, fontSize: 15)),
+                    const SizedBox(height: 4),
+                    Text('Vurgu rengi ve başlangıç sayfası arka planı birlikte', style: TextStyle(color: OAColors.muted, fontSize: 13)),
+                    const SizedBox(height: 10),
+                    Wrap(spacing: 8, runSpacing: 8, children: [
+                      for (final (name, acc, wall) in kThemePresets)
+                        ChoiceChip(
+                          selected: accentNotifier.value == acc && p._wallpaperId == wall,
+                          avatar: CircleAvatar(backgroundColor: accentById(acc).fill, radius: 7),
+                          label: Text(name),
+                          onSelected: (_) => p._applyPreset(acc, wall),
+                        ),
+                    ]),
+                  ]),
+                );
+              }),
               _Item('Bütün siteleri koyu göster', 'karanlık mod',
                   () => _switch(Icons.dark_mode_outlined, 'Bütün siteleri koyu göster', p._darkAll, p._setDarkAll,
                       sub: 'Karanlık modu olmayan siteler de koyu görünür')),
             ]
           ),
+          if (!mobile)
+            (
+              'Fare ve klavye',
+              [
+                _Item('Fare hareketleri', 'gesture sağ tuş', () => _switch(Icons.gesture, 'Fare hareketleri', p._gesturesOn, p._setGestures,
+                    sub: 'Sağ tuşa basılı tutup çek: ← geri, → ileri, ↑ yenile, ↓ sekmeyi kapat')),
+                _Item('Komut kutusu', 'ctrl+k kısayol', () => _row(Icons.bolt, 'Komut kutusu', sub: 'Ctrl+K: komutlara, sekmelere ve ayarlara klavyeden ulaş', onTap: () {
+                      Navigator.pop(context);
+                      p._showCommands();
+                    })),
+              ]
+            ),
           if (!mobile)
             (
               'Sekmeler',
