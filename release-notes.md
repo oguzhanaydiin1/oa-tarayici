@@ -24,3 +24,10 @@ En yeni sürüm en üstte olsun.
 • Profil fotoğrafını ya da adını oalabs.dev’de değiştirdiğinde uygulama artık bunu hemen öğreniyor: hesap menüsünü açınca, uygulamaya geri dönünce ya da oalabs.dev’de bir sayfa açınca yenileniyor. Önceden uygulamayı kapatıp açmak gerekiyordu.
 
 • When you change your profile photo or name on oalabs.dev, the app now picks it up right away: when you open the account menu, come back to the app or open a page on oalabs.dev. Previously you had to restart the app.
+
+## 0.14.7
+• Yeni sekme artık açık olan sekmenin hemen yanında açılıyor, en sonda değil. Bir grubun içinden açarsan o gruba katılıyor.
+• Yeni sekme açınca imleç doğrudan arama kutusunda; tıklamadan yazmaya başlayabilirsin.
+
+• New tabs now open right next to the current tab instead of at the end. Opened inside a tab group, they join that group.
+• When you open a new tab, the cursor is already in the search box, so you can start typing right away.

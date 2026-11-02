@@ -3052,12 +3052,32 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           ..pendingUrl = url
           ..url = url;
       }
-      _tabs.add(t);
-      _current = _tabs.length - 1;
+      // Yeni sekme açık sekmenin hemen yanına gelir (en sona değil).
+      final at = _tabs.isEmpty ? 0 : (_current + 1).clamp(0, _tabs.length);
+      if (_tabs.isNotEmpty && _current < _tabs.length) {
+        final g = _tabs[_current].groupId;
+        // Bir grubun ortasına açılırsa o gruba katılır; grup bölünmesin.
+        if (g != null && at < _tabs.length && _tabs[at].groupId == g) t.groupId = g;
+        _tabs[_current].lastActive = DateTime.now();
+      }
+      _tabs.insert(at, t);
+      _current = at;
       _urlCtl.text = _addressText(t);
       _showSuggestions = false;
     });
     _saveSessionSoon();
+    // Boş yeni sekmede imleç doğrudan arama kutusunda: tıklamadan yazılır.
+    if (url == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (_isMobile(context)) {
+          _startEditing();
+        } else {
+          _urlFocus.requestFocus();
+          _urlCtl.selection = TextSelection(baseOffset: 0, extentOffset: _urlCtl.text.length);
+        }
+      });
+    }
   }
 
   void _disposeTab(TabData t) {
