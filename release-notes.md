@@ -14,3 +14,8 @@ Biçim (başlık tam olarak `## ` ve sürüm numarası olmalı):
     • Another item
 
 En yeni sürüm en üstte olsun.
+
+## 0.14.5
+• OA Labs hesabına profil fotoğrafı eklediysen, uygulamada baş harflerin yerine artık fotoğrafın görünüyor. Fotoğrafı oalabs.dev’de Hesabım sayfasından ekleyip değiştirebilirsin; yalnızca sen görürsün.
+
+• If you’ve added a profile photo to your OA Labs account, the app now shows it instead of your initials. Add or change it on the My account page at oalabs.dev; only you can see it.
