@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:collection';
 import 'dart:io';
+import 'dart:typed_data';
 import 'dart:math' show Random, max, min;
 
 import 'package:flutter/material.dart';
@@ -25,6 +26,7 @@ import 'markets.dart';
 import 'news.dart';
 import 'read_later.dart';
 import 'tab_groups.dart';
+import 'tts.dart';
 import 'radio.dart';
 import 'updater.dart';
 import 'vault.dart';
@@ -177,6 +179,9 @@ class TabData {
   /// Açılamayan sayfanın adresi (OA hata sayfası gösterilirken adres çubuğunda bu kalır).
   String? errorUrl;
 
+  /// Sekme önizlemesi için sayfanın küçük resmi (sekmeden ayrılırken alınır).
+  Uint8List? thumb;
+
   String url = '';
   String title = '';
   double progress = 1;
@@ -282,6 +287,13 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   final Map<String, InAppWebViewController> _sideCtl = {};
   double _panelW = 420;
   final TabData _sideTab = TabData();
+
+  // Sesli okuma
+  final ReadAloud _tts = ReadAloud();
+
+  // Bölünmüş ekran (bilgisayar): sol ve sağ sekmenin kimliği
+  (String, String)? _split;
+  double _splitRatio = 0.5;
 
   // Fare hareketleri (Windows)
   bool _gesturesOn = Platform.isWindows;
@@ -1641,6 +1653,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         const PopupMenuDivider(),
         if (!t.showStart) const PopupMenuItem(value: 'later', child: Text('Sonra oku listesine ekle')),
         if (i != _current && !t.sleeping && !t.showStart) const PopupMenuItem(value: 'sleep', child: Text('Bu sekmeyi uyut')),
+        if (i != _current && Platform.isWindows) const PopupMenuItem(value: 'split', child: Text('Açık sekmeyle yan yana göster')),
+        if (_split != null && Platform.isWindows) const PopupMenuItem(value: 'unsplit', child: Text('Yan yana görünümü kapat')),
         const PopupMenuItem(value: 'sleepall', child: Text('Diğer sekmeleri uyut')),
         const PopupMenuItem(value: 'close', child: Text('Sekmeyi kapat')),
       ],
@@ -1658,6 +1672,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     } else if (v == 'later') {
       _selectTab(_tabs.indexOf(t));
       _saveForLater();
+    } else if (v == 'split') {
+      _splitWith(t);
+    } else if (v == 'unsplit') {
+      _closeSplit();
     } else if (v == 'sleep') {
       if (!await _sleepTab(t)) _toast('Bu sekme şu an uyutulamıyor (ses ya da video çalıyor olabilir)');
     } else if (v == 'sleepall') {
@@ -1846,7 +1864,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
       );
     }
-    return GestureDetector(
+    final chip = GestureDetector(
       onTap: () => _selectTab(i),
       onSecondaryTapUp: (d) => _tabMenu(i, d.globalPosition),
       onTertiaryTapUp: (_) => _closeTab(i),
@@ -1858,6 +1876,21 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         decoration: deco,
         child: row,
       ),
+    );
+    if (t.showStart || i == _current) return chip;
+    // Fareyle üzerine gelince sayfanın küçük resmi
+    return Tooltip(
+      richMessage: WidgetSpan(child: _tabPreview(t)),
+      waitDuration: const Duration(milliseconds: 550),
+      preferBelow: !vertical,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: OAColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: OAColors.border2),
+        boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 18, offset: Offset(0, 6))],
+      ),
+      child: chip,
     );
   }
 
@@ -2772,6 +2805,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         (Icons.send_to_mobile_outlined, 'Bu sekmeyi öbür cihaza gönder', 'paylas', () => menu('send')),
         (Icons.bookmark_add_outlined, 'Sonra oku listesine ekle', 'kaydet', () => menu('later')),
         (Icons.chrome_reader_mode_outlined, 'Okuma modu', 'reader', () => menu('reader')),
+        (Icons.record_voice_over_outlined, 'Sesli oku', 'tts seslendir dinle oku', () => menu('tts')),
+        if (Platform.isWindows)
+          (Icons.vertical_split_outlined, _split == null ? 'Yan yana yeni sekme' : 'Yan yana görünümü kapat', 'split bolunmus ekran',
+              () => menu(_split == null ? 'splitnew' : 'unsplit')),
         (Icons.translate, 'Türkçeye çevir', 'translate', () => menu('translate')),
         (Icons.picture_as_pdf_outlined, 'PDF olarak kaydet', 'yazdir', () => menu('pdf')),
         if (Platform.isWindows) (Icons.screenshot_monitor_outlined, 'Tam sayfa ekran görüntüsü', 'resim', () => menu('shot')),
@@ -2890,6 +2927,118 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         );
       }),
     );
+  }
+
+  // ----------------------------------------------------------------- Sekme önizlemesi
+
+  Future<void> _captureThumb(TabData t) async {
+    final c = t.controller;
+    if (c == null || t.showStart || t.sleeping || t.errorUrl != null) return;
+    try {
+      if (Platform.isWindows) {
+        final m = await c.callDevToolsProtocolMethod(methodName: 'Page.getLayoutMetrics');
+        final vp = m is Map ? (m['cssLayoutViewport'] ?? m['layoutViewport']) : null;
+        final w = (vp is Map ? (vp['clientWidth'] as num?) : null)?.toDouble() ?? 1280;
+        final h = (vp is Map ? (vp['clientHeight'] as num?) : null)?.toDouble() ?? 800;
+        final r = await c.callDevToolsProtocolMethod(methodName: 'Page.captureScreenshot', parameters: {
+          'format': 'jpeg',
+          'quality': 55,
+          'clip': {'x': 0, 'y': 0, 'width': w, 'height': h, 'scale': 400 / w},
+        });
+        final data = r is Map ? r['data']?.toString() : null;
+        if (data != null) t.thumb = base64Decode(data);
+      } else {
+        final b = await c.takeScreenshot(
+          screenshotConfiguration: ScreenshotConfiguration(compressFormat: CompressFormat.JPEG, quality: 40),
+        );
+        if (b != null) t.thumb = b;
+      }
+    } catch (_) {}
+  }
+
+  Widget _tabPreview(TabData t) {
+    return SizedBox(
+      width: 260,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        Text(t.displayTitle,
+            maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: OAColors.text, fontWeight: FontWeight.w600, fontSize: 13)),
+        const SizedBox(height: 2),
+        Text(t.sleeping ? '${t.host} · uykuda' : t.host, style: TextStyle(color: OAColors.muted, fontSize: 12)),
+        if (t.thumb != null && !t.incognito) ...[
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.memory(t.thumb!,
+                width: 260, height: 150, fit: BoxFit.cover, alignment: Alignment.topCenter, cacheWidth: 520, gaplessPlayback: true),
+          ),
+        ],
+      ]),
+    );
+  }
+
+  // ----------------------------------------------------------------- Bölünmüş ekran (bilgisayar)
+
+  void _splitWith(TabData other) {
+    final cur = _tab;
+    if (identical(other, cur)) return;
+    setState(() {
+      _split = (cur.id, other.id);
+      if (other.sleeping) {
+        other
+          ..sleeping = false
+          ..webStarted = true;
+      }
+    });
+  }
+
+  void _closeSplit() => setState(() => _split = null);
+
+  /// Bölünmüş ekranda tıklanan tarafı etkin sekme yapar (adres çubuğu ona geçer).
+  void _focusPane(TabData t) {
+    final i = _tabs.indexOf(t);
+    if (i < 0 || i == _current) return;
+    setState(() {
+      _current = i;
+      t.lastActive = DateTime.now();
+      _urlCtl.text = _addressText(t);
+    });
+  }
+
+  // ----------------------------------------------------------------- Sesli okuma
+
+  Future<void> _readAloud() async {
+    final t = _tab;
+    final c = t.controller;
+    if (t.showStart || c == null) {
+      _toast('Önce okunacak bir sayfa aç');
+      return;
+    }
+    try {
+      final ready = await c.evaluateJavascript(source: 'typeof Readability === "function"');
+      if (ready != true) await c.evaluateJavascript(source: await rootBundle.loadString('assets/readability.js'));
+      final r = await c.evaluateJavascript(source: r"""
+(function(){
+  var t = '', title = document.title;
+  try {
+    var a = new Readability(document.cloneNode(true), { charThreshold: 300 }).parse();
+    if (a && a.textContent && a.textContent.trim().length > 200) { t = a.textContent; title = a.title || title; }
+  } catch (e) {}
+  if (!t) t = (document.body && document.body.innerText) || '';
+  return JSON.stringify({ title: title, text: t.slice(0, 60000) });
+})()
+""");
+      final j = jsonDecode(r.toString()) as Map;
+      final text = j['text']?.toString() ?? '';
+      if (text.trim().length < 20) {
+        _toast('Bu sayfada okunacak yazı bulunamadı');
+        return;
+      }
+      final title = (j['title']?.toString() ?? '').trim();
+      if (_radio.playing) await _radio.toggle(); // radyo susar
+      await _tts.start(title.isEmpty ? text : '$title. $text', title.isEmpty ? t.displayTitle : title);
+    } catch (_) {
+      _toast('Sesli okuma başlatılamadı');
+    }
   }
 
   // ----------------------------------------------------------------- Çökme kaydı (Windows)
@@ -3441,6 +3590,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   }
 
   void _selectTab(int i) {
+    if (i != _current && _current < _tabs.length) _captureThumb(_tabs[_current]);
+    // Bölünmüş ekrandaki sekmelerden biri değilse yan yana görünüm kapanır.
+    final sp = _split;
+    if (sp != null && i < _tabs.length && _tabs[i].id != sp.$1 && _tabs[i].id != sp.$2) _split = null;
     if (i != _current) _closeFind();
     final now = DateTime.now();
     if (_current < _tabs.length) _tabs[_current].lastActive = now;
@@ -4081,12 +4234,92 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       // Yalnız açık sekme çizilir; diğer sekmelerin sayfaları keepAlive ile bellekte bekler.
       return KeyedSubtree(key: ValueKey(_tab.id), child: _tabContent(_tab, compact: compact));
     }
-    return IndexedStack(
-      index: _current,
-      // Anahtar: sekmeler gruplanınca yer değiştirse de sayfalar yeniden yüklenmesin.
-      children: [for (final t in _tabs) KeyedSubtree(key: ValueKey(t.id), child: _tabContent(t, compact: compact))],
-    );
+    final sp = _split;
+    TabData? find(String id) {
+      for (final t in _tabs) {
+        if (t.id == id) return t;
+      }
+      return null;
+    }
+
+    final left = sp == null ? null : find(sp.$1);
+    final right = sp == null ? null : find(sp.$2);
+    final split = left != null && right != null && !_miniVideo && !compact && (identical(_tab, left) || identical(_tab, right));
+    // Her sekme aynı yapıda tutulur (anahtarlı), böylece yan yana görünüme geçip çıkınca
+    // ya da sekmeler yer değiştirince sayfalar yeniden yüklenmez.
+    return LayoutBuilder(builder: (context, box) {
+      final w = box.maxWidth;
+      final lw = (w * _splitRatio).clamp(240.0, max(240.0, w - 240.0));
+      Widget slot(TabData t) {
+        final isLeft = split && identical(t, left);
+        final isRight = split && identical(t, right);
+        final visible = split ? (isLeft || isRight) : identical(t, _tab);
+        return Positioned(
+          key: ValueKey(t.id),
+          left: isRight ? lw + 3 : 0,
+          top: 0,
+          bottom: 0,
+          right: isLeft ? w - lw + 3 : 0,
+          child: Offstage(
+            offstage: !visible,
+            child: Listener(
+              onPointerDown: split ? (_) => _focusPane(t) : null,
+              child: Stack(fit: StackFit.expand, children: [
+                _tabContent(t, compact: compact),
+                IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                          color: split && identical(t, _tab) ? OAColors.amber.withValues(alpha: 0.6) : Colors.transparent, width: 2),
+                    ),
+                  ),
+                ),
+              ]),
+            ),
+          ),
+        );
+      }
+
+      return Stack(children: [
+        for (final t in _tabs) slot(t),
+        if (split) ...[
+        Positioned(
+          key: const ValueKey('bolucu'),
+          left: lw - 3,
+          top: 0,
+          bottom: 0,
+          width: 6,
+          child: MouseRegion(
+            cursor: SystemMouseCursors.resizeLeftRight,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onHorizontalDragUpdate: (d) => setState(() => _splitRatio = ((lw + d.delta.dx) / w).clamp(0.2, 0.8)),
+              child: ColoredBox(color: OAColors.line),
+            ),
+          ),
+        ),
+        Positioned(
+          key: const ValueKey('bolucu-kapat'),
+          left: lw - 14,
+          top: 8,
+          child: Tooltip(
+            message: 'Yan yana görünümü kapat',
+            child: Material(
+              color: OAColors.surface2,
+              shape: CircleBorder(side: BorderSide(color: OAColors.border2)),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: _closeSplit,
+                child: const Padding(padding: EdgeInsets.all(5), child: Icon(Icons.close, size: 14)),
+              ),
+            ),
+          ),
+        ),
+        ],
+      ]);
+    });
   }
+
 
   // ---------------------------------------------------------------- Bilgisayar düzeni
 
@@ -4114,6 +4347,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             _buildToolbar(),
             if (_findOpen) _findBar(top: true),
             RadioMiniBar(radio: _radio, onOpen: _showRadio),
+            ReadAloudBar(tts: _tts),
             _buildProgress(),
           ],
           Expanded(
@@ -4347,6 +4581,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         _mi('pin', Icons.push_pin_outlined, _tab.pinned ? 'Sabitlemeyi kaldır' : 'Sekmeyi sabitle'),
         if (_quick.length < kMaxQuickLinks) _mi('quick', Icons.add_to_home_screen_outlined, 'Hızlı erişime ekle'),
         const PopupMenuDivider(),
+        _mi('tts', Icons.record_voice_over_outlined, 'Sesli oku'),
+        if (Platform.isWindows)
+          _split == null
+              ? _mi('splitnew', Icons.vertical_split_outlined, 'Yan yana yeni sekme')
+              : _mi('unsplit', Icons.vertical_split, 'Yan yana görünümü kapat'),
         _mi('reader', Icons.chrome_reader_mode_outlined, 'Okuma modu'),
         _mi('translate', Icons.translate, 'Türkçeye çevir'),
         _mi('darksite', Icons.contrast, 'Koyu göster', _isDarkSite(_tab.host) ? 'açık' : 'kapalı'),
@@ -4477,6 +4716,15 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         _showQrShare();
       case 'pin':
         _togglePin(_tab);
+      case 'tts':
+        _readAloud();
+      case 'unsplit':
+        _closeSplit();
+      case 'splitnew':
+        final cur = _tab;
+        _addTab();
+        final added = _tab;
+        setState(() => _split = (cur.id, added.id));
       case 'commands':
         _showCommands();
     }
@@ -4527,6 +4775,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           if (!_miniVideo) ...[
             if (_findOpen && !_editing) _findBar(top: false),
             if (!_editing) RadioMiniBar(radio: _radio, onOpen: _showRadio),
+            if (!_editing) ReadAloudBar(tts: _tts),
             _buildProgress(),
             _buildBottomBar(),
           ],
@@ -4977,6 +5226,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                     tool(Icons.bookmark_add_outlined, 'Sonra oku', 'later'),
                     tool(Icons.send_to_mobile_outlined, 'Gönder', 'send'),
                     tool(Icons.chrome_reader_mode_outlined, 'Okuma', 'reader'),
+                    tool(Icons.record_voice_over_outlined, 'Sesli oku', 'tts'),
                     tool(Icons.translate, 'Çevir', 'translate'),
                     tool(Icons.contrast, _isDarkSite(_tab.host) ? 'Koyu: açık' : 'Koyu', 'darksite'),
                     tool(Icons.zoom_in, '%${_zoomOf(_tab.host)}', 'zoom'),
@@ -5011,7 +5261,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     );
   }
 
-  void _showTabSwitcher() {
+  Future<void> _showTabSwitcher() async {
+    await _captureThumb(_tab);
+    if (!mounted) return;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -5149,6 +5401,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                 ],
               ),
             ),
+            if (t.thumb != null && !t.showStart && !t.incognito)
+              Expanded(
+                child: Image.memory(t.thumb!, fit: BoxFit.cover, alignment: Alignment.topCenter, cacheWidth: 400, gaplessPlayback: true),
+              )
+            else
             Expanded(
               child: Container(
                 color: OAColors.bg2,

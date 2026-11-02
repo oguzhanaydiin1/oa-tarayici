@@ -51,3 +51,12 @@ En yeni sürüm en üstte olsun.
 • Send to phone with a QR code: scan the current page's QR code with your phone.
 • Accent colour and ready-made themes: Settings → Appearance.
 • OA error page when a page can't be opened, with a small game when you're offline.
+
+## 0.16.0
+• Yan yana görünüm (bilgisayar): sekmeye sağ tıkla → "Açık sekmeyle yan yana göster" ya da menü → "Yan yana yeni sekme". Ortadaki çizgiyi sürükleyerek genişliği ayarla; tıkladığın taraf etkin sekme olur.
+• Sekme önizlemesi: bilgisayarda bir sekmenin üzerine gelince sayfanın küçük resmi çıkar; telefonda sekme listesindeki kartlarda da sayfa görünür.
+• Sesli oku: menü → "Sesli oku". Sayfanın yazısı cihazın Türkçe sesiyle okunur; alttaki şeritten duraklat, ileri/geri atla, hızı seç. Radyo çalıyorsa susar.
+
+• Split view (desktop): right-click a tab → "Show side by side with the current tab", or menu → "New tab side by side". Drag the divider to resize; the side you click becomes the active tab.
+• Tab previews: hover a tab on desktop to see a thumbnail of the page; the cards in the phone's tab list show the page too.
+• Read aloud: menu → "Read aloud". The page's text is read with the device's Turkish voice; pause, skip back/forward and pick the speed from the bar at the bottom. The radio pauses if it's playing.

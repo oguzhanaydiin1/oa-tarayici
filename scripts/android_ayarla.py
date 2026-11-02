@@ -54,6 +54,13 @@ def manifest():
         s = s[:i] + BROWSER_FILTERS.strip('\n') + '\n        ' + s[i:]
     if 'REQUEST_INSTALL_PACKAGES' not in s:
         s = s.replace('<application', '<uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>\n    <application', 1)
+    # Sesli okuma: Android 11+ cihazdaki konuşma motorunu görebilmek için
+    if 'TTS_SERVICE' not in s:
+        tts = '<intent>\n            <action android:name="android.intent.action.TTS_SERVICE" />\n        </intent>\n    '
+        if '</queries>' in s:
+            s = s.replace('</queries>', '    ' + tts + '</queries>', 1)
+        else:
+            s = s.replace('<application', '<queries>\n        ' + tts + '</queries>\n    <application', 1)
     open(MANIFEST, 'w', encoding='utf-8').write(s)
     print('Manifest: tarayıcı intent filtreleri ve kurulum izni eklendi')
 
