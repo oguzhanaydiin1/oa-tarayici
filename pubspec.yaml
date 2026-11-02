@@ -1,7 +1,7 @@
 name: oa_tarayici
 description: OA Tarayıcı — OA Labs tasarım sistemiyle Windows ve Android tarayıcı taslağı.
 publish_to: 'none'
-version: 0.14.5+31
+version: 0.14.6+32
 
 environment:
   sdk: '>=3.3.0 <4.0.0'

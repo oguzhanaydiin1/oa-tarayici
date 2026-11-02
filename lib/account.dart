@@ -174,7 +174,18 @@ class OAAccount extends ChangeNotifier {
     return AccountResult(false, error: r['error']?.toString());
   }
 
+  DateTime _lastRefresh = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// Hesap bilgilerini (ad, profil fotoğrafı…) en fazla 15 saniyede bir sunucudan yeniler.
+  /// Sitede yapılan değişiklikler (örneğin yeni profil fotoğrafı) böylece uygulamaya da gelir.
+  Future<void> refreshIfStale() async {
+    if (_token == null) return;
+    if (DateTime.now().difference(_lastRefresh) < const Duration(seconds: 15)) return;
+    await refresh();
+  }
+
   Future<void> refresh({bool notify = true}) async {
+    _lastRefresh = DateTime.now();
     if (_token == null) {
       user = null;
     } else {
@@ -286,7 +297,11 @@ class OAAccount extends ChangeNotifier {
           .getCookie(url: WebUri('$site/'), name: _cookieName);
       final v = c?.value?.toString() ?? '';
       if (RegExp(r'^[0-9a-f]{64}$').hasMatch(v)) {
-        if (v == _token) return;
+        if (v == _token) {
+          // Aynı oturum: sitede bilgiler değişmiş olabilir (ad, profil fotoğrafı).
+          await refreshIfStale();
+          return;
+        }
         _token = v;
         await _persist();
         await refresh(notify: notify);
