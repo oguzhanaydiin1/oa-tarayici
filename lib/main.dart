@@ -3857,18 +3857,26 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           Expanded(
             child: ListView(
               scrollDirection: Axis.horizontal,
-              children: _tabEntries(vertical: false),
+              children: [
+                ..._tabEntries(vertical: false),
+                // "+" en son sekmenin hemen yanında (Chrome gibi)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
+                  child: Center(
+                    child: IconButton(
+                      tooltip: 'Yeni sekme (Ctrl+T)',
+                      icon: const Icon(Icons.add, size: 20),
+                      onPressed: () => _addTab(),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           IconButton(
             tooltip: 'Dikey sekmeler',
             icon: Icon(Icons.view_sidebar_outlined, size: 20),
             onPressed: _toggleVerticalTabs,
-          ),
-          IconButton(
-            tooltip: 'Yeni sekme (Ctrl+T)',
-            icon: Icon(Icons.add),
-            onPressed: () => _addTab(),
           ),
         ],
       ),

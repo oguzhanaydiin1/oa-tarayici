@@ -31,3 +31,8 @@ En yeni sürüm en üstte olsun.
 
 • New tabs now open right next to the current tab instead of at the end. Opened inside a tab group, they join that group.
 • When you open a new tab, the cursor is already in the search box, so you can start typing right away.
+
+## 0.14.8
+• Bilgisayarda yeni sekme (+) düğmesi artık sekme şeridinin en sağında değil, en son sekmenin hemen yanında.
+
+• On desktop, the new tab (+) button now sits right next to the last tab instead of at the far right of the tab strip.
