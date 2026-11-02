@@ -401,6 +401,9 @@ class OALabsMarkPainter extends CustomPainter {
 }
 
 /// Üye avatarı: baş harfler, amber zemin.
+/// Giriş yapmış üyenin profil fotoğrafı (OAAccount doldurur, çıkışta boşaltır).
+final ValueNotifier<Uint8List?> oaAvatarImage = ValueNotifier<Uint8List?>(null);
+
 class OAAvatar extends StatelessWidget {
   const OAAvatar({super.key, this.name, this.size = 34});
   final String? name;
@@ -417,6 +420,22 @@ class OAAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final ini = initials(name);
     final on = ini.isNotEmpty;
+    if (!on) return _initials(ini, on);
+    // Üyenin profil fotoğrafı (yalnızca kendisi görür); yoksa baş harfleri.
+    return ValueListenableBuilder<Uint8List?>(
+      valueListenable: oaAvatarImage,
+      builder: (context, bytes, _) => bytes == null
+          ? _initials(ini, on)
+          : ClipOval(
+              child: Image.memory(bytes,
+                  width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true,
+                  filterQuality: FilterQuality.medium,
+                  errorBuilder: (_, __, ___) => _initials(ini, on)),
+            ),
+    );
+  }
+
+  Widget _initials(String ini, bool on) {
     return Container(
       width: size,
       height: size,

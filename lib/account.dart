@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
+import 'oa_theme.dart' show oaAvatarImage;
 import 'web_env.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -14,10 +15,12 @@ import 'package:http/http.dart' as http;
 /// Uygulama bu çerezi cihazın güvenli deposunda saklar, isteklerde `Cookie` başlığıyla
 /// gönderir ve tarayıcının içindeki oalabs.dev'e de aktarır (sitede de girişli görünürsün).
 class OAUser {
-  const OAUser({required this.name, required this.email, this.announce = false});
+  const OAUser({required this.name, required this.email, this.announce = false, this.avatar});
   final String name;
   final String email;
   final bool announce;
+  /// Profil fotoğrafının sürümü (yoksa null). Fotoğrafı yalnızca üyenin kendisi görür.
+  final String? avatar;
 
   String get firstName => name.trim().split(RegExp(r'\s+')).first;
 
@@ -27,6 +30,7 @@ class OAUser {
       name: (j['name'] ?? '').toString(),
       email: (j['email'] ?? '').toString(),
       announce: j['announce'] == true,
+      avatar: j['avatar'] is String && (j['avatar'] as String).isNotEmpty ? j['avatar'] as String : null,
     );
   }
 }
@@ -184,13 +188,47 @@ class OAAccount extends ChangeNotifier {
         await _persist();
       }
     }
+    await _loadAvatar();
     if (notify) notifyListeners();
+  }
+
+  String? _avatarShown;
+
+  /// Profil fotoğrafını (değiştiyse) oturum çereziyle indirir; yoksa ya da çıkış yapıldıysa temizler.
+  Future<void> _loadAvatar() async {
+    final key = _token == null ? null : user?.avatar;
+    if (key == null) {
+      _avatarShown = null;
+      oaAvatarImage.value = null;
+      return;
+    }
+    if (key == _avatarShown && oaAvatarImage.value != null) return;
+    try {
+      final res = await http
+          .get(Uri.parse('$api/v1/me/avatar?v=${Uri.encodeQueryComponent(key)}'), headers: {
+            'User-Agent': _userAgent,
+            'Accept': 'image/*',
+            'Cookie': '$_cookieName=$_token',
+          })
+          .timeout(const Duration(seconds: 12));
+      if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
+        _avatarShown = key;
+        oaAvatarImage.value = res.bodyBytes;
+      } else if (res.statusCode == 404) {
+        _avatarShown = null;
+        oaAvatarImage.value = null;
+      }
+    } catch (_) {
+      // Ağ yoksa baş harfler görünmeye devam eder; sonraki yenilemede yeniden denenir.
+    }
   }
 
   Future<void> logout() async {
     if (_token != null) await _call('/v1/auth/logout', {});
     _token = null;
     user = null;
+    _avatarShown = null;
+    oaAvatarImage.value = null;
     await _persist();
     try {
       await oaCookies()
