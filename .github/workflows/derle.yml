@@ -33,6 +33,13 @@ jobs:
         run: |
           echo "v=$(grep '^version:' pubspec.yaml | sed 's/version: *//; s/+.*//')" >> "$GITHUB_OUTPUT"
 
+      - name: Sürüm notu (release-notes.md'de bu sürümün başlığı varsa)
+        id: notes
+        shell: bash
+        run: |
+          awk -v v="${{ steps.ver.outputs.v }}" '/^## /{p=($2==v); next} p' release-notes.md > notes.txt 2>/dev/null || true
+          if [ -s notes.txt ]; then echo "path=notes.txt" >> "$GITHUB_OUTPUT"; fi
+
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -88,6 +95,7 @@ jobs:
           target_commitish: ${{ github.sha }}
           prerelease: false
           make_latest: true
+          body_path: ${{ steps.notes.outputs.path }}
           files: |
             OA-Tarayici-Kurulum.exe
             OA-Tarayici-Windows.zip
@@ -103,6 +111,13 @@ jobs:
         shell: bash
         run: |
           echo "v=$(grep '^version:' pubspec.yaml | sed 's/version: *//; s/+.*//')" >> "$GITHUB_OUTPUT"
+
+      - name: Sürüm notu (release-notes.md'de bu sürümün başlığı varsa)
+        id: notes
+        shell: bash
+        run: |
+          awk -v v="${{ steps.ver.outputs.v }}" '/^## /{p=($2==v); next} p' release-notes.md > notes.txt 2>/dev/null || true
+          if [ -s notes.txt ]; then echo "path=notes.txt" >> "$GITHUB_OUTPUT"; fi
 
       - uses: actions/setup-java@v5
         with:
@@ -162,4 +177,5 @@ jobs:
           target_commitish: ${{ github.sha }}
           prerelease: false
           make_latest: true
+          body_path: ${{ steps.notes.outputs.path }}
           files: OA-Tarayici-Android.apk
