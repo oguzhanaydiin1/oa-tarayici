@@ -1691,10 +1691,15 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         if (_split != null && Platform.isWindows) const PopupMenuItem(value: 'unsplit', child: Text('Yan yana görünümü kapat')),
         const PopupMenuItem(value: 'sleepall', child: Text('Diğer sekmeleri uyut')),
         const PopupMenuItem(value: 'close', child: Text('Sekmeyi kapat')),
+        PopupMenuItem(
+            value: 'closeall',
+            child: Text(_tabs.any((x) => x.pinned) ? 'Bütün sekmeleri kapat (sabitler kalır)' : 'Bütün sekmeleri kapat')),
       ],
     );
     if (v == null || !mounted) return;
-    if (v == 'pin') {
+    if (v == 'closeall') {
+      _closeAllTabs();
+    } else if (v == 'pin') {
       _togglePin(t);
     } else if (v == 'new') {
       _newGroupFor(t);
@@ -2805,6 +2810,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       (Icons.devices_outlined, 'Öbür cihazlardaki sekmeler', 'telefon bilgisayar eşitleme', () => menu('devices')),
       (Icons.radio_outlined, 'OA Radyo', 'muzik', () => menu('radio')),
       if (_closedTabs.isNotEmpty) (Icons.restore, 'Kapatılan sekmeyi geri aç', 'geri getir', () => menu('reopen')),
+      (Icons.clear_all, 'Bütün sekmeleri kapat', 'hepsini kapat temizle', () => menu('closeall')),
       (Icons.settings_outlined, 'Ayarlar', 'tercihler', () => _openSettings()),
       for (final sec in _visibleSections) (sec.icon, 'Ayarlar: ${sec.name}', sec.sub, () => _openSettings(sec.id)),
       (Icons.contrast, 'Tema: ${themeModeNotifier.value == ThemeMode.dark ? 'açık temaya geç' : 'koyu temaya geç'}', 'koyu acik gece', () {
@@ -3758,6 +3764,59 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     });
   }
 
+  /// Bütün sekmeleri tek seferde kapatır. Sabitlenmiş sekmeler kalır; yerine boş bir sekme açılır.
+  /// Alttaki "Geri al" ile kapatılanlar yeniden açılır.
+  void _closeAllTabs() {
+    final closing = _tabs.where((t) => !t.pinned).toList();
+    if (closing.isEmpty || (closing.length == 1 && closing.first.showStart && _tabs.length == 1)) return;
+    final undo = [
+      for (final t in closing)
+        if (!t.showStart && t.url.isNotEmpty) (url: t.url, incognito: t.incognito, title: t.displayTitle)
+    ];
+    for (final t in closing) {
+      if (!t.incognito && !t.showStart && t.url.isNotEmpty) {
+        _closedTabs.add({'url': t.url, 'title': t.displayTitle});
+      }
+      _disposeTab(t);
+    }
+    while (_closedTabs.length > 10) {
+      _closedTabs.removeAt(0);
+    }
+    final fresh = TabData();
+    setState(() {
+      _split = null;
+      _tabs
+        ..removeWhere((t) => !t.pinned)
+        ..add(fresh);
+      _current = _tabs.length - 1;
+      _urlCtl.text = '';
+    });
+    _saveSessionSoon();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        content: Text(closing.length == 1 ? 'Sekme kapatıldı' : '${closing.length} sekme kapatıldı'),
+        duration: const Duration(seconds: 6),
+        action: undo.isEmpty
+            ? null
+            : SnackBarAction(
+                label: 'Geri al',
+                onPressed: () {
+                  for (final u in undo) {
+                    _addTab(url: u.url, incognito: u.incognito);
+                  }
+                  // Kapatınca açılan boş sekme hâlâ boşsa kalkar
+                  final i = _tabs.indexOf(fresh);
+                  if (i >= 0 && fresh.showStart && _tabs.length > 1) _closeTab(i);
+                  for (final u in undo) {
+                    _closedTabs.removeWhere((c) => c['url'] == u.url);
+                  }
+                },
+              ),
+      ));
+  }
+
   void _selectTab(int i) {
     if (i != _current && _current < _tabs.length) _captureThumb(_tabs[_current]);
     // Bölünmüş ekrandaki sekmelerden biri değilse yan yana görünüm kapanır.
@@ -4280,6 +4339,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           SingleActivator(LogicalKeyboardKey.keyJ, control: true): _showDownloads,
           SingleActivator(LogicalKeyboardKey.keyW, control: true): () =>
               _closeTab(_current),
+          SingleActivator(LogicalKeyboardKey.keyW, control: true, shift: true): _closeAllTabs,
           SingleActivator(LogicalKeyboardKey.keyL, control: true): () =>
               mobile ? _startEditing() : _urlFocus.requestFocus(),
           SingleActivator(LogicalKeyboardKey.keyF, control: true): _openFind,
@@ -4720,6 +4780,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               _mi('devices', Icons.devices_outlined, 'Öbür cihazlar'),
               _mi('radio', Icons.radio_outlined, 'OA Radyo'),
               if (_closedTabs.isNotEmpty) _mi('reopen', Icons.restore, 'Kapatılan sekmeyi geri aç', 'Ctrl+Shift+T'),
+              if (_tabs.length > 1) _mi('closeall', Icons.clear_all, 'Bütün sekmeleri kapat', 'Ctrl+Shift+W'),
               if (!_tab.showStart) ...[
                 const PopupMenuDivider(),
                 _mi('page', Icons.article_outlined, 'Bu sayfa', '›'),
@@ -4840,6 +4901,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         _showDownloads();
       case 'radio':
         _showRadio();
+      case 'closeall':
+        _closeAllTabs();
       case 'reopen':
         _reopenClosedTab();
       case 'update':
@@ -5471,6 +5534,15 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                           style: oaDisplay(22),
                         ),
                       ),
+                      if (_tabs.length > 1 || !_tab.showStart)
+                        TextButton(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            _closeAllTabs();
+                          },
+                          style: TextButton.styleFrom(foregroundColor: OAColors.danger),
+                          child: Text('Tümünü kapat', style: TextStyle(fontSize: 15)),
+                        ),
                       TextButton(
                         onPressed: () => Navigator.pop(ctx),
                         child: Text('Bitti', style: TextStyle(fontSize: 16)),
@@ -5488,8 +5560,35 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                       childAspectRatio: 0.78,
                     ),
                     itemCount: _tabs.length,
-                    itemBuilder: (_, i) => _tabCard(i, ctx, setSheet),
+                    itemBuilder: (_, i) {
+                      final t = _tabs[i];
+                      // Sola kaydırınca sekme kapanır
+                      return Dismissible(
+                        key: ValueKey('kart-${t.id}'),
+                        direction: DismissDirection.endToStart,
+                        background: Container(
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 18),
+                          decoration: BoxDecoration(
+                            color: OAColors.danger.withValues(alpha: 0.16),
+                            borderRadius: BorderRadius.circular(OARadius.lg),
+                          ),
+                          child: Icon(Icons.close_rounded, color: OAColors.danger, size: 28),
+                        ),
+                        onDismissed: (_) {
+                          final j = _tabs.indexOf(t);
+                          if (j >= 0) _closeTab(j);
+                          setSheet(() {});
+                        },
+                        child: _tabCard(i, ctx, setSheet),
+                      );
+                    },
                   ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text('Kapatmak için kartı sola kaydır',
+                      textAlign: TextAlign.center, style: TextStyle(color: OAColors.faint, fontSize: 12.5)),
                 ),
                 Container(
                   padding: EdgeInsets.fromLTRB(16, 12, 16, 12),

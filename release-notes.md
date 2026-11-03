@@ -80,3 +80,10 @@ En yeni sürüm en üstte olsun.
 • On Windows the window title, Start menu and desktop shortcut use the new name, and the old shortcuts are removed. On Android the icon is labelled "Pusula".
 • The new logo is on the start page and in the About window.
 • Your bookmarks, passwords, tabs and settings stay as they are; the update installs over the old version.
+
+## 0.18.1
+• Bütün sekmeleri tek seferde kapat: telefonda sekme listesinin üstündeki "Tümünü kapat", bilgisayarda sekmeye sağ tıklayıp "Bütün sekmeleri kapat" ya da Ctrl+Shift+W. Yanlışlıkla kapattıysan alttaki "Geri al" hepsini geri açar. Sabitlenmiş sekmeler kalır.
+• Telefonda sekme listesinde bir kartı sola kaydırınca o sekme kapanır.
+
+• Close all tabs at once: "Close all" at the top of the tab list on your phone, or right-click a tab → "Close all tabs" (Ctrl+Shift+W) on your PC. If you didn't mean it, "Undo" at the bottom brings them all back. Pinned tabs stay.
+• On your phone, swipe a card to the left in the tab list to close that tab.
