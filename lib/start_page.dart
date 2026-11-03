@@ -166,7 +166,7 @@ class _StartPageState extends State<StartPage> {
         ? 'Gizli sekme'
         : widget.userFirstName != null
             ? 'Merhaba ${widget.userFirstName}'
-            : 'OA Tarayıcı';
+            : 'Pusula Browser';
 
     final wide = MediaQuery.sizeOf(context).width >= 1180;
     return Stack(
@@ -186,7 +186,10 @@ class _StartPageState extends State<StartPage> {
                   Align(alignment: Alignment.centerRight, child: widget.corner!),
                   const SizedBox(height: 20),
                 ],
-                Text(kicker, style: TextStyle(color: OAColors.muted, fontSize: 15)),
+                Row(children: [
+                  if (!widget.incognito) ...[const PusulaMark(size: 22), const SizedBox(width: 9)],
+                  Text(kicker, style: TextStyle(color: OAColors.muted, fontSize: 15)),
+                ]),
                 const SizedBox(height: 14),
                 Text.rich(
                   TextSpan(

@@ -1,5 +1,5 @@
-// OA Tarayıcı — Windows giriş noktası (flutter create şablonundan, scripts/platform_hazirla.sh kopyalar).
-// Ek olarak: tek pencere. OA Tarayıcı zaten açıksa (ör. başka bir uygulamada bir bağlantıya
+// Pusula Browser — Windows giriş noktası (flutter create şablonundan, scripts/platform_hazirla.sh kopyalar).
+// Ek olarak: tek pencere. Pusula zaten açıksa (ör. başka bir uygulamada bir bağlantıya
 // tıklanınca) yeni pencere açılmaz; adres açık pencereye gönderilir ve orada yeni sekmede açılır.
 #include <flutter/dart_project.h>
 #include <flutter/flutter_view_controller.h>
@@ -16,7 +16,7 @@ namespace {
 
 constexpr const wchar_t kMutexName[] = L"Local\\OATarayici_TekPencere";
 constexpr const wchar_t kWindowClass[] = L"FLUTTER_RUNNER_WIN32_WINDOW";
-constexpr const wchar_t kWindowTitle[] = L"OA Tarayıcı";
+constexpr const wchar_t kWindowTitle[] = L"Pusula Browser";
 
 // Açık pencereyi bulup komut satırını ona gönderir. Gönderebildiyse true.
 bool SendToRunningInstance(const std::vector<std::string>& args) {

@@ -10,7 +10,7 @@ flutter create --platforms="$PLATFORMS" --org dev.oalabs --project-name oa_taray
 rm -f test/widget_test.dart
 
 if [[ -d windows/runner ]]; then
-  # Giriş noktası ve pencere: başlık "OA Tarayıcı", açılış boyutu, tek pencere
+  # Giriş noktası ve pencere: başlık "Pusula Browser", açılış boyutu, tek pencere
   # (zaten açıksa bağlantı açık pencerede yeni sekmede açılır). Kaynaklar: platform/windows/runner
   cp platform/windows/runner/main.cpp platform/windows/runner/flutter_window.h \
      platform/windows/runner/flutter_window.cpp platform/windows/runner/crash_log.h \
@@ -23,8 +23,8 @@ fi
 
 if [[ -f windows/runner/Runner.rc ]]; then
   sed -i 's/VALUE "CompanyName", "dev.oalabs"/VALUE "CompanyName", "OA Labs"/' windows/runner/Runner.rc
-  sed -i 's/VALUE "FileDescription", "oa_tarayici"/VALUE "FileDescription", "OA Tarayici"/' windows/runner/Runner.rc
-  sed -i 's/VALUE "ProductName", "oa_tarayici"/VALUE "ProductName", "OA Tarayici"/' windows/runner/Runner.rc
+  sed -i 's/VALUE "FileDescription", "oa_tarayici"/VALUE "FileDescription", "Pusula Browser"/' windows/runner/Runner.rc
+  sed -i 's/VALUE "ProductName", "oa_tarayici"/VALUE "ProductName", "Pusula Browser"/' windows/runner/Runner.rc
 fi
 
 MANIFEST=android/app/src/main/AndroidManifest.xml
@@ -46,9 +46,9 @@ if [[ -f "$MANIFEST" ]]; then
 -dontwarn com.google.mlkit.**
 RULES
   # Uygulama adı ve http:// sitelerine izin
-  sed -i 's/android:label="oa_tarayici"/android:label="OA Tarayıcı"/' "$MANIFEST"
+  sed -i 's/android:label="oa_tarayici"/android:label="Pusula"/' "$MANIFEST"
   if ! grep -q 'usesCleartextTraffic' "$MANIFEST"; then
-    sed -i '0,/android:label="OA Tarayıcı"/s||android:label="OA Tarayıcı"\n        android:usesCleartextTraffic="true"|' "$MANIFEST"
+    sed -i '0,/android:label="Pusula"/s||android:label="Pusula"\n        android:usesCleartextTraffic="true"|' "$MANIFEST"
   fi
 fi
 

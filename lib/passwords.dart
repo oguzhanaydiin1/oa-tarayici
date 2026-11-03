@@ -277,7 +277,7 @@ class _PasswordsSheetState extends State<PasswordsSheet> {
                         child: Padding(
                           padding: const EdgeInsets.all(24),
                           child: Text(
-                            'Henüz kayıtlı şifre yok.\nBir siteye giriş yapınca OA Tarayıcı kaydetmeyi sorar.',
+                            'Henüz kayıtlı şifre yok.\nBir siteye giriş yapınca Pusula kaydetmeyi sorar.',
                             textAlign: TextAlign.center,
                             style: TextStyle(color: OAColors.muted),
                           ),

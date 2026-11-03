@@ -69,3 +69,14 @@ En yeni sürüm en üstte olsun.
 • OA Flow: menu → "OA Flow". Send notes, links, photos and files (up to 600 KB) to your phone or computer signed in with the same account. Received files are saved to Downloads; the flow history looks like a chat.
 • Game corner: the start page shows games that are free now or soon on the Epic Games Store and Steam's featured deals. You can turn it off in Settings → Start page.
 • Sync no longer runs twice at the same time, so items sent from another device are less likely to get lost.
+
+## 0.18.0
+• Tarayıcının yeni adı Pusula Browser. Yeni simgesi koyu bir karede rüzgâr gülü; kuzeyi gösteren kolu amber.
+• Windows'ta pencere başlığı, Başlat menüsü ve masaüstü kısayolu yeni adla görünür; eski kısayollar kaldırılır. Android'de simgenin altında "Pusula" yazar.
+• Başlangıç sayfasında ve Hakkında penceresinde yeni logo.
+• Yer imlerin, şifrelerin, sekmelerin ve ayarların olduğu gibi kalır; güncelleme eski kurulumun üstüne yapılır.
+
+• The browser's new name is Pusula Browser. Its new icon is a compass rose on a dark square, with the north arm in amber.
+• On Windows the window title, Start menu and desktop shortcut use the new name, and the old shortcuts are removed. On Android the icon is labelled "Pusula".
+• The new logo is on the start page and in the About window.
+• Your bookmarks, passwords, tabs and settings stay as they are; the update installs over the old version.

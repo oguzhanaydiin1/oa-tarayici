@@ -1,23 +1,26 @@
-# OA Tarayıcı
+# Pusula Browser
 
-OA Labs'in Windows ve Android tarayıcısı. Flutter + `flutter_inappwebview`: sayfaları Windows'ta
+OA Labs'in Windows ve Android tarayıcısı (eski adı OA Tarayıcı). Flutter + `flutter_inappwebview`: sayfaları Windows'ta
 WebView2 (Edge motoru), Android'de Android WebView çizer; arayüz OA Labs tasarım sistemiyle yazılır.
 
-> Durum: deneme sürümü (0.17.0). Android sürümü sabit OA anahtarıyla imzalı; Windows dosyaları imzasız.
+> Durum: deneme sürümü (0.18.0). Android sürümü sabit OA anahtarıyla imzalı; Windows dosyaları imzasız.
 
 ## İndir ve dene
 
 Her `main` gönderiminde GitHub Actions iki dosya derler: **Actions** sekmesi → son "Derle" çalışması → sayfanın altındaki *Artifacts*.
 
-- **OA-Tarayici-Kurulum.exe**: Windows kurulum programı (yönetici izni istemez). Kurunca OA Tarayıcı, Ayarlar → Varsayılan uygulamalar'da tarayıcı olarak seçilebilir.
-- **OA-Tarayici-Windows** (zip): kurmadan denemek için; aç, `oa_tarayici.exe`'yi çalıştır. Klasördeki diğer dosyalar exe'nin yanında kalmalı.
+- **Pusula-Kurulum.exe**: Windows kurulum programı (yönetici izni istemez). Kurunca Pusula Browser, Ayarlar → Varsayılan uygulamalar'da tarayıcı olarak seçilebilir.
+- **Pusula-Windows** (zip): kurmadan denemek için; aç, `oa_tarayici.exe`'yi çalıştır. Klasördeki diğer dosyalar exe'nin yanında kalmalı.
   Windows imzasız olduğu için uyarı verirse: "Ek bilgi" → "Yine de çalıştır".
   Windows 10'da WebView2 Runtime yoksa Microsoft'tan ücretsiz kurulur (Windows 11'de hazırdır).
-- **OA-Tarayici-Android** (apk): telefona at ve aç. "Bilinmeyen kaynaklardan yükleme" izni ister.
+- **Pusula-Android** (apk): telefona at ve aç. "Bilinmeyen kaynaklardan yükleme" izni ister.
+
+Eski sürümlerin güncelleyicisi için her sürümde `OA-Tarayici-Kurulum.exe` ve `OA-Tarayici-Android.apk` adlı kopyalar da durur. Uygulamanın iç adı (`oa_tarayici`, Android paketi `dev.oalabs.oa_tarayici`) eski kurulumların üstüne güncellenebilmek için değişmedi.
 
 Aynı dosyalar **Releases** sayfasına da `pubspec.yaml`daki sürüm numarasıyla (ör. v0.1.0) deneme sürümü olarak eklenir. Yeni sürüm çıkarmak için `version` satırını artırmak yeterli.
 
 ## Özellikler
+- Yeni ad ve logo: Pusula Browser, koyu karede rüzgâr gülü
 - OA Akış: aynı hesapla giriş yapılmış cihazlar arasında not, bağlantı, fotoğraf ve dosya (600 KB'a kadar) gönder
 - Oyun köşesi (başlangıç sayfası): Epic'te şu an ve yakında ücretsiz oyunlar, Steam'in öne çıkan indirimleri
 - Yan yana görünüm (Windows): iki sekme aynı pencerede, ortadaki çizgiyle genişlik ayarı
@@ -47,14 +50,14 @@ Aynı dosyalar **Releases** sayfasına da `pubspec.yaml`daki sürüm numarasıyl
 - Başlangıç sayfasında saat, tarih ve hava durumu (Open-Meteo): bilgisayarda sağ üst köşede, telefonda arama kutusunun altında tahminli kart; dokununca saatlik ve 7 günlük tahmin, şehir seçimi
 - Telefonda radyo arka planda çalar: uygulamadan çıkınca ya da ekran kilitlenince susmaz; bildirimde ve kilit ekranında oynat/durdur
 - Windows'ta radyo, klavyedeki medya tuşlarıyla ve Windows'un ses panelindeki çalarla kontrol edilir
-- Windows'ta tek pencere: OA Tarayıcı açıkken bir bağlantıya tıklanınca açık pencerede yeni sekme olarak açılır
+- Windows'ta tek pencere: Pusula açıkken bir bağlantıya tıklanınca açık pencerede yeni sekme olarak açılır
 - Gizli sekme kilidi: uygulamadan çıkınca gizli sekmeler kilitlenir; parmak izi, yüz, ekran kilidi ya da Windows Hello ile açılır
 - Sayfada bul (Ctrl+F) ve PDF olarak kaydet (Ctrl+P; telefonda yazdırma ekranından "PDF olarak kaydet")
 - Videoyu küçük pencerede izle: telefonda resim içinde resim; Windows'ta pencere küçülüp her zaman üstte kalır
 - Şifreler: girişte kaydetmeyi sorar, bir dahaki sefere kendiliğinden doldurur; yalnız cihazın güvenli deposunda saklanır, listeyi görmek için kimlik doğrulanır
 - İndirme yöneticisi: ilerleme, İndirilenler listesi (Ctrl+J), bitince aç; Android'de telefonun İndirilenler klasörüne
 - Sekmeler uygulama kapanıp açılınca geri gelir; kapatılan sekmeyi geri aç (Ctrl+Shift+T)
-- Varsayılan tarayıcı olabilir: Android'de bağlantılar OA Tarayıcı'da açılabilir; Windows kurulumu tarayıcı olarak kaydeder
+- Varsayılan tarayıcı olabilir: Android'de bağlantılar Pusula'da açılabilir; Windows kurulumu tarayıcı olarak kaydeder
 - Uygulama ikonu (OA işareti) ve kendini güncelleme: yeni sürüm çıkınca haber verir, tek dokunuşla indirip kurar
 - OA Radyo: gezinirken radyo dinle; popüler Türk istasyonları, arama, favoriler, alt çubuğun üstünde mini çalar
 - Reklam ve izleyici engelleme: reklam ağlarına ve izleyicilere giden istekler engellenir (Android'de web motorunun içerik engelleyicisi, Windows'ta istek kontrolü), sayfadaki reklam kutuları gizlenir; site bazında kapatılabilir

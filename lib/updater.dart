@@ -37,17 +37,22 @@ class Updater {
     if (appVersion == '0.0.0') return null; // geliştirme derlemesi
     final r = await http.get(Uri.parse(_api), headers: {
       'Accept': 'application/vnd.github+json',
-      'User-Agent': 'OATarayici/$appVersion',
+      'User-Agent': 'PusulaBrowser/$appVersion',
     }).timeout(const Duration(seconds: 10));
     if (r.statusCode != 200) return null;
     final list = jsonDecode(utf8.decode(r.bodyBytes)) as List;
-    final wanted = Platform.isAndroid ? 'OA-Tarayici-Android.apk' : 'OA-Tarayici-Kurulum.exe';
+    // Yeni ad önce; eski sürümlerde yalnız eski ad vardı
+    final names = Platform.isAndroid
+        ? ['Pusula-Android.apk', 'OA-Tarayici-Android.apk']
+        : ['Pusula-Kurulum.exe', 'OA-Tarayici-Kurulum.exe'];
     for (final rel in list.whereType<Map>()) {
       if (rel['draft'] == true) continue;
       final tag = rel['tag_name']?.toString() ?? '';
       if (!isNewer(tag, appVersion)) return null; // en yenisi bile yeni değil
-      for (final a in (rel['assets'] as List? ?? const []).whereType<Map>()) {
-        if (a['name'] == wanted) {
+      final assets = (rel['assets'] as List? ?? const []).whereType<Map>().toList();
+      for (final wanted in names) {
+        final a = assets.where((x) => x['name'] == wanted).firstOrNull;
+        if (a != null) {
           return UpdateInfo(
             tag.replaceFirst(RegExp(r'^v'), ''),
             a['browser_download_url'].toString(),

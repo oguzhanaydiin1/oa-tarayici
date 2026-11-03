@@ -651,3 +651,57 @@ class _OALabsSealPainter extends CustomPainter {
   bool shouldRepaint(_OALabsSealPainter old) =>
       old.turn != turn || old.color != color || old.accent != accent || old.glyphs != glyphs;
 }
+
+/// Pusula Browser'ın işareti: koyu karede rüzgâr gülü, kuzeyi gösteren kol amber.
+class PusulaMark extends StatelessWidget {
+  const PusulaMark({super.key, this.size = 30, this.frame = true});
+  final double size;
+
+  /// false: karesiz, yalnız rüzgâr gülü (yazının yanında küçük kullanım için)
+  final bool frame;
+
+  @override
+  Widget build(BuildContext context) =>
+      CustomPaint(size: Size.square(size), painter: _PusulaPainter(frame));
+}
+
+class _PusulaPainter extends CustomPainter {
+  _PusulaPainter(this.frame);
+  final bool frame;
+
+  static const _amber = Color(0xFFF2A541);
+  static const _light = Color(0xFFEEEAE2);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final k = size.width / 100;
+    Offset p(double x, double y) => Offset(x * k, y * k);
+    if (frame) {
+      final r = RRect.fromRectAndRadius(Rect.fromLTWH(k, k, 98 * k, 98 * k), Radius.circular(24 * k));
+      canvas.drawRRect(r, Paint()..color = const Color(0xFF151824));
+      canvas.drawRRect(
+          r,
+          Paint()
+            ..color = const Color(0xFF262B3D)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2 * k);
+    }
+    // Karesiz kullanımda gül biraz büyür
+    if (!frame) {
+      canvas.translate(size.width / 2, size.height / 2);
+      canvas.scale(1.18);
+      canvas.translate(-size.width / 2, -size.height / 2);
+    }
+    Path poly(List<Offset> pts) => Path()..addPolygon(pts, true);
+    canvas.drawPath(
+        poly([p(50, 12), p(57, 43), p(82, 50), p(57, 57), p(50, 84), p(43, 57), p(18, 50), p(43, 43)]),
+        Paint()..color = _light);
+    canvas.drawPath(poly([p(50, 12), p(57, 43), p(50, 50), p(43, 43)]), Paint()..color = _amber);
+    final shade = Paint()..color = const Color(0xFF0D0F16).withValues(alpha: 0.22);
+    canvas.drawPath(poly([p(50, 50), p(57, 43), p(82, 50), p(57, 57)]), shade);
+    canvas.drawPath(poly([p(50, 50), p(43, 57), p(50, 84), p(57, 57)]), shade);
+  }
+
+  @override
+  bool shouldRepaint(_PusulaPainter old) => old.frame != frame;
+}

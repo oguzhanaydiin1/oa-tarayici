@@ -119,7 +119,7 @@ class _BrowserAppState extends State<BrowserApp> with WidgetsBindingObserver {
     OAColors.use(p);
     SystemChrome.setSystemUIOverlayStyle(oaSystemOverlay(p));
     return MaterialApp(
-      title: 'OA Tarayıcı',
+      title: 'Pusula Browser',
       debugShowCheckedModeBanner: false,
       theme: buildOATheme(p),
       home: BrowserPage(key: _pageKey),
@@ -2177,7 +2177,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               Padding(
                 padding: const EdgeInsets.all(24),
                 child: Text(
-                  'Henüz başka cihaz yok. Telefonunda ya da bilgisayarında OA Tarayıcı\'yı açıp aynı hesapla giriş yap.',
+                  'Henüz başka cihaz yok. Telefonunda ya da bilgisayarında Pusula\'yı açıp aynı hesapla giriş yap.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: OAColors.muted),
                 ),
@@ -2217,7 +2217,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     if (_devices.isEmpty) await _syncNow();
     if (!mounted) return;
     if (_devices.isEmpty) {
-      _toast('Başka cihaz bulunamadı: öbür cihazda OA Tarayıcı\'da aynı hesapla giriş yap');
+      _toast('Başka cihaz bulunamadı: öbür cihazda Pusula\'da aynı hesapla giriş yap');
       return;
     }
     final d = await showModalBottomSheet<RemoteDevice>(
@@ -2242,7 +2242,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     );
     if (d == null) return;
     final ok = await _flowPush(FlowDevice(d.id, d.name, d.platform == 'android'), {'u': t.url, 't': t.displayTitle});
-    _toast(ok ? '${d.name} cihazına gönderildi; orada OA Tarayıcı açılınca gelir' : 'Gönderilemedi, internet bağlantını kontrol et');
+    _toast(ok ? '${d.name} cihazına gönderildi; orada Pusula açılınca gelir' : 'Gönderilemedi, internet bağlantını kontrol et');
   }
 
   void _showSyncSettings() {
@@ -3233,7 +3233,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('OA Tarayıcı geçen sefer beklenmedik şekilde kapandı'),
+        title: const Text('Pusula geçen sefer beklenmedik şekilde kapandı'),
         content: SizedBox(
           width: 620,
           child: SingleChildScrollView(
@@ -3925,7 +3925,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     }
     if (!mounted) return;
     if (info == null) {
-      if (manual) _toast('OA Tarayıcı güncel ($appVersion)');
+      if (manual) _toast('Pusula güncel ($appVersion)');
       return;
     }
     final u = info;
@@ -3933,7 +3933,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(
         duration: const Duration(seconds: 12),
-        content: Text('OA Tarayıcı ${u.version} hazır'),
+        content: Text('Pusula ${u.version} hazır'),
         action: SnackBarAction(
           label: 'Güncelle',
           textColor: OAColors.accent,
@@ -3991,10 +3991,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   void _showAbout() {
     showAboutDialog(
       context: context,
-      applicationName: 'OA Tarayıcı',
+      applicationName: 'Pusula Browser',
       applicationVersion: appVersion,
-      applicationIcon: OALabsSeal(size: 88, color: OAColors.text, accent: OAColors.amber),
-      applicationLegalese: '© 2026 OA Labs · Oğuzhan Aydın',
+      applicationIcon: const PusulaMark(size: 72),
+      applicationLegalese: 'OA Labs\'ten · © 2026 Oğuzhan Aydın',
     );
   }
 

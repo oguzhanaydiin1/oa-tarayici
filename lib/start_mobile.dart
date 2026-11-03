@@ -188,9 +188,9 @@ class _MobileStartPageState extends State<MobileStartPage> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const OAMark(size: 50),
+        const PusulaMark(size: 52),
         const SizedBox(width: 12),
-        Text('Tarayıcı', style: oaDisplay(46).copyWith(letterSpacing: -1.6, height: 1)),
+        Text('Pusula', style: oaDisplay(46).copyWith(letterSpacing: -1.6, height: 1)),
       ],
     );
   }

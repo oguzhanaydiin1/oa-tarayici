@@ -202,7 +202,7 @@ function session(title, art){
   if (!('mediaSession' in navigator)) return;
   try {
     navigator.mediaSession.metadata = new MediaMetadata({
-      title: title || 'OA Radyo', artist: 'OA Radyo', album: 'OA Tarayıcı',
+      title: title || 'OA Radyo', artist: 'OA Radyo', album: 'Pusula Browser',
       artwork: art ? [{ src: art, sizes: '256x256' }] : []
     });
     navigator.mediaSession.setActionHandler('play', function(){ window.oaResume(); });

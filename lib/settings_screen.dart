@@ -589,7 +589,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           (
             null,
             [
-              _Item('OA Tarayıcı', 'sürüm', () => _row(Icons.info_outline, 'OA Tarayıcı', sub: 'Sürüm $appVersion')),
+              _Item('Pusula Browser', 'sürüm hakkında oa tarayıcı', () => _row(Icons.info_outline, 'Pusula Browser', sub: 'Sürüm $appVersion · OA Labs')),
               _Item('Güncellemeleri denetle', '', () => _row(Icons.system_update_outlined, 'Güncellemeleri denetle', onTap: () => p._checkUpdate(manual: true))),
               _Item('oalabs.dev/tarayici', 'site', () {
                 return _row(Icons.public, 'oalabs.dev/tarayici', onTap: () {

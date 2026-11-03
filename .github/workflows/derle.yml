@@ -69,7 +69,7 @@ jobs:
 
       - name: Paketle (zip)
         shell: pwsh
-        run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath OA-Tarayici-Windows.zip
+        run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath Pusula-Windows.zip
 
       - name: Kurulum programı
         shell: pwsh
@@ -78,27 +78,30 @@ jobs:
           if (!(Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
           & $iscc "/DAppVersion=${{ steps.ver.outputs.v }}" installer\oa_tarayici.iss
           if ($LASTEXITCODE -ne 0) { Write-Output "::error title=kurulum::Inno Setup derlenemedi"; exit 1 }
-          Copy-Item dist\OA-Tarayici-Kurulum.exe .
+          Copy-Item dist\Pusula-Kurulum.exe .
+          # Eski sürümlerin güncelleyicisi bu adı arar
+          Copy-Item dist\Pusula-Kurulum.exe OA-Tarayici-Kurulum.exe
 
       - uses: actions/upload-artifact@v4
         with:
-          name: OA-Tarayici-Windows
+          name: Pusula-Windows
           path: |
-            OA-Tarayici-Kurulum.exe
-            OA-Tarayici-Windows.zip
+            Pusula-Kurulum.exe
+            Pusula-Windows.zip
 
       - name: Sürüme ekle
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.ver.outputs.v }}
-          name: OA Tarayıcı ${{ steps.ver.outputs.v }}
+          name: Pusula Browser ${{ steps.ver.outputs.v }}
           target_commitish: ${{ github.sha }}
           prerelease: false
           make_latest: true
           body_path: ${{ steps.notes.outputs.path }}
           files: |
+            Pusula-Kurulum.exe
+            Pusula-Windows.zip
             OA-Tarayici-Kurulum.exe
-            OA-Tarayici-Windows.zip
 
   android:
     name: Android (.apk)
@@ -162,20 +165,25 @@ jobs:
         run: bash scripts/ozetle.sh android flutter build apk --release --dart-define=APP_VERSION=${{ steps.ver.outputs.v }}
 
       - name: Yeniden adlandır
-        run: cp build/app/outputs/flutter-apk/app-release.apk OA-Tarayici-Android.apk
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk Pusula-Android.apk
+          # Eski sürümlerin güncelleyicisi bu adı arar
+          cp Pusula-Android.apk OA-Tarayici-Android.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: OA-Tarayici-Android
-          path: OA-Tarayici-Android.apk
+          name: Pusula-Android
+          path: Pusula-Android.apk
 
       - name: Sürüme ekle
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.ver.outputs.v }}
-          name: OA Tarayıcı ${{ steps.ver.outputs.v }}
+          name: Pusula Browser ${{ steps.ver.outputs.v }}
           target_commitish: ${{ github.sha }}
           prerelease: false
           make_latest: true
           body_path: ${{ steps.notes.outputs.path }}
-          files: OA-Tarayici-Android.apk
+          files: |
+            Pusula-Android.apk
+            OA-Tarayici-Android.apk

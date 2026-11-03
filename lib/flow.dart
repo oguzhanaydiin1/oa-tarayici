@@ -264,7 +264,7 @@ class _FlowSheetState extends State<FlowSheet> {
         if (widget.devices.isEmpty)
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 6, 20, 6),
-            child: Text('Başka cihaz bulunamadı. Öbür cihazda OA Tarayıcı\'yı açıp aynı hesapla giriş yap.',
+            child: Text('Başka cihaz bulunamadı. Öbür cihazda Pusula\'yı açıp aynı hesapla giriş yap.',
                 style: TextStyle(color: OAColors.muted)),
           )
         else

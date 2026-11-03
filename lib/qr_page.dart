@@ -39,7 +39,7 @@ class _QrPageState extends State<QrPage> {
   Widget _error(MobileScannerException e) {
     final text = switch (e.errorCode) {
       MobileScannerErrorCode.permissionDenied =>
-        'Kamera izni verilmedi. Telefonun Ayarlar → Uygulamalar → OA Tarayıcı → İzinler bölümünden kamerayı aç.',
+        'Kamera izni verilmedi. Telefonun Ayarlar → Uygulamalar → Pusula → İzinler bölümünden kamerayı aç.',
       MobileScannerErrorCode.unsupported => 'Bu telefonda kamerayla kod okuma desteklenmiyor.',
       _ => 'Kamera açıldı ama kod okuyucu başlatılamadı.',
     };
