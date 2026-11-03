@@ -8,6 +8,7 @@ import 'dart:math' show Random, max, min;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:background_downloader/background_downloader.dart' as bd;
 import 'web_env.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:path_provider/path_provider.dart';
@@ -27,6 +28,8 @@ import 'news.dart';
 import 'read_later.dart';
 import 'tab_groups.dart';
 import 'tts.dart';
+import 'flow.dart';
+import 'games.dart';
 import 'radio.dart';
 import 'updater.dart';
 import 'vault.dart';
@@ -273,6 +276,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   // Haber akışı, döviz ve altın, okuma listesi
   final NewsService _news = NewsService();
   final MarketService _market = MarketService();
+  final GameService _games = GameService();
+  bool _showGames = true;
   final ReadingList _reading = ReadingList();
   bool _showNews = true;
   bool _showMarkets = true;
@@ -320,6 +325,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   List<RemoteDevice> _devices = [];
   String? _lastTabsSig;
   int _inboxSeen = 0;
+
+  // OA Akış
+  final ValueNotifier<List<Map>> _flow = ValueNotifier(<Map>[]);
+  bool _flowOpen = false;
+  Timer? _flowPoll;
   int _historyCleared = 0;
 
   String get _deviceName => Platform.isAndroid
@@ -472,7 +482,19 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   // ---------------------------------------------------------------- Eşitleme
 
   /// Yer imleri ve hızlı erişim OA hesabıyla eşitlenir: hangi taraf daha yeni değiştiyse o kazanır.
+  bool _syncing = false;
+
   Future<void> _syncNow() async {
+    if (_syncing) return; // bir önceki eşitleme sürüyor
+    _syncing = true;
+    try {
+      await _syncOnce();
+    } finally {
+      _syncing = false;
+    }
+  }
+
+  Future<void> _syncOnce() async {
     _lastSyncAt = DateTime.now();
     if (!_account.signedIn || _prefs == null) return;
     final server = await _account.pullSync();
@@ -521,11 +543,13 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _findDebounce?.cancel();
     _syncPoll?.cancel();
+    _flowPoll?.cancel();
     _sleepTimer?.cancel();
     _findCtl.dispose();
     _wx.dispose();
     _news.dispose();
     _market.dispose();
+    _games.dispose();
     _findFocus.dispose();
     _account.removeListener(_onAccount);
     _account.dispose();
@@ -558,10 +582,14 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     _syncTabs = _prefs!.getBool('sync_tabs') ?? true;
     _syncHistory = _prefs!.getBool('sync_history') ?? true;
     _inboxSeen = _prefs!.getInt('inbox_seen') ?? 0;
+    try {
+      _flow.value = [for (final e in (jsonDecode(_prefs!.getString('flow_log') ?? '[]') as List).whereType<Map>()) e];
+    } catch (_) {}
     _historyCleared = _prefs!.getInt('history_cleared') ?? 0;
     await _vault.load();
     _news.init(_prefs!);
     _market.init(_prefs!);
+    _games.init(_prefs!);
     _reading.init(_prefs!);
     setState(() {
       _bookmarks = _decode(_prefs!.getStringList('bookmarks'));
@@ -578,6 +606,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       _showClock = _prefs!.getBool('show_clock') ?? true;
       _cookieOn = _prefs!.getBool('cookie_block') ?? true;
       _showNews = _prefs!.getBool('show_news') ?? true;
+      _showGames = _prefs!.getBool('show_games') ?? true;
       _showMarkets = _prefs!.getBool('show_markets') ?? true;
       _verticalTabs = _prefs!.getBool('vertical_tabs') ?? false;
       _sidebarOn = _prefs!.getBool('sidebar_on') ?? Platform.isWindows;
@@ -1486,6 +1515,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     _prefs?.setBool('show_news', _showNews);
   }
 
+  void _toggleGames() {
+    setState(() => _showGames = !_showGames);
+    _prefs?.setBool('show_games', _showGames);
+  }
+
   void _toggleMarkets() {
     setState(() => _showMarkets = !_showMarkets);
     _prefs?.setBool('show_markets', _showMarkets);
@@ -2007,11 +2041,12 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         for (final m in inbox.data.whereType<Map>())
           if (((m['at'] as num?)?.toInt() ?? 0) > _inboxSeen) m
       ];
-      push['inbox:$_deviceId'] = SyncItem(now, []);
+      // Sunucudaki zamandan yalnız 1 ms sonrası: bu arada yeni bir şey gönderildiyse silinmez.
+      push['inbox:$_deviceId'] = SyncItem(inbox.updated.toUtc().add(const Duration(milliseconds: 1)), []);
       if (got.isNotEmpty) {
         _inboxSeen = got.map((m) => (m['at'] as num).toInt()).reduce(max);
         _prefs?.setInt('inbox_seen', _inboxSeen);
-        _showReceivedTabs(got);
+        await _flowReceive(got);
       }
     }
 
@@ -2206,16 +2241,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       ),
     );
     if (d == null) return;
-    final server = await _account.pullSync();
-    final cur = server?['inbox:${d.id}']?.data.whereType<Map>().toList() ?? <Map>[];
-    final list = [
-      ...cur,
-      {'u': t.url, 't': t.displayTitle, 'from': _deviceName, 'at': DateTime.now().millisecondsSinceEpoch},
-    ];
-    final r = await _account.pushSync({
-      'inbox:${d.id}': SyncItem(DateTime.now().toUtc(), list.length > 20 ? list.sublist(list.length - 20) : list),
-    });
-    _toast(r == null ? 'Gönderilemedi, internet bağlantını kontrol et' : '${d.name} cihazına gönderildi; orada OA Tarayıcı açılınca gelir');
+    final ok = await _flowPush(FlowDevice(d.id, d.name, d.platform == 'android'), {'u': t.url, 't': t.displayTitle});
+    _toast(ok ? '${d.name} cihazına gönderildi; orada OA Tarayıcı açılınca gelir' : 'Gönderilemedi, internet bağlantını kontrol et');
   }
 
   void _showSyncSettings() {
@@ -2803,6 +2830,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         (Icons.find_in_page_outlined, 'Sayfada bul', 'ara', () => menu('find')),
         (Icons.qr_code_2, 'QR kod ile telefona aktar', 'paylas', _showQrShare),
         (Icons.send_to_mobile_outlined, 'Bu sekmeyi öbür cihaza gönder', 'paylas', () => menu('send')),
+        (Icons.swap_horiz_rounded, 'OA Akış: öbür cihaza not, fotoğraf, dosya gönder', 'akis flow not dosya foto', () => menu('flow')),
         (Icons.bookmark_add_outlined, 'Sonra oku listesine ekle', 'kaydet', () => menu('later')),
         (Icons.chrome_reader_mode_outlined, 'Okuma modu', 'reader', () => menu('reader')),
         (Icons.record_voice_over_outlined, 'Sesli oku', 'tts seslendir dinle oku', () => menu('tts')),
@@ -2927,6 +2955,147 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         );
       }),
     );
+  }
+
+  // ----------------------------------------------------------------- OA Akış
+
+  void _flowSave() {
+    final l = _flow.value;
+    final keep = l.length > 150 ? l.sublist(l.length - 150) : l;
+    _prefs?.setString('flow_log', jsonEncode(keep));
+  }
+
+  void _flowAdd(Map m) {
+    final copy = Map<String, dynamic>.from(m)..remove('d');
+    _flow.value = [..._flow.value, copy];
+    _flowSave();
+  }
+
+  /// Bir kaydı öbür cihazın gelen kutusuna yazar.
+  Future<bool> _flowPush(FlowDevice d, Map item) async {
+    final server = await _account.pullSync();
+    if (server == null) return false;
+    final entry = <String, dynamic>{
+      ...Map<String, dynamic>.from(item)..remove('p'),
+      'from': _deviceName,
+      'at': DateTime.now().millisecondsSinceEpoch,
+    };
+    final list = [...?server['inbox:${d.id}']?.data.whereType<Map>(), entry];
+    // En çok 20 kayıt ve ~900 KB: eskiler düşer (alıcı açılmadıysa)
+    while (list.length > 20 || (list.length > 1 && jsonEncode(list).length > 900000)) {
+      list.removeAt(0);
+    }
+    final r = await _account.pushSync({'inbox:${d.id}': SyncItem(DateTime.now().toUtc(), list)});
+    if (r == null) return false;
+    _flowAdd({...entry, 'p': item['p'], 'out': true, 'to': d.name});
+    return true;
+  }
+
+  List<FlowDevice> get _flowDevices => [for (final d in _devices) FlowDevice(d.id, d.name, d.platform == 'android')];
+
+  /// Gelen dosyayı İndirilenler'e kaydeder; kaydın yolunu döndürür.
+  Future<String?> _flowSaveFile(Map m) async {
+    try {
+      final bytes = base64Decode(m['d'].toString());
+      final dir = await getDownloadsDirectory() ?? await getApplicationDocumentsDirectory();
+      var name = (m['n']?.toString() ?? 'dosya').replaceAll(RegExp(r'[\\/:*?"<>|\r\n\t]'), '-').trim();
+      if (name.isEmpty) name = 'dosya';
+      final dot = name.lastIndexOf('.');
+      final base = dot > 0 ? name.substring(0, dot) : name;
+      final ext = dot > 0 ? name.substring(dot) : '';
+      final sep = Platform.pathSeparator;
+      var f = File('${dir.path}$sep$name');
+      for (var n = 2; await f.exists(); n++) {
+        f = File('${dir.path}$sep$base ($n)$ext');
+      }
+      await f.writeAsBytes(bytes);
+      if (Platform.isAndroid) {
+        // Telefonun İndirilenler klasöründe de görünsün (uygulamadaki kopya akışta gösterilir)
+        try {
+          final tmp = await getTemporaryDirectory();
+          final c = await f.copy('${tmp.path}$sep${f.uri.pathSegments.last}');
+          await bd.FileDownloader().moveFileToSharedStorage(c.path, bd.SharedStorage.downloads);
+        } catch (_) {}
+      }
+      return f.path;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _flowOpenFile(String path) {
+    if (Platform.isWindows) {
+      Process.run('explorer.exe', [path]);
+    } else {
+      bd.FileDownloader().openFile(filePath: path);
+    }
+  }
+
+  /// Senkronda gelen kutusundan alınan kayıtlar.
+  Future<void> _flowReceive(List<Map> got) async {
+    final tabs = <Map>[];
+    var extra = 0;
+    for (final m in got) {
+      final e = Map<String, dynamic>.from(m);
+      if (flowKind(e) == 'file' && e['d'] != null) e['p'] = await _flowSaveFile(e);
+      _flowAdd(e);
+      if (!e.containsKey('k')) {
+        tabs.add(e); // eski "sekme gönder" kaydı
+      } else {
+        extra++;
+      }
+    }
+    if (!mounted || _flowOpen) return;
+    if (tabs.isNotEmpty) _showReceivedTabs(tabs);
+    if (extra > 0) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(
+          content: Text(extra == 1 ? 'OA Akış: öbür cihazdan yeni bir şey geldi' : 'OA Akış: öbür cihazdan $extra yeni şey geldi'),
+          duration: const Duration(seconds: 6),
+          action: SnackBarAction(label: 'Göster', onPressed: () => _showFlow()),
+        ));
+    }
+  }
+
+  Future<void> _showFlow({String? text}) async {
+    if (_needSignIn('OA Akış')) return;
+    if (_devices.isEmpty) await _syncNow();
+    if (!mounted || _flowOpen) return;
+    _flowOpen = true;
+    // Akış açıkken gelenler hemen görünsün diye sık sık bakılır
+    _flowPoll?.cancel();
+    _flowPoll = Timer.periodic(const Duration(seconds: 8), (_) {
+      if (_account.signedIn) _syncNow();
+    });
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: OAColors.bg,
+      constraints: const BoxConstraints(maxWidth: 680),
+      builder: (ctx) => FractionallySizedBox(
+        heightFactor: 0.88,
+        child: FlowSheet(
+          log: _flow,
+          devices: _flowDevices,
+          initialText: text,
+          onSend: _flowPush,
+          onOpenUrl: (u) {
+            Navigator.pop(ctx);
+            _addTab(url: u);
+          },
+          onOpenFile: _flowOpenFile,
+          onClear: () {
+            _flow.value = [];
+            _flowSave();
+          },
+        ),
+      ),
+    );
+    _flowOpen = false;
+    _flowPoll?.cancel();
+    _flowPoll = null;
   }
 
   // ----------------------------------------------------------------- Sekme önizlemesi
@@ -4197,7 +4366,13 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                     if (_showMarkets) MarketStrip(market: _market),
                   ])
                 : null,
-            news: _showNews && !t.incognito ? NewsFeed(news: _news, onOpen: (u) => _go(u), compact: true) : null,
+            news: (_showNews || _showGames) && !t.incognito
+                ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+                    if (_showGames) GameCorner(games: _games, onOpen: (u) => _go(u), compact: true),
+                    if (_showGames && _showNews) const SizedBox(height: 18),
+                    if (_showNews) NewsFeed(news: _news, onOpen: (u) => _go(u), compact: true),
+                  ])
+                : null,
           )
         else if (t.showStart)
           StartPage(
@@ -4222,7 +4397,13 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                     if (_showMarkets) SizedBox(width: 330, child: MarketStrip(market: _market, alignEnd: true)),
                   ])
                 : null,
-            news: _showNews && !t.incognito && !compact ? NewsFeed(news: _news, onOpen: (u) => _go(u)) : null,
+            news: (_showNews || _showGames) && !t.incognito && !compact
+                ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+                    if (_showGames) GameCorner(games: _games, onOpen: (u) => _go(u)),
+                    if (_showGames && _showNews) const SizedBox(height: 22),
+                    if (_showNews) NewsFeed(news: _news, onOpen: (u) => _go(u)),
+                  ])
+                : null,
           ),
         if (t.incognito && _locked) Positioned.fill(child: _lockCover()),
       ],
@@ -4577,6 +4758,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         _mi('find', Icons.find_in_page_outlined, 'Sayfada bul', 'Ctrl+F'),
         _mi('later', Icons.bookmark_add_outlined, 'Sonra oku listesine ekle'),
         _mi('send', Icons.send_to_mobile_outlined, 'Öbür cihaza gönder'),
+        _mi('flow', Icons.swap_horiz_rounded, 'OA Akış'),
         _mi('qrshare', Icons.qr_code_2, 'QR kod ile telefona aktar'),
         _mi('pin', Icons.push_pin_outlined, _tab.pinned ? 'Sabitlemeyi kaldır' : 'Sekmeyi sabitle'),
         if (_quick.length < kMaxQuickLinks) _mi('quick', Icons.add_to_home_screen_outlined, 'Hızlı erişime ekle'),
@@ -4706,6 +4888,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         _showDevices();
       case 'send':
         _sendTab();
+      case 'flow':
+        _showFlow();
       case 'syncset':
         _openSettings('hesap');
       case 'settings':
@@ -5081,6 +5265,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               item(Icons.add_box_outlined, 'Hızlı erişime site ekle', () => _editQuick(null)),
               item(Icons.schedule, 'Saat ve hava durumu: ${_showClock ? 'açık' : 'kapalı'}', _toggleClock),
               item(Icons.currency_lira, 'Döviz ve altın: ${_showMarkets ? 'açık' : 'kapalı'}', _toggleMarkets),
+              item(Icons.sports_esports_outlined, 'Oyun köşesi: ${_showGames ? 'açık' : 'kapalı'}', _toggleGames),
               item(Icons.newspaper_outlined, 'Haber akışı: ${_showNews ? 'açık' : 'kapalı'}', _toggleNews),
               if (_showNews) item(Icons.rss_feed, 'Haber kaynakları', () => showNewsSources(context, _news)),
               if (_showClock)
@@ -5225,6 +5410,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                     tool(Icons.find_in_page_outlined, 'Bul', 'find'),
                     tool(Icons.bookmark_add_outlined, 'Sonra oku', 'later'),
                     tool(Icons.send_to_mobile_outlined, 'Gönder', 'send'),
+                    tool(Icons.swap_horiz_rounded, 'OA Akış', 'flow'),
                     tool(Icons.chrome_reader_mode_outlined, 'Okuma', 'reader'),
                     tool(Icons.record_voice_over_outlined, 'Sesli oku', 'tts'),
                     tool(Icons.translate, 'Çevir', 'translate'),

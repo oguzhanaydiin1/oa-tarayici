@@ -3,7 +3,7 @@
 OA Labs'in Windows ve Android tarayıcısı. Flutter + `flutter_inappwebview`: sayfaları Windows'ta
 WebView2 (Edge motoru), Android'de Android WebView çizer; arayüz OA Labs tasarım sistemiyle yazılır.
 
-> Durum: deneme sürümü (0.16.0). Android sürümü sabit OA anahtarıyla imzalı; Windows dosyaları imzasız.
+> Durum: deneme sürümü (0.17.0). Android sürümü sabit OA anahtarıyla imzalı; Windows dosyaları imzasız.
 
 ## İndir ve dene
 
@@ -18,6 +18,8 @@ Her `main` gönderiminde GitHub Actions iki dosya derler: **Actions** sekmesi �
 Aynı dosyalar **Releases** sayfasına da `pubspec.yaml`daki sürüm numarasıyla (ör. v0.1.0) deneme sürümü olarak eklenir. Yeni sürüm çıkarmak için `version` satırını artırmak yeterli.
 
 ## Özellikler
+- OA Akış: aynı hesapla giriş yapılmış cihazlar arasında not, bağlantı, fotoğraf ve dosya (600 KB'a kadar) gönder
+- Oyun köşesi (başlangıç sayfası): Epic'te şu an ve yakında ücretsiz oyunlar, Steam'in öne çıkan indirimleri
 - Yan yana görünüm (Windows): iki sekme aynı pencerede, ortadaki çizgiyle genişlik ayarı
 - Sekme önizlemesi: bilgisayarda üzerine gelince, telefonda sekme listesinde sayfanın küçük resmi
 - Sesli oku: sayfadaki yazıyı cihazın Türkçe sesiyle okur; duraklat, atla, hız

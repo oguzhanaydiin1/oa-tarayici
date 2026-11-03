@@ -315,6 +315,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               }),
               _Item('Döviz ve altın', 'dolar euro gram altın',
                   () => _switch(Icons.currency_lira, 'Döviz ve altın', p._showMarkets, (_) => p._toggleMarkets(), sub: 'Dolar, euro, gram altın')),
+              _Item('Oyun köşesi', 'epic steam ücretsiz oyun indirim',
+                  () => _switch(Icons.sports_esports_outlined, 'Oyun köşesi', p._showGames, (_) => p._toggleGames(), sub: 'Epic\'te ücretsiz oyunlar, Steam indirimleri')),
               _Item('Haber akışı', 'haberler', () => _switch(Icons.newspaper_outlined, 'Haber akışı', p._showNews, (_) => p._toggleNews())),
               _Item('Haber kaynakları', 'rss', () {
                 final on = p._news.sources.where((s) => s.on).toList();

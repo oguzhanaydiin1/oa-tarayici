@@ -60,3 +60,12 @@ En yeni sürüm en üstte olsun.
 • Split view (desktop): right-click a tab → "Show side by side with the current tab", or menu → "New tab side by side". Drag the divider to resize; the side you click becomes the active tab.
 • Tab previews: hover a tab on desktop to see a thumbnail of the page; the cards in the phone's tab list show the page too.
 • Read aloud: menu → "Read aloud". The page's text is read with the device's Turkish voice; pause, skip back/forward and pick the speed from the bar at the bottom. The radio pauses if it's playing.
+
+## 0.17.0
+• OA Akış: menü → "OA Akış". Aynı hesapla giriş yaptığın telefona ya da bilgisayara not, bağlantı, fotoğraf ve dosya (600 KB'a kadar) gönder. Gelen dosyalar İndirilenler klasörüne kaydedilir; akış geçmişi sohbet gibi görünür.
+• Oyun köşesi: başlangıç sayfasında Epic Games'te şu an ve yakında ücretsiz olan oyunlar ile Steam'in öne çıkan indirimleri. Ayarlar → Başlangıç sayfasından kapatılabilir.
+• Eşitleme aynı anda iki kez çalışmaz; öbür cihazdan gönderilenlerin kaybolma ihtimali azaldı.
+
+• OA Flow: menu → "OA Flow". Send notes, links, photos and files (up to 600 KB) to your phone or computer signed in with the same account. Received files are saved to Downloads; the flow history looks like a chat.
+• Game corner: the start page shows games that are free now or soon on the Epic Games Store and Steam's featured deals. You can turn it off in Settings → Start page.
+• Sync no longer runs twice at the same time, so items sent from another device are less likely to get lost.
