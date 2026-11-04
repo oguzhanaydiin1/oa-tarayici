@@ -5893,6 +5893,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         if (_adblockOn) AdBlock.cosmeticScript(_adblockAllow),
         if (_cookieOn) cookieBannerScript(_adblockAllow),
         if (_gesturesOn && Platform.isWindows) mouseGestureScript(),
+        if (Platform.isWindows) windowSizeScript(),
         // Şifre kaydetme (gizli sekmede değil)
         if (!t.incognito)
           UserScript(

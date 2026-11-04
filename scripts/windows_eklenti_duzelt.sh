@@ -29,3 +29,14 @@ if [[ -f "$d" ]] && grep -qF "$old" "$d"; then
 else
   echo "::warning title=eklenti::İzin isteği düzeltmesi uygulanamadı ($d)"
 fi
+
+# Geliştirici araçları uyarısı: eklenti her sayfada konsol mesajlarını yakalamak için DevTools'un
+# "Runtime" bölümünü açıyordu (Runtime.enable). TV+ gibi canlı yayın siteleri bunu "geliştirici araçları
+# açık" diye algılayıp yayını durduruyordu. Uygulama konsol mesajlarını kullanmıyor; Runtime.evaluate
+# (JavaScript çalıştırma) bu açılmadan da çalışır. Çağrı Runtime.disable'a çevrilir.
+if grep -q 'L"Runtime.enable"' "$f"; then
+  sed -i --follow-symlinks 's/L"Runtime.enable"/L"Runtime.disable"/' "$f"
+  echo "DevTools Runtime.enable kapatıldı"
+else
+  echo "::warning title=eklenti::Runtime.enable bulunamadı (eklenti sürümü değişmiş olabilir)"
+fi

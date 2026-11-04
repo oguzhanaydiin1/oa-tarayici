@@ -250,3 +250,23 @@ UserScript mouseGestureScript() => UserScript(
 })();
 ''',
     );
+
+// ---------------------------------------------------------------- Pencere boyutu (bilgisayar)
+
+/// Bazı siteler (canlı yayın, sınav) pencerenin dış boyutu ile sayfa alanı arasındaki farka bakıp
+/// "geliştirici araçları açık" sanıyor. Bizde bu fark sekme şeridi, araç çubuğu ve kenar çubuğundan
+/// geliyor. Sayfaya dış boyut, sayfa alanına yakın gösterilir.
+UserScript windowSizeScript() => UserScript(
+      groupName: 'oa-boyut',
+      injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+      forMainFrameOnly: false,
+      source: r'''
+(function(){
+  try {
+    var d = function(n, f){ Object.defineProperty(window, n, { get: f, configurable: true }); };
+    d('outerWidth', function(){ return window.innerWidth; });
+    d('outerHeight', function(){ return window.innerHeight + 74; });
+  } catch (e) {}
+})();
+''',
+    );

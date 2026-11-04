@@ -87,3 +87,8 @@ En yeni sürüm en üstte olsun.
 
 • Close all tabs at once: "Close all" at the top of the tab list on your phone, or right-click a tab → "Close all tabs" (Ctrl+Shift+W) on your PC. If you didn't mean it, "Undo" at the bottom brings them all back. Pinned tabs stay.
 • On your phone, swipe a card to the left in the tab list to close that tab.
+
+## 0.18.2
+• Windows: TV+ gibi canlı yayın sitelerinde çıkan "geliştirici araçlarını kapatıp sayfayı yenileyin" uyarısı düzeltildi. Tarayıcı bu sitelere artık geliştirici araçları açıkmış gibi görünmüyor.
+
+• Windows: fixed the "close developer tools and reload the page" warning on live TV sites such as TV+. The browser no longer looks to these sites as if developer tools were open.
