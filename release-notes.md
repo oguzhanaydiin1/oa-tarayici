@@ -92,3 +92,10 @@ En yeni sürüm en üstte olsun.
 • Windows: TV+ gibi canlı yayın sitelerinde çıkan "geliştirici araçlarını kapatıp sayfayı yenileyin" uyarısı düzeltildi. Tarayıcı bu sitelere artık geliştirici araçları açıkmış gibi görünmüyor.
 
 • Windows: fixed the "close developer tools and reload the page" warning on live TV sites such as TV+. The browser no longer looks to these sites as if developer tools were open.
+
+## 0.18.3
+• Windows: TV+, Netflix, Disney+, Prime Video, Exxen gibi kopya korumalı yayınlarda ses gelip görüntünün siyah kalması düzeltildi. Bu siteler video başlayınca ayrı bir Pusula penceresinde açılır; oturumun açık kalır.
+• Listede olmayan bir site korumalı video oynatırsa üstte bir uyarı çıkar: "Ayrı pencerede aç" ya da "Hep ayrı aç". Menüde de "Ayrı pencerede aç (video görünmüyorsa)" var.
+
+• Windows: fixed sound playing with a black picture on copy-protected streams such as TV+, Netflix, Disney+, Prime Video and Exxen. These sites open in a separate Pusula window when the video starts, and you stay signed in.
+• If a site that isn't on the list plays protected video, a banner offers "Open in a separate window" or "Always open separately". The menu also has "Open in a separate window (if the video doesn't show)".

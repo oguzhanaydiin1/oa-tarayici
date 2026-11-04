@@ -270,3 +270,38 @@ UserScript windowSizeScript() => UserScript(
 })();
 ''',
     );
+
+// ---------------------------------------------------------------- Korumalı video (bilgisayar)
+
+/// Kopya korumalı (DRM) video kullanan siteler. Windows bu videoları uygulamanın sayfa görüntüsünü
+/// aldığı yöntemde siyah gösterir (ses gelir); bunlar ayrı bir Pusula penceresinde açılır.
+const kDrmSites = {
+  'tvplus.com.tr', 'netflix.com', 'disneyplus.com', 'primevideo.com', 'amazon.com.tr', 'max.com',
+  'hbomax.com', 'exxen.com', 'blutv.com', 'gain.com.tr', 'tod.tv', 'beinconnect.com.tr', 'tabii.com',
+  'mubi.com', 'appletv.apple.com', 'tv.apple.com', 'ssportplus.com', 'todtv.com.tr',
+};
+
+/// Sayfa korumalı video için şifre çözme izni isteyince (EME) uygulamaya haber verir.
+UserScript drmWatchScript() => UserScript(
+      groupName: 'oa-drm',
+      injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+      forMainFrameOnly: false,
+      source: r'''
+(function(){
+  if (window.__oaDrm) return; window.__oaDrm = 1;
+  var n = navigator, o = n.requestMediaKeySystemAccess;
+  if (!o) return;
+  var told = false;
+  function tell(ks){
+    if (told) return; told = true;
+    try { window.top.flutter_inappwebview.callHandler('oaDrm', String(ks)); return; } catch (e) {}
+    try { window.flutter_inappwebview.callHandler('oaDrm', String(ks)); } catch (e) {}
+  }
+  n.requestMediaKeySystemAccess = function(ks){
+    var p = o.apply(this, arguments);
+    try { p.then(function(){ tell(ks); }, function(){}); } catch (e) {}
+    return p;
+  };
+})();
+''',
+    );

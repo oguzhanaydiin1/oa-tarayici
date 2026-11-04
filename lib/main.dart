@@ -367,6 +367,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   bool _adblockOn = true;
   Set<String> _adblockAllow = {};
 
+  // Korumalı video (Windows): ayrı pencerede açılacak siteler ve bu oturumda sorulanlar
+  Set<String> _drmSites = {};
+  final Set<String> _drmAsked = {};
+  final List<InAppBrowser> _drmWindows = [];
+
   // Başlangıç sayfası arka planı ve okuma modu yazı boyu
   String _wallpaperId = 'glow';
   Set<String> _hiddenPromos = {};
@@ -598,6 +603,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       _suggestOn = _prefs!.getBool('suggest') ?? true;
       _adblockOn = _prefs!.getBool('adblock') ?? true;
       _adblockAllow = (_prefs!.getStringList('adblock_allow') ?? []).toSet();
+      _drmSites = (_prefs!.getStringList('drm_sites') ?? []).toSet();
       _wallpaperId = _prefs!.getString('wallpaper') ?? 'glow';
       _hiddenPromos = (_prefs!.getStringList('promo_hidden') ?? []).toSet();
       _wallpaperPath = _prefs!.getString('wallpaper_path');
@@ -3179,6 +3185,93 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     });
   }
 
+  // ----------------------------------------------------------------- Korumalı video (Windows)
+
+  String _siteKey(String host) {
+    final h = host.startsWith('www.') ? host.substring(4) : host;
+    for (final d in {...kDrmSites, ..._drmSites}) {
+      if (h == d || h.endsWith('.$d')) return d;
+    }
+    return h;
+  }
+
+  bool _isDrmSite(String host) {
+    final k = _siteKey(host);
+    return kDrmSites.contains(k) || _drmSites.contains(k);
+  }
+
+  /// Sayfa korumalı video başlattı: bilinen sitelerde doğrudan ayrı pencere, diğerlerinde sorulur.
+  void _onProtectedVideo(TabData t) {
+    if (!Platform.isWindows) return;
+    final host = Uri.tryParse(t.url)?.host ?? '';
+    if (host.isEmpty) return;
+    final key = _siteKey(host);
+    if (_drmAsked.contains(key)) return;
+    _drmAsked.add(key);
+    if (_isDrmSite(host)) {
+      _openProtectedWindow(t, auto: true);
+      return;
+    }
+    final m = ScaffoldMessenger.of(context);
+    m.hideCurrentMaterialBanner();
+    m.showMaterialBanner(MaterialBanner(
+      backgroundColor: OAColors.surface,
+      leading: Icon(Icons.videocam_off_outlined, color: OAColors.amber),
+      content: Text('$key kopya korumalı video kullanıyor. Burada ses gelip görüntü siyah kalabilir; ayrı pencerede düzgün oynar.'),
+      actions: [
+        TextButton(onPressed: m.hideCurrentMaterialBanner, child: const Text('Kapat')),
+        TextButton(
+          onPressed: () {
+            m.hideCurrentMaterialBanner();
+            setState(() => _drmSites.add(key));
+            _prefs?.setStringList('drm_sites', _drmSites.toList());
+            _openProtectedWindow(t);
+          },
+          child: const Text('Hep ayrı aç'),
+        ),
+        FilledButton(
+          onPressed: () {
+            m.hideCurrentMaterialBanner();
+            _openProtectedWindow(t);
+          },
+          child: const Text('Ayrı pencerede aç'),
+        ),
+      ],
+    ));
+  }
+
+  /// Sayfayı web motorunun doğrudan çizdiği ayrı bir pencerede açar. Aynı tarayıcı verisini
+  /// kullandığı için oturum açık kalır.
+  Future<void> _openProtectedWindow(TabData t, {bool auto = false}) async {
+    if (!Platform.isWindows || t.url.isEmpty) return;
+    final url = t.url;
+    final host = Uri.tryParse(url)?.host ?? url;
+    // Sekmedeki oynatıcı susar (iki yerden ses gelmesin)
+    try {
+      await t.controller?.evaluateJavascript(
+          source: "document.querySelectorAll('video,audio').forEach(function(m){try{m.pause()}catch(e){}})");
+    } catch (_) {}
+    late final _ProtectedWindow w;
+    w = _ProtectedWindow(webViewEnvironment: oaWebEnv, onClosed: () => _drmWindows.remove(w));
+    _drmWindows.add(w);
+    try {
+      await w.openUrlRequest(
+        urlRequest: URLRequest(url: WebUri(url)),
+        settings: InAppBrowserClassSettings(
+          browserSettings: InAppBrowserSettings(toolbarTopFixedTitle: 'Pusula · $host'),
+          webViewSettings: InAppWebViewSettings(
+            mediaPlaybackRequiresUserGesture: false,
+            isInspectable: false,
+          ),
+        ),
+      );
+      if (auto) _toast('$host kopya korumalı video kullanıyor; ayrı pencerede açıldı');
+    } catch (_) {
+      _drmWindows.remove(w);
+      _toast('Ayrı pencere açılamadı');
+    }
+  }
+
   // ----------------------------------------------------------------- Sesli okuma
 
   Future<void> _readAloud() async {
@@ -4825,6 +4918,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         if (_quick.length < kMaxQuickLinks) _mi('quick', Icons.add_to_home_screen_outlined, 'Hızlı erişime ekle'),
         const PopupMenuDivider(),
         _mi('tts', Icons.record_voice_over_outlined, 'Sesli oku'),
+        if (Platform.isWindows && !_tab.showStart) _mi('drmwin', Icons.open_in_new, 'Ayrı pencerede aç (video görünmüyorsa)'),
         if (Platform.isWindows)
           _split == null
               ? _mi('splitnew', Icons.vertical_split_outlined, 'Yan yana yeni sekme')
@@ -4963,6 +5057,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         _showQrShare();
       case 'pin':
         _togglePin(_tab);
+      case 'drmwin':
+        _openProtectedWindow(_tab);
       case 'tts':
         _readAloud();
       case 'unsplit':
@@ -5894,6 +5990,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         if (_cookieOn) cookieBannerScript(_adblockAllow),
         if (_gesturesOn && Platform.isWindows) mouseGestureScript(),
         if (Platform.isWindows) windowSizeScript(),
+        if (Platform.isWindows) drmWatchScript(),
         // Şifre kaydetme (gizli sekmede değil)
         if (!t.incognito)
           UserScript(
@@ -5922,6 +6019,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           : null,
       onWebViewCreated: (c) {
         t.controller = c;
+        c.addJavaScriptHandler(handlerName: 'oaDrm', callback: (_) {
+          if (mounted) _onProtectedVideo(t);
+        });
         c.addJavaScriptHandler(handlerName: 'oaGesture', callback: (args) {
           if (t != _tab || args.isEmpty) return;
           switch (args.first.toString()) {
@@ -6264,4 +6364,14 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       ),
     );
   }
+}
+
+
+/// Korumalı video için açılan ayrı pencere (Windows).
+class _ProtectedWindow extends InAppBrowser {
+  _ProtectedWindow({super.webViewEnvironment, required this.onClosed});
+  final VoidCallback onClosed;
+
+  @override
+  void onExit() => onClosed();
 }
