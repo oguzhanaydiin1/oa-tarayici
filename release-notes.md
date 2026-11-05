@@ -119,3 +119,8 @@ En yeni sürüm en üstte olsun.
 • Back first goes back inside the video page, and at the start returns to the tab's own page. Menu → "Exit protected video" does the same.
 • If the picture doesn't show on a site that isn't on the list, use menu → "Fix video not showing".
 • While a menu or settings is open the video is hidden for a moment and comes back when it closes.
+
+## 0.18.6
+• Windows: sekmenin içinde oynayan korumalı videonun uygulamanın altında kalmaması için eksik kalan düzeltme tamamlandı.
+
+• Windows: completed a fix that was left out, so protected video playing inside the tab no longer ends up underneath the app.
