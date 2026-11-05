@@ -15,7 +15,9 @@ Future<void> initWebEnv() async {
   try {
     oaWebEnv = await WebViewEnvironment.create(
       settings: WebViewEnvironmentSettings(
-        additionalBrowserArguments: '--autoplay-policy=no-user-gesture-required',
+        // Video kaplaması kapalı: donanım video katmanı uygulamanın sayfa görüntüsünü aldığı
+        // yöntemde görünmüyor (ses gelir, görüntü siyah kalır); video normal sayfa katmanında çizilir.
+        additionalBrowserArguments: '--autoplay-policy=no-user-gesture-required --disable-direct-composition-video-overlays',
       ),
     );
   } catch (_) {

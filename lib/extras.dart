@@ -289,19 +289,34 @@ UserScript drmWatchScript() => UserScript(
       source: r'''
 (function(){
   if (window.__oaDrm) return; window.__oaDrm = 1;
-  var n = navigator, o = n.requestMediaKeySystemAccess;
-  if (!o) return;
-  var told = false;
-  function tell(ks){
-    if (told) return; told = true;
-    try { window.top.flutter_inappwebview.callHandler('oaDrm', String(ks)); return; } catch (e) {}
-    try { window.flutter_inappwebview.callHandler('oaDrm', String(ks)); } catch (e) {}
+  var top = window.top === window;
+  // Uygulamaya iletme: oynatıcı başka siteden bir çerçevedeyse ana sayfaya mesajla gider.
+  function send(kind){
+    if (top) { try { window.flutter_inappwebview.callHandler('oaDrm', kind); } catch (e) {} return; }
+    try { window.top.postMessage({ __oaDrm: kind }, '*'); } catch (e) {}
   }
-  n.requestMediaKeySystemAccess = function(ks){
-    var p = o.apply(this, arguments);
-    try { p.then(function(){ tell(ks); }, function(){}); } catch (e) {}
-    return p;
-  };
+  if (top) {
+    window.addEventListener('message', function(e){
+      var d = e && e.data;
+      if (d && typeof d === 'object' && (d.__oaDrm === 'eme' || d.__oaDrm === 'play')) send(d.__oaDrm);
+    });
+  }
+  var told = {};
+  function tell(kind){ if (told[kind]) return; told[kind] = 1; send(kind); }
+  // Kopya korumalı video için şifre çözme izni (EME) istendi
+  var n = navigator, o = n.requestMediaKeySystemAccess;
+  if (o) {
+    n.requestMediaKeySystemAccess = function(){
+      var p = o.apply(this, arguments);
+      try { p.then(function(){ tell('eme'); }, function(){}); } catch (e) {}
+      return p;
+    };
+  }
+  // Bir video oynamaya başladı (bilinen yayın sitelerinde uygulama buna da bakar)
+  document.addEventListener('playing', function(e){
+    var v = e.target;
+    if (v && v.tagName === 'VIDEO') tell(v.mediaKeys ? 'eme' : 'play');
+  }, true);
 })();
 ''',
     );

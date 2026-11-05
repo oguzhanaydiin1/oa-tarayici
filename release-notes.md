@@ -99,3 +99,12 @@ En yeni sürüm en üstte olsun.
 
 • Windows: fixed sound playing with a black picture on copy-protected streams such as TV+, Netflix, Disney+, Prime Video and Exxen. These sites open in a separate Pusula window when the video starts, and you stay signed in.
 • If a site that isn't on the list plays protected video, a banner offers "Open in a separate window" or "Always open separately". The menu also has "Open in a separate window (if the video doesn't show)".
+
+## 0.18.4
+• Windows: TV+ gibi sitelerde oynatıcı sayfanın içindeki ayrı bir çerçevede çalıştığı için ayrı pencere kendiliğinden açılmıyordu; düzeltildi.
+• "Videoyu ayrı pencerede aç" artık ana menüde (önceden "Bu sayfa" alt menüsündeydi). Komut kutusunda da var.
+• Video, sekmede de normal sayfa katmanında çizilir; bazı sitelerde görüntünün siyah kalması bununla da düzelebilir.
+
+• Windows: on sites like TV+ the player runs in a separate frame inside the page, so the separate window didn't open by itself; fixed.
+• "Open video in a separate window" is now in the main menu (it used to be under "This page"), and in the command box too.
+• Video is now also drawn in the normal page layer inside the tab, which can fix a black picture on some sites.

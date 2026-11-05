@@ -2846,6 +2846,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         (Icons.bookmark_add_outlined, 'Sonra oku listesine ekle', 'kaydet', () => menu('later')),
         (Icons.chrome_reader_mode_outlined, 'Okuma modu', 'reader', () => menu('reader')),
         (Icons.record_voice_over_outlined, 'Sesli oku', 'tts seslendir dinle oku', () => menu('tts')),
+        if (Platform.isWindows) (Icons.open_in_new, 'Videoyu ayrı pencerede aç', 'video siyah görüntü yok drm tv', () => menu('drmwin')),
         if (Platform.isWindows)
           (Icons.vertical_split_outlined, _split == null ? 'Yan yana yeni sekme' : 'Yan yana görünümü kapat', 'split bolunmus ekran',
               () => menu(_split == null ? 'splitnew' : 'unsplit')),
@@ -3201,11 +3202,13 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   }
 
   /// Sayfa korumalı video başlattı: bilinen sitelerde doğrudan ayrı pencere, diğerlerinde sorulur.
-  void _onProtectedVideo(TabData t) {
+  void _onProtectedVideo(TabData t, {bool eme = true}) {
     if (!Platform.isWindows) return;
     final host = Uri.tryParse(t.url)?.host ?? '';
     if (host.isEmpty) return;
     final key = _siteKey(host);
+    // Korumasız bir video oynaması yalnız bilinen yayın sitelerinde dikkate alınır
+    if (!eme && !_isDrmSite(host)) return;
     if (_drmAsked.contains(key)) return;
     _drmAsked.add(key);
     if (_isDrmSite(host)) {
@@ -4876,6 +4879,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               if (_tabs.length > 1) _mi('closeall', Icons.clear_all, 'Bütün sekmeleri kapat', 'Ctrl+Shift+W'),
               if (!_tab.showStart) ...[
                 const PopupMenuDivider(),
+                if (Platform.isWindows) _mi('drmwin', Icons.open_in_new, 'Videoyu ayrı pencerede aç'),
                 _mi('page', Icons.article_outlined, 'Bu sayfa', '›'),
               ],
               const PopupMenuDivider(),
@@ -4918,7 +4922,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         if (_quick.length < kMaxQuickLinks) _mi('quick', Icons.add_to_home_screen_outlined, 'Hızlı erişime ekle'),
         const PopupMenuDivider(),
         _mi('tts', Icons.record_voice_over_outlined, 'Sesli oku'),
-        if (Platform.isWindows && !_tab.showStart) _mi('drmwin', Icons.open_in_new, 'Ayrı pencerede aç (video görünmüyorsa)'),
+        if (Platform.isWindows && !_tab.showStart) _mi('drmwin', Icons.open_in_new, 'Videoyu ayrı pencerede aç'),
         if (Platform.isWindows)
           _split == null
               ? _mi('splitnew', Icons.vertical_split_outlined, 'Yan yana yeni sekme')
@@ -6019,8 +6023,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           : null,
       onWebViewCreated: (c) {
         t.controller = c;
-        c.addJavaScriptHandler(handlerName: 'oaDrm', callback: (_) {
-          if (mounted) _onProtectedVideo(t);
+        c.addJavaScriptHandler(handlerName: 'oaDrm', callback: (args) {
+          if (mounted) _onProtectedVideo(t, eme: args.isNotEmpty && args.first == 'eme');
         });
         c.addJavaScriptHandler(handlerName: 'oaGesture', callback: (args) {
           if (t != _tab || args.isEmpty) return;
