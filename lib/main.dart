@@ -122,12 +122,33 @@ class _BrowserAppState extends State<BrowserApp> with WidgetsBindingObserver {
       title: 'Pusula Browser',
       debugShowCheckedModeBanner: false,
       theme: buildOATheme(p),
+      navigatorObservers: [_RouteDepthObserver()],
       home: BrowserPage(key: _pageKey),
     );
   }
 }
 
 final _pageKey = GlobalKey<_BrowserPageState>();
+
+/// Ana sayfanın üstünde açık olan menü, pencere ve ekran sayısı. Gömülü video bunlar açıkken gizlenir.
+final ValueNotifier<int> kRouteDepth = ValueNotifier(0);
+
+class _RouteDepthObserver extends NavigatorObserver {
+  @override
+  void didPush(Route route, Route? previousRoute) {
+    if (previousRoute != null) kRouteDepth.value++;
+  }
+
+  @override
+  void didPop(Route route, Route? previousRoute) {
+    if (kRouteDepth.value > 0) kRouteDepth.value--;
+  }
+
+  @override
+  void didRemove(Route route, Route? previousRoute) {
+    if (kRouteDepth.value > 0) kRouteDepth.value--;
+  }
+}
 
 /// OA hesabıyla eşitlenen öbür cihaz ve açık sekmeleri.
 class RemoteDevice {
@@ -184,6 +205,9 @@ class TabData {
 
   /// Sekme önizlemesi için sayfanın küçük resmi (sekmeden ayrılırken alınır).
   Uint8List? thumb;
+
+  /// Korumalı video bu sekmenin içinde ayrı bir Windows penceresinde oynuyorsa (bkz. _embedProtected)
+  _EmbeddedVideo? embed;
 
   String url = '';
   String title = '';
@@ -371,6 +395,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   Set<String> _drmSites = {};
   final Set<String> _drmAsked = {};
   final List<InAppBrowser> _drmWindows = [];
+  final GlobalKey _pageAreaKey = GlobalKey();
 
   // Başlangıç sayfası arka planı ve okuma modu yazı boyu
   String _wallpaperId = 'glow';
@@ -417,6 +442,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     super.initState();
     _tabs.add(TabData());
     WidgetsBinding.instance.addObserver(this);
+    kRouteDepth.addListener(_syncEmbedsSoon);
+    _urlFocus.addListener(_syncEmbedsSoon);
     _passwords.load();
     _passwords.onLocalChange = () {
       if (_vault.enabled) _scheduleSync();
@@ -2846,7 +2873,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         (Icons.bookmark_add_outlined, 'Sonra oku listesine ekle', 'kaydet', () => menu('later')),
         (Icons.chrome_reader_mode_outlined, 'Okuma modu', 'reader', () => menu('reader')),
         (Icons.record_voice_over_outlined, 'Sesli oku', 'tts seslendir dinle oku', () => menu('tts')),
-        if (Platform.isWindows) (Icons.open_in_new, 'Videoyu ayrı pencerede aç', 'video siyah görüntü yok drm tv', () => menu('drmwin')),
+        if (Platform.isWindows) (Icons.videocam_outlined, 'Video görünmüyorsa düzelt', 'video siyah görüntü yok drm tv', () => menu('drmembed')),
+        if (Platform.isWindows) (Icons.open_in_new, 'Videoyu ayrı pencerede aç', 'video siyah drm pencere', () => menu('drmwin')),
         if (Platform.isWindows)
           (Icons.vertical_split_outlined, _split == null ? 'Yan yana yeni sekme' : 'Yan yana görünümü kapat', 'split bolunmus ekran',
               () => menu(_split == null ? 'splitnew' : 'unsplit')),
@@ -3209,18 +3237,19 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     final key = _siteKey(host);
     // Korumasız bir video oynaması yalnız bilinen yayın sitelerinde dikkate alınır
     if (!eme && !_isDrmSite(host)) return;
-    if (_drmAsked.contains(key)) return;
-    _drmAsked.add(key);
+    if (t.embed != null) return;
     if (_isDrmSite(host)) {
-      _openProtectedWindow(t, auto: true);
+      _embedProtected(t);
       return;
     }
+    if (_drmAsked.contains(key)) return;
+    _drmAsked.add(key);
     final m = ScaffoldMessenger.of(context);
     m.hideCurrentMaterialBanner();
     m.showMaterialBanner(MaterialBanner(
       backgroundColor: OAColors.surface,
       leading: Icon(Icons.videocam_off_outlined, color: OAColors.amber),
-      content: Text('$key kopya korumalı video kullanıyor. Burada ses gelip görüntü siyah kalabilir; ayrı pencerede düzgün oynar.'),
+      content: Text('$key kopya korumalı video kullanıyor. Ses gelip görüntü siyah kalıyorsa "Düzgün göster"e bas.'),
       actions: [
         TextButton(onPressed: m.hideCurrentMaterialBanner, child: const Text('Kapat')),
         TextButton(
@@ -3228,16 +3257,16 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             m.hideCurrentMaterialBanner();
             setState(() => _drmSites.add(key));
             _prefs?.setStringList('drm_sites', _drmSites.toList());
-            _openProtectedWindow(t);
+            _embedProtected(t);
           },
-          child: const Text('Hep ayrı aç'),
+          child: const Text('Bu sitede hep'),
         ),
         FilledButton(
           onPressed: () {
             m.hideCurrentMaterialBanner();
-            _openProtectedWindow(t);
+            _embedProtected(t);
           },
-          child: const Text('Ayrı pencerede aç'),
+          child: const Text('Düzgün göster'),
         ),
       ],
     ));
@@ -3273,6 +3302,136 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       _drmWindows.remove(w);
       _toast('Ayrı pencere açılamadı');
     }
+  }
+
+
+  // ----------------------------------------------------------------- Korumalı video sekmenin içinde (Windows)
+
+  /// Sayfa alanının uygulama penceresindeki yeri.
+  Rect? _pageRect() {
+    final box = _pageAreaKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize || !box.attached) return null;
+    return box.localToGlobal(Offset.zero) & box.size;
+  }
+
+  InAppWebViewRect _px(Rect r) {
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    return InAppWebViewRect(
+      x: (r.left * dpr).roundToDouble(),
+      y: (r.top * dpr).roundToDouble(),
+      width: (r.width * dpr).roundToDouble(),
+      height: (r.height * dpr).roundToDouble(),
+    );
+  }
+
+  /// Gömülü video yalnız etkin sekmedeyken ve üstte menü, pencere ya da adres önerisi yokken görünür
+  /// (Windows'un kendi penceresi olduğu için uygulamanın çizdiği şeyler onun altında kalır).
+  bool _embedVisible(TabData t) =>
+      identical(t, _tab) && kRouteDepth.value == 0 && !_urlFocus.hasFocus && !_miniVideo && _split == null;
+
+  bool _embedSyncQueued = false;
+
+  void _syncEmbedsSoon() {
+    if (_embedSyncQueued || !_tabs.any((t) => t.embed != null)) return;
+    _embedSyncQueued = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _embedSyncQueued = false;
+      _syncEmbeds();
+    });
+  }
+
+  void _syncEmbeds() {
+    if (!mounted) return;
+    final r = _pageRect();
+    for (final t in _tabs) {
+      final e = t.embed;
+      if (e == null || !e.ready) continue;
+      final show = r != null && _embedVisible(t);
+      if (show == e.shown && (!show || r == e.rect)) continue;
+      e.shown = show;
+      if (r != null) e.rect = r;
+      e.setSettings(
+        settings: InAppBrowserClassSettings(
+          browserSettings: InAppBrowserSettings(
+            hidden: !show,
+            windowFrame: r != null ? _px(r) : null,
+          ),
+        ),
+      );
+    }
+  }
+
+  /// Korumalı videoyu sekmenin içinde, web motorunun doğrudan çizdiği bir pencerede gösterir.
+  Future<void> _embedProtected(TabData t) async {
+    if (!Platform.isWindows || t.embed != null || t.url.isEmpty) return;
+    final r = _pageRect();
+    if (r == null || _split != null) {
+      _openProtectedWindow(t, auto: true);
+      return;
+    }
+    try {
+      await t.controller?.evaluateJavascript(
+          source: "document.querySelectorAll('video,audio').forEach(function(m){try{m.pause()}catch(e){}})");
+    } catch (_) {}
+    late final _EmbeddedVideo e;
+    e = _EmbeddedVideo(
+      webViewEnvironment: oaWebEnv,
+      onUrl: (u) {
+        if (!mounted || t.embed != e) return;
+        setState(() {
+          t.url = u;
+          if (identical(t, _tab) && !_urlFocus.hasFocus) _urlCtl.text = u;
+        });
+      },
+      onTitle: (x) {
+        if (mounted && t.embed == e && x != null && x.isNotEmpty) setState(() => t.title = x);
+      },
+      onClosed: () {
+        if (t.embed == e) {
+          t.embed = null;
+          if (mounted) setState(() {});
+        }
+      },
+    );
+    t.embed = e;
+    e.rect = r;
+    e.shown = _embedVisible(t);
+    try {
+      await e.openUrlRequest(
+        urlRequest: URLRequest(url: WebUri(t.url)),
+        settings: InAppBrowserClassSettings(
+          browserSettings: InAppBrowserSettings(
+            windowType: WindowType.CHILD,
+            windowFrame: _px(r),
+            hidden: !e.shown,
+          ),
+          webViewSettings: InAppWebViewSettings(mediaPlaybackRequiresUserGesture: false, isInspectable: false),
+        ),
+      );
+      e.ready = true;
+      if (mounted) setState(() {});
+      _syncEmbedsSoon();
+    } catch (_) {
+      t.embed = null;
+      _openProtectedWindow(t, auto: true);
+    }
+  }
+
+  /// Gömülü videodan sekmenin kendi sayfasına dönüş.
+  void _closeEmbed(TabData t, {bool reloadTab = true}) {
+    final e = t.embed;
+    if (e == null) return;
+    t.embed = null;
+    try {
+      e.close();
+    } catch (_) {}
+    if (reloadTab && t.url.isNotEmpty) {
+      final cur = t.controller;
+      cur?.getUrl().then((u) {
+        if (u?.toString() != t.url) cur.loadUrl(urlRequest: URLRequest(url: WebUri(t.url)));
+      });
+    }
+    if (mounted) setState(() {});
   }
 
   // ----------------------------------------------------------------- Sesli okuma
@@ -3827,6 +3986,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   }
 
   void _disposeTab(TabData t) {
+    _closeEmbed(t, reloadTab: false);
     final k = t.keepAlive;
     // Web görünümü ağaçtan çıktıktan sonra bellekteki sayfayı da bırak.
     if (k != null) {
@@ -4169,6 +4329,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   }
 
   void _go(String input, {bool forceSearch = false}) {
+    _closeEmbed(_tab, reloadTab: false);
     if (input.trim().isEmpty) {
       _goHome();
       return;
@@ -4207,6 +4368,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   }
 
   void _goHome() {
+    _closeEmbed(_tab, reloadTab: false);
     setState(() {
       _tab.showStart = true;
       _tab.progress = 1;
@@ -4224,6 +4386,16 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   Future<void> _back() async {
     final t = _tab;
     if (t.showStart) return;
+    final e = t.embed;
+    if (e != null) {
+      final c = e.webViewController;
+      if (c != null && await c.canGoBack()) {
+        await c.goBack();
+      } else {
+        _closeEmbed(t);
+      }
+      return;
+    }
     if (await t.controller?.canGoBack() ?? false) {
       await t.controller!.goBack();
     } else {
@@ -4234,6 +4406,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   void _forward() {
     final t = _tab;
+    if (t.embed != null) {
+      t.embed!.webViewController?.goForward();
+      return;
+    }
     if (t.showStart && t.webStarted) {
       setState(() {
         t.showStart = false;
@@ -4247,6 +4423,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   void _reloadOrStop() {
     final t = _tab;
     if (t.showStart) return;
+    if (t.embed != null) {
+      t.embed!.webViewController?.reload();
+      return;
+    }
     if (t.progress < 1) {
       t.controller?.stopLoading();
     } else {
@@ -4421,6 +4601,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final mobile = _isMobile(context);
+    _syncEmbedsSoon();
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
@@ -4731,6 +4912,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   Widget _pageArea() {
     return Stack(
+              key: _pageAreaKey,
               children: [
                 _pages(compact: false),
                 // Windows: radyo sayfası burada, 1×1 piksel (bkz. RadioPlayer.host)
@@ -4879,7 +5061,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               if (_tabs.length > 1) _mi('closeall', Icons.clear_all, 'Bütün sekmeleri kapat', 'Ctrl+Shift+W'),
               if (!_tab.showStart) ...[
                 const PopupMenuDivider(),
-                if (Platform.isWindows) _mi('drmwin', Icons.open_in_new, 'Videoyu ayrı pencerede aç'),
+                if (Platform.isWindows)
+                  _tab.embed != null
+                      ? _mi('drmoff', Icons.close_fullscreen, 'Korumalı videodan çık')
+                      : _mi('drmembed', Icons.videocam_outlined, 'Video görünmüyorsa düzelt'),
                 _mi('page', Icons.article_outlined, 'Bu sayfa', '›'),
               ],
               const PopupMenuDivider(),
@@ -5063,6 +5248,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         _togglePin(_tab);
       case 'drmwin':
         _openProtectedWindow(_tab);
+      case 'drmembed':
+        _embedProtected(_tab);
+      case 'drmoff':
+        _closeEmbed(_tab);
       case 'tts':
         _readAloud();
       case 'unsplit':
@@ -6375,6 +6564,29 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 class _ProtectedWindow extends InAppBrowser {
   _ProtectedWindow({super.webViewEnvironment, required this.onClosed});
   final VoidCallback onClosed;
+
+  @override
+  void onExit() => onClosed();
+}
+
+
+/// Sekmenin içine yerleşen, korumalı videoyu doğrudan ekrana çizen Windows penceresi.
+class _EmbeddedVideo extends InAppBrowser {
+  _EmbeddedVideo({super.webViewEnvironment, required this.onUrl, required this.onTitle, required this.onClosed});
+  final void Function(String url) onUrl;
+  final void Function(String? title) onTitle;
+  final VoidCallback onClosed;
+  bool ready = false;
+  bool shown = false;
+  Rect? rect;
+
+  @override
+  void onUpdateVisitedHistory(WebUri? url, bool? isReload) {
+    if (url != null) onUrl(url.toString());
+  }
+
+  @override
+  void onTitleChanged(String? title) => onTitle(title);
 
   @override
   void onExit() => onClosed();

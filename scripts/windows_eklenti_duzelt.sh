@@ -40,3 +40,16 @@ if grep -q 'L"Runtime.enable"' "$f"; then
 else
   echo "::warning title=eklenti::Runtime.enable bulunamadı (eklenti sürümü değişmiş olabilir)"
 fi
+
+# Korumalı video sekmenin içinde: InAppBrowser'ın "CHILD" penceresi başlık çubuksuz, kenarsız ve saydamlık
+# katmanı olmadan (katmanlı pencerede korumalı video gösterilmeyebilir) uygulamanın içine yerleşir.
+# Ayrı pencere de saydam değilse katmansız açılır.
+b=windows/flutter/ephemeral/.plugin_symlinks/flutter_inappwebview_windows/windows/in_app_browser/in_app_browser.cpp
+if [[ -f "$b" ]] && grep -qF '(WS_CHILDWINDOW | WS_OVERLAPPEDWINDOW)' "$b" && grep -qF 'WS_EX_LAYERED,            // Optional window styles.' "$b"; then
+  perl -0pi -e 's/\(WS_CHILDWINDOW \| WS_OVERLAPPEDWINDOW\)/(WS_CHILD | WS_CLIPSIBLINGS | WS_CLIPCHILDREN)/' "$b"
+  perl -0pi -e 's/WS_EX_LAYERED,            \/\/ Optional window styles\./(settings->windowType == InAppBrowserWindowType::window \&\& settings->windowAlphaValue < 1.0) ? WS_EX_LAYERED : 0,/' "$b"
+  perl -0pi -e 's/(    SetLayeredWindowAttributes\(m_hWnd, 0, \(BYTE\)\(255 \* settings->windowAlphaValue\), LWA_ALPHA\);\n)/    if (settings->windowType == InAppBrowserWindowType::window) {\n      if (settings->windowAlphaValue < 1.0) {\n  $1      }\n    } else {\n      SetWindowLongPtr(parentWindow, GWL_STYLE, GetWindowLongPtr(parentWindow, GWL_STYLE) | WS_CLIPCHILDREN);\n      SetWindowPos(m_hWnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);\n    }\n/' "$b"
+  grep -q 'WS_CLIPSIBLINGS | WS_CLIPCHILDREN' "$b" && grep -q 'HWND_TOP' "$b" && echo "Gömülü pencere düzeltmesi uygulandı" || echo "::warning title=eklenti::Gömülü pencere düzeltmesi eksik uygulandı"
+else
+  echo "::warning title=eklenti::Gömülü pencere düzeltmesi uygulanamadı ($b)"
+fi

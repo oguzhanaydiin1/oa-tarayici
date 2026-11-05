@@ -108,3 +108,14 @@ En yeni sürüm en üstte olsun.
 • Windows: on sites like TV+ the player runs in a separate frame inside the page, so the separate window didn't open by itself; fixed.
 • "Open video in a separate window" is now in the main menu (it used to be under "This page"), and in the command box too.
 • Video is now also drawn in the normal page layer inside the tab, which can fix a black picture on some sites.
+
+## 0.18.5
+• Windows: TV+, Netflix, Disney+ gibi kopya korumalı yayınlar artık ayrı pencere açmadan sekmenin içinde oynar. Video başlayınca sayfa, sekmenin yerinde web motorunun doğrudan çizdiği bir alana geçer; görüntü siyah kalmaz.
+• Geri tuşu önce videonun içinde geri gider, en başta sekmenin kendi sayfasına döner. Menü → "Korumalı videodan çık" da aynısını yapar.
+• Listede olmayan bir sitede görüntü gelmiyorsa menü → "Video görünmüyorsa düzelt".
+• Menü ya da ayarlar açıkken video geçici olarak gizlenir, kapanınca geri gelir.
+
+• Windows: copy-protected streams such as TV+, Netflix and Disney+ now play inside the tab, without a separate window. When the video starts, the page moves into an area of the tab that the web engine draws directly, so the picture is no longer black.
+• Back first goes back inside the video page, and at the start returns to the tab's own page. Menu → "Exit protected video" does the same.
+• If the picture doesn't show on a site that isn't on the list, use menu → "Fix video not showing".
+• While a menu or settings is open the video is hidden for a moment and comes back when it closes.
