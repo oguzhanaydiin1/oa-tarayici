@@ -53,3 +53,12 @@ if [[ -f "$b" ]] && grep -qF '(WS_CHILDWINDOW | WS_OVERLAPPEDWINDOW)' "$b" && gr
 else
   echo "::warning title=eklenti::Gömülü pencere düzeltmesi uygulanamadı ($b)"
 fi
+
+# Bağlantı adresi baloncuğu: WebView2'nin kendi durum çubuğu (fareyle bağlantının üstüne gelince sol
+# altta çıkan adres) sekme değişince öbür sekmelerde de takılı kalıyordu; kapatılır.
+if grep -q 'webView2Settings->put_AreDevToolsEnabled(settings->isInspectable);' "$f"; then
+  perl -0pi -e 's/(      webView2Settings->put_AreDevToolsEnabled\(settings->isInspectable\);)/$1\n      webView2Settings->put_IsStatusBarEnabled(FALSE);/' "$f"
+  grep -q 'put_IsStatusBarEnabled(FALSE)' "$f" && echo "Durum çubuğu kapatıldı" || echo "::warning title=eklenti::Durum çubuğu kapatılamadı"
+else
+  echo "::warning title=eklenti::Durum çubuğu ayarı bulunamadı"
+fi

@@ -168,7 +168,10 @@ class _StartPageState extends State<StartPage> {
             ? 'Merhaba ${widget.userFirstName}'
             : 'Pusula Browser';
 
-    final wide = MediaQuery.sizeOf(context).width >= 1180;
+    return LayoutBuilder(builder: (context, box) {
+    // Köşe kutusu (saat, hava, kurlar) yalnız ortadaki içerikle çakışmayacak kadar yer varsa sağ üstte
+    // durur: 760 px içerik + iki yanda en az 290 px. Yoksa arama kutusunun altına iner.
+    final wide = box.maxWidth >= 760 + 2 * 290;
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -306,6 +309,7 @@ class _StartPageState extends State<StartPage> {
         ),
       ],
     );
+    });
   }
 
   Widget _quickTile(int i, {bool arranging = false}) {

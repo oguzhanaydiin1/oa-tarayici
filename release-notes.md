@@ -129,3 +129,22 @@ En yeni sürüm en üstte olsun.
 • Geri tuşu düzeltildi: Trendyol gibi siteler bir ürünü yeni sekmede açınca, o sekmede geri basınca ana sayfa yerine ürünü açtığın sayfaya dönersin (yeni sekme kapanır).
 
 • Fixed the Back button: when a site like Trendyol opens a product in a new tab, pressing Back in that tab takes you to the page you opened it from instead of the start page (the new tab closes).
+
+## 0.18.8
+• Windows: bir site bağlantıyı yeni sekmede açınca bulunduğun sekme de aynı sayfaya gidiyordu (Trendyol, Hürriyet gibi); artık yalnız yeni sekme açılır, geri basınca kaldığın sayfaya dönersin.
+• Windows: uygulamayı kapatınca bir sonraki açılışta çıkan "Pusula geçen sefer beklenmedik şekilde kapandı" uyarısı düzeltildi (kapanışta olan bir çökmeydi).
+• TV+ canlı yayın gibi kopya korumasız videolar artık sekmenin kendisinde oynar; ayrı alana yalnız gerçekten korumalı videolarda geçilir. Bu alanda geri basınca doğrudan önceki sayfaya dönülür.
+• Sekme önizlemesi: sayfanın küçük resmi artık görünüyor.
+• Başlangıç sayfasında saat, hava ve kurlar kutusu dar pencerede arama kutusunun üstüne binmiyor.
+• Bağlantının üstüne gelince sol altta çıkan adres baloncuğu başka sekmelerde takılı kalıyordu; kaldırıldı.
+• Ctrl+Shift+N ile gizli sekme açılır. Komut kutusunda adı aradığınla başlayan komutlar en üstte.
+• Sekme şeridinin solunda yeni Pusula logosu.
+
+• Windows: when a site opened a link in a new tab, the tab you were on also went to the same page (Trendyol, Hürriyet and others); now only the new tab opens, and Back returns you to where you were.
+• Windows: fixed the "Pusula closed unexpectedly last time" warning that appeared after closing the app (it was a crash on shutdown).
+• Videos without copy protection, such as TV+ live streams, now play in the tab itself; the separate area is used only for truly protected video. Back in that area goes straight to the previous page.
+• Tab previews: the page thumbnail now shows.
+• On the start page, the clock, weather and currency box no longer covers the search box in a narrow window.
+• The link address bubble at the bottom left (when hovering a link) got stuck on other tabs; it has been removed.
+• Ctrl+Shift+N opens a private tab. In the command box, commands whose name starts with what you typed come first.
+• The new Pusula logo at the left of the tab strip.

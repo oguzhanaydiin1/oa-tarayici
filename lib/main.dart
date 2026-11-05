@@ -2636,7 +2636,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       onCreateWindow: (c, action) async {
         final u = action.request.url;
         if (u != null) _addTab(url: u.toString());
-        return false;
+        return Platform.isWindows;
       },
       onPermissionRequest: (c, req) => _onPermissionRequest(_sideTab, req),
       onDownloadStartRequest: (c, req) => _download(req.url.toString(), name: req.suggestedFilename, from: _sideTab),
@@ -2913,6 +2913,19 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           for (final c in all)
             if (words.every((w) => _norm('${c.$2} ${c.$3}').contains(w))) c
         ];
+        // Adı arananla başlayan, sonra adında geçen, en son yalnız anahtar kelimede geçenler
+        int rank((IconData, String, String, VoidCallback) c) {
+          final name = _norm(c.$2);
+          if (q.isNotEmpty && name.startsWith(q)) return 0;
+          if (words.every(name.contains)) return 1;
+          return 2;
+        }
+        if (q.isNotEmpty) {
+          final sorted = [for (final r in [0, 1, 2]) ...hits.where((c) => rank(c) == r)];
+          hits
+            ..clear()
+            ..addAll(sorted);
+        }
         final raw = ctl.text.trim();
         final extra = <(IconData, String, String, VoidCallback)>[
           if (raw.isNotEmpty) (looksLikeUrl(raw) ? Icons.public : Icons.search, looksLikeUrl(raw) ? 'Git: $raw' : '"$raw" için ${_engine.name} ile ara', '', () => _go(raw)),
@@ -3160,6 +3173,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         });
         final data = r is Map ? r['data']?.toString() : null;
         if (data != null) t.thumb = base64Decode(data);
+        if (mounted) setState(() {});
       } else {
         final b = await c.takeScreenshot(
           screenshotConfiguration: ScreenshotConfiguration(compressFormat: CompressFormat.JPEG, quality: 40),
@@ -3238,8 +3252,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     final host = Uri.tryParse(t.url)?.host ?? '';
     if (host.isEmpty) return;
     final key = _siteKey(host);
-    // Korumasız bir video oynaması yalnız bilinen yayın sitelerinde dikkate alınır
-    if (!eme && !_isDrmSite(host)) return;
+    // Korumasız video sekmede zaten görünüyor (TV+ canlı yayın gibi); yalnız gerçek kopya koruması
+    // (EME) gömülü moda geçirir.
+    if (!eme) return;
     if (t.embed != null) return;
     if (_isDrmSite(host)) {
       _embedProtected(t);
@@ -4395,10 +4410,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       final c = e.webViewController;
       if (c != null && await c.canGoBack()) {
         await c.goBack();
-      } else {
-        _closeEmbed(t);
+        return;
       }
-      return;
+      _closeEmbed(t, reloadTab: false);
+      // aşağıda sekmenin kendi geçmişinde geri gidilir
     }
     if (await t.controller?.canGoBack() ?? false) {
       await t.controller!.goBack();
@@ -4625,6 +4640,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       child: CallbackShortcuts(
         bindings: {
           SingleActivator(LogicalKeyboardKey.keyT, control: true): () => _addTab(),
+          SingleActivator(LogicalKeyboardKey.keyN, control: true, shift: true): () => _addTab(incognito: true),
           SingleActivator(LogicalKeyboardKey.keyT, control: true, shift: true): _reopenClosedTab,
           SingleActivator(LogicalKeyboardKey.keyJ, control: true): _showDownloads,
           SingleActivator(LogicalKeyboardKey.keyW, control: true): () =>
@@ -4946,7 +4962,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         children: [
           Padding(
             padding: EdgeInsets.fromLTRB(10, 0, 6, 0),
-            child: OAMark(),
+            child: const PusulaMark(size: 24),
           ),
           Expanded(
             child: ListView(
@@ -6322,7 +6338,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           _addTab(url: u.toString(), incognito: t.incognito);
           _tab.openerId = t.id;
         }
-        return false;
+        // true: yeni sekmede açtık. false dönünce Windows eklentisi bağlantıyı bulunduğumuz
+        // sekmede de açıyordu (iki sekme de aynı sayfaya gidiyordu).
+        return Platform.isWindows;
       },
       onDownloadStartRequest: (c, req) =>
           _download(req.url.toString(), name: req.suggestedFilename, from: t),

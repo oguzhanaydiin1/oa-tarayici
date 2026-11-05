@@ -73,6 +73,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   // plugins.
   ::CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
 
+  {
   flutter::DartProject project(L"data");
   project.set_dart_entrypoint_arguments(std::move(command_line_arguments));
 
@@ -89,8 +90,13 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
     ::TranslateMessage(&msg);
     ::DispatchMessage(&msg);
   }
+  }  // pencere ve Flutter burada düzgünce kapanır (ayarlar, oturum kaydedilir)
 
   ::CoUninitialize();
   if (mutex) ::CloseHandle(mutex);
+  // Uygulama kapanırken WebView2 eklentisinin genel nesneleri, Windows'un görüntü bileşenleri
+  // (DirectComposition) çoktan kapanmışken siliniyor ve kapanışta çöküyordu (sonraki açılışta
+  // "beklenmedik şekilde kapandı" uyarısı). İş bittiği için süreç burada doğrudan sonlandırılır.
+  ::TerminateProcess(::GetCurrentProcess(), EXIT_SUCCESS);
   return EXIT_SUCCESS;
 }
