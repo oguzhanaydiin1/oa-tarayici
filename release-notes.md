@@ -124,3 +124,8 @@ En yeni sürüm en üstte olsun.
 • Windows: sekmenin içinde oynayan korumalı videonun uygulamanın altında kalmaması için eksik kalan düzeltme tamamlandı.
 
 • Windows: completed a fix that was left out, so protected video playing inside the tab no longer ends up underneath the app.
+
+## 0.18.7
+• Geri tuşu düzeltildi: Trendyol gibi siteler bir ürünü yeni sekmede açınca, o sekmede geri basınca ana sayfa yerine ürünü açtığın sayfaya dönersin (yeni sekme kapanır).
+
+• Fixed the Back button: when a site like Trendyol opens a product in a new tab, pressing Back in that tab takes you to the page you opened it from instead of the start page (the new tab closes).

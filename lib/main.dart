@@ -209,6 +209,9 @@ class TabData {
   /// Korumalı video bu sekmenin içinde ayrı bir Windows penceresinde oynuyorsa (bkz. _embedProtected)
   _EmbeddedVideo? embed;
 
+  /// Bu sekmeyi açan sekme (site bağlantıyı yeni sekmede açtıysa). İlk sayfada geri basınca oraya dönülür.
+  String? openerId;
+
   String url = '';
   String title = '';
   double progress = 1;
@@ -4330,6 +4333,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   void _go(String input, {bool forceSearch = false}) {
     _closeEmbed(_tab, reloadTab: false);
+    _tab.openerId = null; // adres çubuğundan gidilince açan sekmeyle bağı kalmaz
     if (input.trim().isEmpty) {
       _goHome();
       return;
@@ -4398,10 +4402,19 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     }
     if (await t.controller?.canGoBack() ?? false) {
       await t.controller!.goBack();
-    } else {
-      // İlk sayfadan geri: OA başlangıç sayfasına dön.
-      _goHome();
+      return;
     }
+    // Site bu sayfayı yeni sekmede açtıysa (ör. Trendyol'da ürün): bu sekme kapanır, açan sekmeye dönülür.
+    final openerIdx = t.openerId == null ? -1 : _tabs.indexWhere((x) => x.id == t.openerId);
+    if (openerIdx >= 0 && !t.pinned) {
+      final opener = _tabs[openerIdx];
+      _closeTab(_tabs.indexOf(t));
+      final j = _tabs.indexOf(opener);
+      if (j >= 0) _selectTab(j);
+      return;
+    }
+    // İlk sayfadan geri: başlangıç sayfasına dön.
+    _goHome();
   }
 
   void _forward() {
@@ -6305,7 +6318,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       onCreateWindow: (c, action) async {
         // target=_blank bağlantıları yeni sekmede aç
         final u = action.request.url;
-        if (u != null) _addTab(url: u.toString(), incognito: t.incognito);
+        if (u != null) {
+          _addTab(url: u.toString(), incognito: t.incognito);
+          _tab.openerId = t.id;
+        }
         return false;
       },
       onDownloadStartRequest: (c, req) =>
