@@ -3,7 +3,7 @@
 OA Labs'in Windows ve Android tarayıcısı (eski adı OA Tarayıcı). Flutter + `flutter_inappwebview`: sayfaları Windows'ta
 WebView2 (Edge motoru), Android'de Android WebView çizer; arayüz OA Labs tasarım sistemiyle yazılır.
 
-> Durum: deneme sürümü (0.18.9). Android sürümü sabit OA anahtarıyla imzalı; Windows dosyaları imzasız.
+> Durum: deneme sürümü (0.19.0). Android sürümü sabit OA anahtarıyla imzalı; Windows dosyaları imzasız.
 
 ## İndir ve dene
 
@@ -20,6 +20,7 @@ Eski sürümlerin güncelleyicisi için her sürümde `OA-Tarayici-Kurulum.exe` 
 Aynı dosyalar **Releases** sayfasına da `pubspec.yaml`daki sürüm numarasıyla (ör. v0.1.0) deneme sürümü olarak eklenir. Yeni sürüm çıkarmak için `version` satırını artırmak yeterli.
 
 ## Özellikler
+- Ekran süresi: hangi sitede ne kadar kaldığın, bugün ve hafta görünümü, site süre sınırı (uyarı ya da kilit), günlük hedef, haftalık özet bildirimi (Android), isteğe bağlı cihazları birleştirme
 - Korumalı video (Windows): TV+, Netflix, Disney+ gibi kopya korumalı yayınlar sekmenin içinde, web motorunun doğrudan çizdiği bir alanda oynar; görüntü siyah kalmaz
 - Bütün sekmeleri tek dokunuşla kapat (geri alınabilir); telefonda sekme kartını sola kaydırınca kapanır
 - Yeni ad ve logo: Pusula Browser, koyu karede rüzgâr gülü

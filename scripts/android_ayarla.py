@@ -61,8 +61,29 @@ def manifest():
             s = s.replace('</queries>', '    ' + tts + '</queries>', 1)
         else:
             s = s.replace('<application', '<queries>\n        ' + tts + '</queries>\n    <application', 1)
+    # Bildirimler (ekran süresi haftalık özeti): izin ve zamanlanmış bildirimin alıcıları
+    if 'POST_NOTIFICATIONS' not in s:
+        s = s.replace('<application', '<uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>\n    <application', 1)
+    if 'RECEIVE_BOOT_COMPLETED' not in s:
+        s = s.replace('<application', '<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>\n    <application', 1)
+    if 'ScheduledNotificationReceiver' not in s:
+        i = s.rfind('</application>')
+        s = s[:i] + NOTIFY_RECEIVERS.strip('\n') + '\n    ' + s[i:]
     open(MANIFEST, 'w', encoding='utf-8').write(s)
-    print('Manifest: tarayıcı intent filtreleri ve kurulum izni eklendi')
+    print('Manifest: tarayıcı intent filtreleri, kurulum ve bildirim izinleri eklendi')
+
+
+NOTIFY_RECEIVERS = '''
+        <!-- Zamanlanmış bildirimler (flutter_local_notifications) -->
+        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
+        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
+'''
 
 
 WIDGETS = '''
@@ -148,12 +169,21 @@ def native():
         t = open(kts, encoding='utf-8').read()
         if 'androidx.appcompat:appcompat' not in t:
             t += '\ndependencies {\n    implementation("androidx.appcompat:appcompat:1.7.0")\n}\n'
-            open(kts, 'w', encoding='utf-8').write(t)
+        # flutter_local_notifications Java 8+ tarih kitaplığını ister (desugaring)
+        if 'isCoreLibraryDesugaringEnabled' not in t:
+            t, n = re.subn(r'compileOptions\s*\{', 'compileOptions {\n        isCoreLibraryDesugaringEnabled = true', t, count=1)
+            if n == 0:
+                sys.exit('build.gradle.kts içinde compileOptions bulunamadı')
+            t += '\ndependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n}\n'
+        open(kts, 'w', encoding='utf-8').write(t)
     elif os.path.exists(groovy):
         t = open(groovy, encoding='utf-8').read()
         if 'androidx.appcompat:appcompat' not in t:
             t += "\ndependencies {\n    implementation 'androidx.appcompat:appcompat:1.7.0'\n}\n"
-            open(groovy, 'w', encoding='utf-8').write(t)
+        if 'coreLibraryDesugaringEnabled' not in t:
+            t = re.sub(r'compileOptions\s*\{', 'compileOptions {\n        coreLibraryDesugaringEnabled true', t, count=1)
+            t += "\ndependencies {\n    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'\n}\n"
+        open(groovy, 'w', encoding='utf-8').write(t)
     print('Android: radyo hizmeti, resim içinde resim, parmak izi, widget ve kısayollar ayarlandı' + ('' if found else ' (MainActivity bulunamadı, yenisi yazıldı)'))
 
 

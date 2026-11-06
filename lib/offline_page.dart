@@ -84,3 +84,45 @@ reset(); step();
 })();
 </script></body></html>''';
 }
+
+/// Site süre sınırı dolunca gösterilen sayfa.
+String limitPageHtml({required String site, required int minutes}) {
+  final p = OAColors.palette;
+  final bg = _hex(p.bg.toARGB32());
+  final surface = _hex(p.surface.toARGB32());
+  final border = _hex(p.border.toARGB32());
+  final text = _hex(p.text.toARGB32());
+  final muted = _hex(p.muted.toARGB32());
+  final amber = _hex(p.amber.toARGB32());
+  final ink = _hex(p.amberInk.toARGB32());
+  String esc(String s) => const HtmlEscape().convert(s);
+  final h = minutes ~/ 60, m = minutes % 60;
+  final limit = h > 0 ? (m > 0 ? '$h saat $m dakika' : '$h saat') : '$m dakika';
+  return '''<!doctype html><html lang="tr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bugünlük süre doldu</title>
+<style>
+html,body{margin:0;height:100%;background:$bg;color:$text;font:16px/1.5 "DM Sans","Segoe UI",Roboto,system-ui,sans-serif}
+.w{max-width:560px;margin:0 auto;padding:72px 20px;box-sizing:border-box;text-align:center}
+.i{width:64px;height:64px;border-radius:18px;background:$surface;border:1px solid $border;display:inline-flex;align-items:center;justify-content:center;margin-bottom:20px}
+h1{font:800 clamp(28px,6vw,40px)/1.1 "Bricolage Grotesque","Segoe UI",sans-serif;letter-spacing:-.02em;margin:0 0 10px}
+p{color:$muted;margin:0 0 28px}
+.btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+button{all:unset;cursor:pointer;padding:12px 20px;border-radius:999px;font-weight:600;background:$surface;border:1px solid $border;color:$text}
+button.p{background:$amber;color:$ink;border-color:$amber}
+button:focus-visible{outline:2px solid $amber;outline-offset:3px}
+</style></head><body><div class="w">
+<div class="i"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="$amber" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+<h1>Bugünlük süre doldu</h1>
+<p>${esc(site)} için günlük sınırın $limit. Yarın yeniden açılır.</p>
+<div class="btns">
+<button class="p" id="h">Başlangıç sayfasına dön</button>
+<button id="m">15 dakika daha</button>
+</div>
+</div>
+<script>
+function call(n,a){try{window.flutter_inappwebview.callHandler(n,a);}catch(e){}}
+document.getElementById('h').onclick=function(){call('oaGoHome');};
+document.getElementById('m').onclick=function(){call('oaMoreTime',15);};
+</script></body></html>''';
+}

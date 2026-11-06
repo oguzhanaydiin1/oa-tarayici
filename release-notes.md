@@ -153,3 +153,16 @@ En yeni sürüm en üstte olsun.
 • Windows: videolarda tam ekran düzeltildi (TV+, YouTube ve diğerleri). Oynatıcının tam ekran düğmesine basınca pencere tam ekran olur, sekme şeridi, adres çubuğu ve kenar çubuğu gizlenir. Esc ya da oynatıcının düğmesi geri getirir; başka sekmeye geçince de tam ekrandan çıkılır.
 
 • Windows: fixed fullscreen for videos (TV+, YouTube and others). Pressing the player's fullscreen button now makes the window fullscreen and hides the tab strip, address bar and sidebar. Esc or the player's button brings them back, and switching to another tab also exits fullscreen.
+
+## 0.19.0
+• Ekran süresi: menü → "Ekran süresi". Bugün ve bu hafta tarayıcıda ne kadar kaldığın, günlere ve saatlere göre grafik, en çok vakit geçirdiğin siteler. Veriler yalnız bu cihazda tutulur; gizli sekmeler sayılmaz. 2 dakika dokunulmazsa sayaç durur, video ya da radyo çalıyorsa devam eder.
+• Site süre sınırı: bir siteye dokunup günlük sınır koy. Süre dolunca uyarı çıkar; istersen site o gün kilitlenir ("15 dakika daha" ile uzatılabilir).
+• Günlük hedef: hedefe yaklaşınca ve dolunca haber verir.
+• Haftalık özet (Android): pazar akşamı 20:00'de "Bu hafta … geçirdin" bildirimi.
+• Cihazları birleştir (isteğe bağlı): hesapla giriş yaptıysan telefon ve bilgisayarın süreleri birlikte görünür.
+
+• Screen time: menu → "Screen time". How long you spent in the browser today and this week, charts by day and hour, and the sites you spent the most time on. The data stays on this device, and private tabs are not counted. The timer pauses after 2 minutes without touching anything, but keeps going while video or the radio plays.
+• Site time limit: tap a site to set a daily limit. When the time is up you get a warning, or if you choose, the site is locked for the day (you can extend it with "15 more minutes").
+• Daily goal: lets you know when you're close to your goal and when you reach it.
+• Weekly summary (Android): a "This week you spent …" notification on Sunday at 8 pm.
+• Merge devices (optional): if you're signed in, your phone's and computer's times show together.

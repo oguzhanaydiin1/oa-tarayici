@@ -341,3 +341,38 @@ UserScript fullscreenWatchScript() => UserScript(
 })();
 ''',
     );
+
+// ---------------------------------------------------------------- Video/ses oynuyor mu (ekran süresi)
+
+/// Sayfada video ya da ses oynarken uygulamaya bildirir; dokunulmasa da süre sayılmaya devam eder.
+UserScript mediaStateScript() => UserScript(
+      groupName: 'oa-medya',
+      injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+      forMainFrameOnly: false,
+      source: r'''
+(function(){
+  if (window.__oaMedia) return; window.__oaMedia = 1;
+  var top = window.top === window, playing = 0, last = null;
+  function send(on){
+    if (top) { try { window.flutter_inappwebview.callHandler('oaMedia', on); } catch (e) {} return; }
+    try { window.top.postMessage({ __oaMedia: on }, '*'); } catch (e) {}
+  }
+  if (top) {
+    var frames = 0;
+    window.addEventListener('message', function(e){
+      var d = e && e.data;
+      if (d && typeof d === 'object' && typeof d.__oaMedia === 'boolean') { frames = d.__oaMedia ? 1 : 0; update(); }
+    });
+    var update = function(){ var on = playing > 0 || frames > 0; if (on !== last) { last = on; send(on); } };
+  } else {
+    var update = function(){ var on = playing > 0; if (on !== last) { last = on; send(on); } };
+  }
+  function count(){
+    var n = 0;
+    try { document.querySelectorAll('video,audio').forEach(function(m){ if (!m.paused && !m.ended && m.readyState > 2) n++; }); } catch (e) {}
+    playing = n; update();
+  }
+  ['playing','pause','ended','emptied'].forEach(function(ev){ document.addEventListener(ev, function(){ setTimeout(count, 50); }, true); });
+})();
+''',
+    );

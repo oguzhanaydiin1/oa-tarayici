@@ -30,6 +30,9 @@ import 'tab_groups.dart';
 import 'tts.dart';
 import 'flow.dart';
 import 'games.dart';
+import 'notify.dart';
+import 'screen_time.dart';
+import 'screen_time_screen.dart';
 import 'radio.dart';
 import 'updater.dart';
 import 'vault.dart';
@@ -211,6 +214,9 @@ class TabData {
 
   /// Bu sekmeyi açan sekme (site bağlantıyı yeni sekmede açtıysa). İlk sayfada geri basınca oraya dönülür.
   String? openerId;
+
+  /// Sayfada video/ses oynuyor (ekran süresi boşta kalınca da saymaya devam eder)
+  bool mediaPlaying = false;
 
   String url = '';
   String title = '';
@@ -418,6 +424,12 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   Timer? _syncPoll;
   DateTime _lastSyncAt = DateTime.fromMillisecondsSinceEpoch(0);
   bool _appVisible = true;
+
+  // Ekran süresi
+  final ScreenTime _st = ScreenTime();
+  Timer? _stTimer;
+  DateTime _lastInput = DateTime.now();
+  AppLifecycleState _life = AppLifecycleState.resumed;
   bool _wasSignedIn = false;
 
   /// Telefonda alt çubuk inceltilmiş mi (sayfa aşağı kaydırıldı).
@@ -584,6 +596,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     _findDebounce?.cancel();
     _syncPoll?.cancel();
     _flowPoll?.cancel();
+    _stTimer?.cancel();
+    _st.save();
     _sleepTimer?.cancel();
     _findCtl.dispose();
     _wx.dispose();
@@ -630,6 +644,15 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     _news.init(_prefs!);
     _market.init(_prefs!);
     _games.init(_prefs!);
+    _st.load().then((_) => _scheduleWeekly());
+    _stTimer ??= Timer.periodic(const Duration(seconds: 5), (_) => _stTick());
+    OaNotify.onTap = (p) {
+      if (p == 'screentime' && mounted) _openScreenTime();
+    };
+    OaNotify.init().then((_) {
+      if (OaNotify.launchPayload == 'screentime' && mounted) _openScreenTime();
+      _scheduleWeekly();
+    });
     _reading.init(_prefs!);
     setState(() {
       _bookmarks = _decode(_prefs!.getStringList('bookmarks'));
@@ -2080,6 +2103,24 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       push['tabs:$_deviceId'] = SyncItem(now, []);
     }
 
+    // Ekran süresi (isteğe bağlı): bu cihazın özeti gider, öbür cihazlarınki gelir
+    if (_st.mergeDevices) {
+      for (final e in server.entries) {
+        if (!e.key.startsWith('screentime:') || e.key == 'screentime:$_deviceId' || e.value.data.isEmpty) continue;
+        if (now.difference(e.value.updated) > const Duration(days: 30)) continue;
+        final m = e.value.data.first;
+        if (m is Map) _st.setRemote(m['name']?.toString() ?? e.key.substring(11), m['days']);
+      }
+      final mineSt = server['screentime:$_deviceId'];
+      if (mineSt == null || now.difference(mineSt.updated) > const Duration(minutes: 30)) {
+        push['screentime:$_deviceId'] = SyncItem(now, [
+          {'name': _deviceName, 'days': _st.summaryForSync()}
+        ]);
+      }
+    } else if ((server['screentime:$_deviceId']?.data ?? const []).isNotEmpty) {
+      push['screentime:$_deviceId'] = SyncItem(now, []); // birleştirme kapatıldı: özet sunucudan kalkar
+    }
+
     // Bu cihaza gönderilen sekmeler
     final inbox = server['inbox:$_deviceId'];
     if (inbox != null && inbox.data.isNotEmpty) {
@@ -2846,6 +2887,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       (Icons.visibility_off_outlined, 'Yeni gizli sekme', 'incognito', () => _addTab(incognito: true)),
       (Icons.star_border, 'Yer imleri', 'bookmark', () => menu('bookmarks')),
       (Icons.history, 'Geçmiş', 'history', () => menu('history')),
+      (Icons.hourglass_bottom_rounded, 'Ekran süresi', 'kullanım süre sınır hedef istatistik', () => menu('screentime')),
       (Icons.download_outlined, 'İndirilenler', 'download', () => menu('downloads')),
       (Icons.bookmark_added_outlined, 'Okuma listesi', 'sonra oku', () => menu('readlist')),
       (Icons.devices_outlined, 'Öbür cihazlardaki sekmeler', 'telefon bilgisayar eşitleme', () => menu('devices')),
@@ -3488,6 +3530,150 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     await _setPageFullscreen(false);
   }
 
+  // ----------------------------------------------------------------- Ekran süresi
+
+  /// Her 5 saniyede bir: uygulama öndeyken görünen sitenin süresi artar. 2 dakika dokunulmazsa
+  /// durur; video ya da radyo çalıyorsa devam eder. Gizli sekmeler sayılmaz.
+  void _stTick() {
+    if (!mounted || !_st.enabled || _locked) return;
+    final t = _tab;
+    if (t.incognito) return;
+    final idle = DateTime.now().difference(_lastInput) > const Duration(minutes: 2);
+    // Gömülü korumalı video da izleniyor sayılır (dokunuşlar onun penceresine gider)
+    final media = t.mediaPlaying || t.embed != null || _radio.playing || _tts.active;
+    final fore = _life == AppLifecycleState.resumed;
+    // Windows'ta pencere arkadayken (inactive) yalnız video/radyo sürerse sayılır
+    final active = fore ? (!idle || media) : (_life == AppLifecycleState.inactive && Platform.isWindows && media);
+    if (!active) return;
+    const step = 5;
+    final host = Uri.tryParse(t.url)?.host ?? '';
+    final site = (!t.showStart && t.errorUrl == null && host.isNotEmpty) ? siteOf(host) : null;
+    _st.add(site, step);
+    // Kenar çubuğunda açık uygulama (toplam süreye ikinci kez eklenmez)
+    final side = _sideOpen;
+    if (side != null && _sidebarOn && Platform.isWindows) {
+      final a = _sideApps.where((x) => x.id == side).firstOrNull;
+      final h = a == null ? '' : (Uri.tryParse(a.url)?.host ?? '');
+      if (h.isNotEmpty) _st.add(siteOf(h), step, countTotal: false);
+    }
+    if (_radio.playing && site == null) _st.add('OA Radyo', step, countTotal: false);
+    if (site != null) _stCheckLimit(t, site);
+    _stCheckGoal();
+  }
+
+  final Set<String> _stWarned = {};
+  String _stWarnDay = '';
+
+  bool _stOnce(String key) {
+    final d = dayKey(DateTime.now());
+    if (_stWarnDay != d) {
+      _stWarnDay = d;
+      _stWarned.clear();
+    }
+    return _stWarned.add(key);
+  }
+
+  void _stCheckLimit(TabData t, String site) {
+    final l = _st.limits[site];
+    if (l == null || !_st.overLimit(site)) return;
+    if (l.lock) {
+      _showLimitPage(t, t.url, site);
+      return;
+    }
+    if (!_stOnce('limit:$site')) return;
+    final m = ScaffoldMessenger.of(context);
+    m.hideCurrentMaterialBanner();
+    m.showMaterialBanner(MaterialBanner(
+      backgroundColor: OAColors.surface,
+      leading: Icon(Icons.timer_outlined, color: OAColors.amber),
+      content: Text('$site için bugünkü ${fmtDuration(l.minutes * 60)} sınırın doldu.'),
+      actions: [
+        TextButton(
+          onPressed: () {
+            m.hideCurrentMaterialBanner();
+            _openScreenTime();
+          },
+          child: const Text('Ekran süresi'),
+        ),
+        FilledButton(onPressed: m.hideCurrentMaterialBanner, child: const Text('Tamam')),
+      ],
+    ));
+  }
+
+  void _stCheckGoal() {
+    final g = _st.dailyGoal * 60;
+    if (g <= 0) return;
+    final today = _st.totalOn(DateTime.now());
+    String? msg;
+    if (today >= g && _stOnce('goal100')) {
+      msg = 'Bugünkü ${fmtDuration(g)} hedefini doldurdun.';
+    } else if (today >= g * 0.9 && today < g && _stOnce('goal90')) {
+      msg = 'Bugünkü hedefine ${fmtDuration(g - today)} kaldı.';
+    }
+    if (msg == null) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        content: Text(msg),
+        duration: const Duration(seconds: 6),
+        action: SnackBarAction(label: 'Ekran süresi', onPressed: _openScreenTime),
+      ));
+  }
+
+  /// Süresi dolan ve kilitli sitenin yerine "Bugünlük süre doldu" sayfası.
+  void _showLimitPage(TabData t, String url, String site) {
+    if (t.errorUrl != null || !url.startsWith('http')) return;
+    t.errorUrl = url;
+    t.controller?.loadData(
+      data: limitPageHtml(site: site, minutes: _st.limits[site]?.minutes ?? 0),
+      baseUrl: WebUri('about:blank'),
+    );
+    if (mounted) setState(() => t.url = url);
+  }
+
+  void _openScreenTime() {
+    final names = <String, String>{
+      for (final a in _sideApps)
+        if ((Uri.tryParse(a.url)?.host ?? '').isNotEmpty) siteOf(Uri.parse(a.url).host): a.name,
+    };
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => ScreenTimeScreen(
+        st: _st,
+        signedIn: _account.signedIn,
+        names: names,
+        askNotify: OaNotify.ask,
+        onSettingsChanged: () {
+          _scheduleWeekly();
+          if (_account.signedIn) _scheduleSync();
+        },
+      ),
+    ));
+  }
+
+  /// Haftalık özet bildirimi: bir sonraki pazar 20:00'ye, o ana kadarki verilerle kurulur;
+  /// uygulama her açıldığında güncellenir.
+  Future<void> _scheduleWeekly() async {
+    if (!Platform.isAndroid) return;
+    if (!_st.weeklySummary || !_st.enabled) {
+      await OaNotify.cancel(OaNotify.weeklyId);
+      return;
+    }
+    final now = DateTime.now();
+    var when = DateTime(now.year, now.month, now.day, 20);
+    while (when.weekday != DateTime.sunday || !when.isAfter(now)) {
+      when = when.add(const Duration(days: 1));
+      when = DateTime(when.year, when.month, when.day, 20);
+    }
+    final w = _st.week().fold<int>(0, (a, b) => a + b);
+    final top = _st.topSites().take(2).toList();
+    final body = w == 0
+        ? 'Bu haftaki ekran süreni görmek için dokun.'
+        : 'Bu hafta Pusula\'da ${fmtDuration(w)} geçirdin'
+            '${top.isEmpty ? '' : ', en çok ${top.first.key} (${fmtDuration(top.first.value)})'}'
+            '${top.length > 1 ? ' ve ${top[1].key}' : ''}. Ayrıntılar için dokun.';
+    await OaNotify.schedule(OaNotify.weeklyId, 'Haftalık ekran süren', body, when, payload: 'screentime');
+  }
+
   // ----------------------------------------------------------------- Sesli okuma
 
   Future<void> _readAloud() async {
@@ -3587,6 +3773,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    _life = state;
+    if (state == AppLifecycleState.resumed) _lastInput = DateTime.now();
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) _st.save();
     _appVisible = state == AppLifecycleState.resumed || state == AppLifecycleState.inactive;
     // Öbür cihazdaki değişiklikler: uygulamaya dönünce eşitle.
     if (state == AppLifecycleState.resumed &&
@@ -4701,9 +4890,20 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         },
         child: Focus(
           autofocus: true,
-          child: Scaffold(
-            backgroundColor: OAColors.bg,
-            body: mobile ? _buildMobile() : _buildDesktop(),
+          onKeyEvent: (_, __) {
+            _lastInput = DateTime.now();
+            return KeyEventResult.ignored;
+          },
+          child: Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerDown: (_) => _lastInput = DateTime.now(),
+            onPointerMove: (_) => _lastInput = DateTime.now(),
+            onPointerSignal: (_) => _lastInput = DateTime.now(),
+            onPointerHover: (_) => _lastInput = DateTime.now(),
+            child: Scaffold(
+              backgroundColor: OAColors.bg,
+              body: mobile ? _buildMobile() : _buildDesktop(),
+            ),
           ),
         ),
       ),
@@ -5120,6 +5320,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               const PopupMenuDivider(),
               _mi('bookmarks', Icons.star_border, 'Yer imleri'),
               _mi('history', Icons.history, 'Geçmiş'),
+              _mi('screentime', Icons.hourglass_bottom_rounded, 'Ekran süresi'),
               _mi('downloads', Icons.download_outlined,
                   _downloads.activeCount > 0 ? 'İndirilenler (${_downloads.activeCount} sürüyor)' : 'İndirilenler', 'Ctrl+J'),
               _mi('readlist', Icons.bookmark_added_outlined, 'Okuma listesi', _reading.unread > 0 ? '${_reading.unread}' : null),
@@ -5320,6 +5521,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         _embedProtected(_tab);
       case 'drmoff':
         _closeEmbed(_tab);
+      case 'screentime':
+        _openScreenTime();
       case 'tts':
         _readAloud();
       case 'unsplit':
@@ -5849,6 +6052,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               Divider(height: 16),
               item(Icons.star_border, 'Yer imleri', 'bookmarks'),
               item(Icons.history, 'Geçmiş', 'history'),
+              item(Icons.hourglass_bottom_rounded, 'Ekran süresi', 'screentime'),
               item(Icons.download_outlined,
                   _downloads.activeCount > 0 ? 'İndirilenler (${_downloads.activeCount} sürüyor)' : 'İndirilenler',
                   'downloads'),
@@ -6253,6 +6457,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         if (Platform.isWindows) windowSizeScript(),
         if (Platform.isWindows) drmWatchScript(),
         if (Platform.isWindows) fullscreenWatchScript(),
+        mediaStateScript(),
         // Şifre kaydetme (gizli sekmede değil)
         if (!t.incognito)
           UserScript(
@@ -6281,6 +6486,24 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           : null,
       onWebViewCreated: (c) {
         t.controller = c;
+        c.addJavaScriptHandler(handlerName: 'oaMedia', callback: (args) {
+          t.mediaPlaying = args.isNotEmpty && args.first == true;
+        });
+        c.addJavaScriptHandler(handlerName: 'oaGoHome', callback: (_) {
+          if (!mounted) return;
+          final i = _tabs.indexOf(t);
+          if (i >= 0) {
+            if (i != _current) _selectTab(i);
+            _goHome();
+          }
+        });
+        c.addJavaScriptHandler(handlerName: 'oaMoreTime', callback: (args) {
+          final u = t.errorUrl ?? t.url;
+          final h = Uri.tryParse(u)?.host ?? '';
+          if (h.isEmpty) return;
+          _st.giveExtra(siteOf(h), (args.isNotEmpty && args.first is num) ? (args.first as num).toInt() : 15);
+          if (u.startsWith('http')) c.loadUrl(urlRequest: URLRequest(url: WebUri(u)));
+        });
         c.addJavaScriptHandler(handlerName: 'oaFullscreen', callback: (args) {
           if (mounted && identical(t, _tab)) _setPageFullscreen(args.isNotEmpty && args.first == true);
         });
@@ -6325,11 +6548,19 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         // OA hata sayfası yüklenirken adres çubuğunda açılamayan adres kalsın.
         if (t.errorUrl != null && !url.toString().startsWith('http')) return;
         t.errorUrl = null;
+        t.mediaPlaying = false;
         setState(() {
           t.url = url.toString();
           t.progress = 0.05;
           t.coverLoadStarted = true;
         });
+        // Bugünlük süresi dolan ve kilitli site
+        final lh = url.host;
+        if (lh.isNotEmpty && _st.lockedNow(siteOf(lh))) {
+          c.stopLoading();
+          _showLimitPage(t, url.toString(), siteOf(lh));
+          return;
+        }
         if (t == _tab && !_urlFocus.hasFocus && !t.showStart) _urlCtl.text = t.url;
       },
       onPageCommitVisible: (c, url) {
