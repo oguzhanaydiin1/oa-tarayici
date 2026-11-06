@@ -289,6 +289,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   // Videoyu küçük pencerede izleme
   bool _miniVideo = false;
+
+  /// Sayfadaki video tam ekranda (Windows): pencere tam ekran, uygulamanın çubukları gizli.
+  bool _pageFullscreen = false;
+  bool _fsWasMax = false;
+  bool get _chromeHidden => _miniVideo || _pageFullscreen;
   Rect? _savedBounds;
   bool _savedMax = false;
 
@@ -2645,7 +2650,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   /// Açılan panel. Kapatılınca da arkada açık kalır (müzik çalmaya, mesajlar gelmeye devam eder).
   Widget _sidePanel() {
-    final open = _sideOpen != null && _sidebarOn && !_miniVideo;
+    final open = _sideOpen != null && _sidebarOn && !_chromeHidden;
     final loaded = _sideApps.where((a) => _sideLoaded.contains(a.id)).toList();
     final showId = _sideOpen ?? _sideLast;
     final idx = loaded.indexWhere((a) => a.id == showId);
@@ -3410,6 +3415,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           if (mounted) setState(() {});
         }
       },
+      onFullscreen: (on) {
+        if (mounted && identical(t, _tab) && t.embed == e) _setPageFullscreen(on);
+      },
     );
     t.embed = e;
     e.rect = r;
@@ -3450,6 +3458,34 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       });
     }
     if (mounted) setState(() {});
+  }
+
+  // ----------------------------------------------------------------- Tam ekran video (Windows)
+
+  Future<void> _setPageFullscreen(bool on) async {
+    if (!Platform.isWindows || on == _pageFullscreen) return;
+    if (_miniVideo) await _exitMiniVideo();
+    if (on) {
+      try {
+        _fsWasMax = await windowManager.isMaximized();
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    setState(() => _pageFullscreen = on);
+    try {
+      await windowManager.setFullScreen(on);
+      if (!on && _fsWasMax) await windowManager.maximize();
+    } catch (_) {}
+  }
+
+  /// Uygulamadan çıkış (Esc): sayfaya da tam ekrandan çıkmasını söyler.
+  Future<void> _exitPageFullscreen() async {
+    try {
+      const js = 'if (document.fullscreenElement) document.exitFullscreen().catch(function(){});';
+      await _tab.controller?.evaluateJavascript(source: js);
+      await _tab.embed?.webViewController?.evaluateJavascript(source: js);
+    } catch (_) {}
+    await _setPageFullscreen(false);
   }
 
   // ----------------------------------------------------------------- Sesli okuma
@@ -4092,6 +4128,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   }
 
   void _selectTab(int i) {
+    if (_pageFullscreen && i != _current) _exitPageFullscreen();
     if (i != _current && _current < _tabs.length) _captureThumb(_tabs[_current]);
     // Bölünmüş ekrandaki sekmelerden biri değilse yan yana görünüm kapanır.
     final sp = _split;
@@ -4659,6 +4696,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           SingleActivator(LogicalKeyboardKey.digit0, control: true): () => _setZoom(100),
           if (_findOpen) const SingleActivator(LogicalKeyboardKey.escape): _closeFind,
           if (_miniVideo) const SingleActivator(LogicalKeyboardKey.escape): _exitMiniVideo,
+          if (_pageFullscreen) const SingleActivator(LogicalKeyboardKey.escape): () => _exitPageFullscreen(),
+          if (_pageFullscreen) const SingleActivator(LogicalKeyboardKey.f11): () => _exitPageFullscreen(),
         },
         child: Focus(
           autofocus: true,
@@ -4874,7 +4913,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     return SafeArea(
       child: Row(
         children: [
-          if (_verticalTabs && !_miniVideo) KeyedSubtree(key: const ValueKey('dikey'), child: _verticalTabBar()),
+          if (_verticalTabs && !_chromeHidden) KeyedSubtree(key: const ValueKey('dikey'), child: _verticalTabBar()),
           Expanded(
             key: const ValueKey('masaustu'),
             child: _desktopMain(),
@@ -4889,7 +4928,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         children: [
           // Küçük pencerede video izlenirken yalnız sayfa görünür. (Sayfanın bulunduğu Expanded
           // anahtarla korunur; üstteki çubuklar kalkınca web görünümü yeniden oluşturulmaz.)
-          if (!_miniVideo) ...[
+          if (!_chromeHidden) ...[
             if (!_verticalTabs) _buildTabBar(),
             _buildToolbar(),
             if (_findOpen) _findBar(top: true),
@@ -4905,7 +4944,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                 child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (_sidebarOn && !_miniVideo && Platform.isWindows)
+                if (_sidebarOn && !_chromeHidden && Platform.isWindows)
                   SidebarDock(
                     key: const ValueKey('dock'),
                     apps: _sideApps,
@@ -6213,6 +6252,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         if (_gesturesOn && Platform.isWindows) mouseGestureScript(),
         if (Platform.isWindows) windowSizeScript(),
         if (Platform.isWindows) drmWatchScript(),
+        if (Platform.isWindows) fullscreenWatchScript(),
         // Şifre kaydetme (gizli sekmede değil)
         if (!t.incognito)
           UserScript(
@@ -6241,6 +6281,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           : null,
       onWebViewCreated: (c) {
         t.controller = c;
+        c.addJavaScriptHandler(handlerName: 'oaFullscreen', callback: (args) {
+          if (mounted && identical(t, _tab)) _setPageFullscreen(args.isNotEmpty && args.first == true);
+        });
         c.addJavaScriptHandler(handlerName: 'oaDrm', callback: (args) {
           if (mounted) _onProtectedVideo(t, eme: args.isNotEmpty && args.first == 'eme');
         });
@@ -6606,7 +6649,9 @@ class _ProtectedWindow extends InAppBrowser {
 
 /// Sekmenin içine yerleşen, korumalı videoyu doğrudan ekrana çizen Windows penceresi.
 class _EmbeddedVideo extends InAppBrowser {
-  _EmbeddedVideo({super.webViewEnvironment, required this.onUrl, required this.onTitle, required this.onClosed});
+  _EmbeddedVideo({super.webViewEnvironment, required this.onUrl, required this.onTitle, required this.onClosed, required this.onFullscreen})
+      : super(initialUserScripts: UnmodifiableListView([fullscreenWatchScript()]));
+  final void Function(bool on) onFullscreen;
   final void Function(String url) onUrl;
   final void Function(String? title) onTitle;
   final VoidCallback onClosed;
@@ -6621,6 +6666,12 @@ class _EmbeddedVideo extends InAppBrowser {
 
   @override
   void onTitleChanged(String? title) => onTitle(title);
+
+  @override
+  void onBrowserCreated() {
+    webViewController?.addJavaScriptHandler(
+        handlerName: 'oaFullscreen', callback: (args) => onFullscreen(args.isNotEmpty && args.first == true));
+  }
 
   @override
   void onExit() => onClosed();

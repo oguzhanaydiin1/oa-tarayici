@@ -320,3 +320,24 @@ UserScript drmWatchScript() => UserScript(
 })();
 ''',
     );
+
+// ---------------------------------------------------------------- Tam ekran (bilgisayar)
+
+/// Sayfa bir videoyu tam ekran yapınca (ya da çıkınca) uygulamaya haber verir. Windows'ta web görünümü
+/// bunu kendisi bildirmiyor; uygulama da pencereyi tam ekran yapıp çubukları gizler.
+UserScript fullscreenWatchScript() => UserScript(
+      groupName: 'oa-tamekran',
+      injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+      forMainFrameOnly: true,
+      source: r'''
+(function(){
+  if (window.__oaFs) return; window.__oaFs = 1;
+  function tell(){
+    var on = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    try { window.flutter_inappwebview.callHandler('oaFullscreen', on); } catch (e) {}
+  }
+  document.addEventListener('fullscreenchange', tell);
+  document.addEventListener('webkitfullscreenchange', tell);
+})();
+''',
+    );

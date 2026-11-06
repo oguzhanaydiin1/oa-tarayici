@@ -148,3 +148,8 @@ En yeni sürüm en üstte olsun.
 • The link address bubble at the bottom left (when hovering a link) got stuck on other tabs; it has been removed.
 • Ctrl+Shift+N opens a private tab. In the command box, commands whose name starts with what you typed come first.
 • The new Pusula logo at the left of the tab strip.
+
+## 0.18.9
+• Windows: videolarda tam ekran düzeltildi (TV+, YouTube ve diğerleri). Oynatıcının tam ekran düğmesine basınca pencere tam ekran olur, sekme şeridi, adres çubuğu ve kenar çubuğu gizlenir. Esc ya da oynatıcının düğmesi geri getirir; başka sekmeye geçince de tam ekrandan çıkılır.
+
+• Windows: fixed fullscreen for videos (TV+, YouTube and others). Pressing the player's fullscreen button now makes the window fullscreen and hides the tab strip, address bar and sidebar. Esc or the player's button brings them back, and switching to another tab also exits fullscreen.
