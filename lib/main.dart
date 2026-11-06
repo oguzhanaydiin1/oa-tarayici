@@ -27,6 +27,7 @@ import 'markets.dart';
 import 'news.dart';
 import 'read_later.dart';
 import 'tab_groups.dart';
+import 'touchpad.dart';
 import 'tts.dart';
 import 'flow.dart';
 import 'games.dart';
@@ -2665,10 +2666,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   Widget _sideWebView(SideApp a) {
     // OA Radyo: uygulamanın kendi radyosu (web sayfası değil; aynı çalar, mini çalarla birlikte)
     if (a.id == kSideRadio) return RadioSheet(radio: _radio, embedded: true);
-    return InAppWebView(
+    return TouchpadScroll(controller: () => _sideCtl[a.id], child: InAppWebView(
       key: ValueKey('kenar-${a.id}'),
       webViewEnvironment: oaWebEnv,
       initialUrlRequest: URLRequest(url: WebUri(a.url)),
+      initialUserScripts: UnmodifiableListView([touchpadScript()]),
       initialSettings: InAppWebViewSettings(
         javaScriptEnabled: true,
         mediaPlaybackRequiresUserGesture: false,
@@ -2686,7 +2688,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       },
       onPermissionRequest: (c, req) => _onPermissionRequest(_sideTab, req),
       onDownloadStartRequest: (c, req) => _download(req.url.toString(), name: req.suggestedFilename, from: _sideTab),
-    );
+    ));
   }
 
   /// Açılan panel. Kapatılınca da arkada açık kalır (müzik çalmaya, mesajlar gelmeye devam eder).
@@ -4937,7 +4939,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         // Android'de yalnız görünen sayfanın web görünümü ağaçta durur (keepAlive ile bellekte kalır);
         // Windows'ta gizli web görünümü sorun çıkarmadığı için Offstage ile tutulur.
         if (t.webStarted && Platform.isAndroid && !t.showStart) _buildWebView(t),
-        if (t.webStarted && !Platform.isAndroid) Offstage(offstage: t.showStart, child: _buildWebView(t)),
+        if (t.webStarted && !Platform.isAndroid)
+          Offstage(offstage: t.showStart, child: TouchpadScroll(controller: () => t.controller, child: _buildWebView(t))),
         if (t.webStarted && !t.showStart && t.covering) _loadingCover(t),
         if (t.showStart && compact)
           MobileStartPage(
@@ -6457,6 +6460,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         if (Platform.isWindows) windowSizeScript(),
         if (Platform.isWindows) drmWatchScript(),
         if (Platform.isWindows) fullscreenWatchScript(),
+        if (Platform.isWindows) touchpadScript(),
         mediaStateScript(),
         // Şifre kaydetme (gizli sekmede değil)
         if (!t.incognito)

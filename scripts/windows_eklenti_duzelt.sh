@@ -63,15 +63,15 @@ else
   echo "::warning title=eklenti::Durum çubuğu ayarı bulunamadı"
 fi
 
-# Touchpad (iki parmakla kaydırma): touchpad her an çok küçük adımlar (çoğu 1 pikselin altında) gönderir.
-# Eklenti bunları tekerlek gibi işleyip tam sayıya yuvarlıyordu; yavaş kaydırmalar sıfıra iniyor, sayfa
-# kaymıyordu. Adımlar biriktirilir, tekerlek biriminde (parmak 1 px ≈ 2,4 birim) gönderilir.
+# Touchpad (iki parmakla kaydırma): eklenti her küçük touchpad adımını ayrı bir tekerlek hareketi olarak
+# web motoruna gönderiyordu; motor her birini ayrı yumuşatıp oynattığı için kaydırma yavaş ve kesik
+# kesikti. Eklentinin bu işi kapatılır; uygulama touchpad hareketini kendisi doğrudan sayfaya uygular
+# (lib/touchpad.dart).
 v=windows/flutter/ephemeral/.plugin_symlinks/flutter_inappwebview_windows/lib/src/in_app_webview/custom_platform_view.dart
 if [[ -f "$v" ]] && grep -q 'onPointerPanZoomUpdate: (ev) {' "$v"; then
-  perl -0pi -e 's/onPointerPanZoomUpdate: \(ev\) \{\s*_controller\._setScrollDelta\(\s*ev\.panDelta\.dx, ev\.panDelta\.dy\);\s*\},/onPointerPanZoomStart: (_) {\n                      _oaPanX = 0;\n                      _oaPanY = 0;\n                    },\n                    onPointerPanZoomUpdate: (ev) {\n                      _oaPanX += ev.panDelta.dx * 1.2;\n                      _oaPanY += ev.panDelta.dy * 1.2;\n                      final sx = (_oaPanX * 2).truncateToDouble() \/ 2;\n                      final sy = (_oaPanY * 2).truncateToDouble() \/ 2;\n                      _oaPanX -= sx;\n                      _oaPanY -= sy;\n                      if (sx != 0 || sy != 0) _controller._setScrollDelta(sx, sy);\n                    },/s' "$v"
-  if grep -q '_oaPanX' "$v"; then
-    printf '\n// Pusula: touchpad adımlarının birikimi (bkz. scripts/windows_eklenti_duzelt.sh)\ndouble _oaPanX = 0;\ndouble _oaPanY = 0;\n' >> "$v"
-    echo "Touchpad kaydırma düzeltildi"
+  perl -0pi -e 's/onPointerPanZoomUpdate: \(ev\) \{\s*_controller\._setScrollDelta\(\s*ev\.panDelta\.dx, ev\.panDelta\.dy\);\s*\},/onPointerPanZoomUpdate: (_) {},/s' "$v"
+  if grep -q 'onPointerPanZoomUpdate: (_) {},' "$v"; then
+    echo "Touchpad: eklentinin tekerlek yolu kapatıldı"
   else
     echo "::warning title=eklenti::Touchpad düzeltmesi uygulanamadı (desen eşleşmedi)"
   fi

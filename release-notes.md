@@ -171,3 +171,8 @@ En yeni sürüm en üstte olsun.
 • Windows: dizüstü bilgisayarlarda touchpad'de iki parmakla kaydırınca sayfalar kaymıyordu; düzeltildi. Yavaş kaydırmalar da işlenir, hız parmağın hareketine yakındır.
 
 • Windows: on laptops, pages didn't scroll with a two-finger swipe on the touchpad; fixed. Slow swipes work too, and the speed follows your fingers closely.
+
+## 0.19.2
+• Windows: touchpad ile kaydırma yeniden yazıldı. Sayfa parmağının hareketini birebir izler, kesik kesik ya da yavaş kaymaz; parmağını kaldırınca hızına göre yavaşlayarak bir süre daha kayar. Sayfanın içindeki kaydırmalı alanlar (sohbet listesi, menü) ve haritalar da touchpad ile kayar.
+
+• Windows: touchpad scrolling has been rewritten. The page follows your fingers exactly, without stutter or slowness, and when you lift your fingers it keeps gliding for a moment, slowing down based on your speed. Scrollable areas inside a page (chat lists, menus) and maps also scroll with the touchpad.
