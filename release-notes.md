@@ -166,3 +166,8 @@ En yeni sürüm en üstte olsun.
 • Daily goal: lets you know when you're close to your goal and when you reach it.
 • Weekly summary (Android): a "This week you spent …" notification on Sunday at 8 pm.
 • Merge devices (optional): if you're signed in, your phone's and computer's times show together.
+
+## 0.19.1
+• Windows: dizüstü bilgisayarlarda touchpad'de iki parmakla kaydırınca sayfalar kaymıyordu; düzeltildi. Yavaş kaydırmalar da işlenir, hız parmağın hareketine yakındır.
+
+• Windows: on laptops, pages didn't scroll with a two-finger swipe on the touchpad; fixed. Slow swipes work too, and the speed follows your fingers closely.
