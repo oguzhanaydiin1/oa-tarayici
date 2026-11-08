@@ -367,12 +367,24 @@ UserScript mediaStateScript() => UserScript(
   } else {
     var update = function(){ var on = playing > 0; if (on !== last) { last = on; send(on); } };
   }
+  // Yalnız sesi duyulan medya sayılır (sessiz oynayan tanıtım videoları sekmeye hoparlör koymaz)
   function count(){
     var n = 0;
-    try { document.querySelectorAll('video,audio').forEach(function(m){ if (!m.paused && !m.ended && m.readyState > 2) n++; }); } catch (e) {}
+    try { document.querySelectorAll('video,audio').forEach(function(m){ if (!m.paused && !m.ended && m.readyState > 2 && !m.muted && m.volume > 0) n++; }); } catch (e) {}
     playing = n; update();
   }
-  ['playing','pause','ended','emptied'].forEach(function(ev){ document.addEventListener(ev, function(){ setTimeout(count, 50); }, true); });
+  ['playing','pause','ended','emptied','volumechange'].forEach(function(ev){ document.addEventListener(ev, function(){ setTimeout(count, 50); }, true); });
+  // Sekmenin sesini kapatma: bu çerçevedeki ve alt çerçevelerdeki bütün medya sessize alınır
+  var muteAll = false;
+  function applyMute(){
+    try { document.querySelectorAll('video,audio').forEach(function(m){ if (muteAll) { if (!m.muted) { m.__oaMuted = 1; m.muted = true; } } else if (m.__oaMuted) { m.__oaMuted = 0; m.muted = false; } }); } catch (e) {}
+  }
+  window.__oaSetMute = function(on){
+    muteAll = !!on; applyMute();
+    try { for (var i = 0; i < window.frames.length; i++) window.frames[i].postMessage({ __oaMute: muteAll }, '*'); } catch (e) {}
+  };
+  window.addEventListener('message', function(e){ var d = e && e.data; if (d && typeof d === 'object' && typeof d.__oaMute === 'boolean') window.__oaSetMute(d.__oaMute); });
+  document.addEventListener('play', function(){ if (muteAll) applyMute(); }, true);
 })();
 ''',
     );

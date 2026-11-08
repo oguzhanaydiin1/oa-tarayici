@@ -54,10 +54,33 @@
     var minutes = Math.max(1, Math.round((article.textContent || '').split(/\s+/).length / 220));
     root.querySelector('.by').textContent = (by ? by + ' · ' : '') + minutes + ' dk okuma';
     root.querySelector('.c').innerHTML = article.content; // Readability içeriği temizler (script'ler çıkarılır)
+    // Yazıya karışan küçük simgeler ve "bizi takip edin / abone ol" kutuları temizlenir
+    (function (c) {
+      var junk = /(google'?(da|\s*news)?\s*(takip|tercih)|bizi takip|takip edin|abone ol|bültenimize|whatsapp kanal|telegram kanal|follow us|subscribe|sign up for our newsletter|haberin devam[ıi]|reklam|advertisement)/i;
+      c.querySelectorAll('img').forEach(function (im) {
+        var w = parseInt(im.getAttribute('width') || '0', 10), h = parseInt(im.getAttribute('height') || '0', 10);
+        var src = (im.getAttribute('src') || '') + ' ' + (im.getAttribute('alt') || '');
+        if ((w && w < 80) || (h && h < 80) || /(icon|logo|sprite|avatar|badge|google[-_]?news|gnews|follow)/i.test(src)) {
+          var p = im.closest('a,figure,p') || im; p.remove();
+        } else {
+          im.addEventListener('load', function () { if (im.naturalWidth && im.naturalWidth < 80) im.remove(); });
+        }
+      });
+      c.querySelectorAll('p,div,li,span,a,h2,h3,h4').forEach(function (e) {
+        var t = (e.textContent || '').trim();
+        if (t.length && t.length < 90 && junk.test(t) && !e.querySelector('img')) e.remove();
+      });
+      c.querySelectorAll('p,div').forEach(function (e) { if (!(e.textContent || '').trim() && !e.querySelector('img,video,iframe,figure,picture')) e.remove(); });
+    })(root.querySelector('.c'));
     var wrap = root.querySelector('.wrap');
     root.querySelector('.bar').addEventListener('click', function (e) {
       var a = e.target && e.target.getAttribute && e.target.getAttribute('data-a');
-      if (a === 'x') window.__oaReader();
+      if (a === 'x') {
+        // Doğrudan kapat (sayfanın kendi kodu window.__oaReader'ı bozmuş olsa da çalışsın)
+        try { host.parentNode && host.parentNode.removeChild(host); } catch (err) {}
+        document.documentElement.style.overflow = window.__oaReaderOverflow || '';
+        return;
+      }
       if (a === '+' || a === '-') {
         size = Math.min(28, Math.max(14, size + (a === '+' ? 1 : -1)));
         wrap.style.fontSize = size + 'px';

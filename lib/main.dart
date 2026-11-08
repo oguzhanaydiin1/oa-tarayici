@@ -231,6 +231,9 @@ class TabData {
   /// Sayfada video/ses oynuyor (ekran süresi boşta kalınca da saymaya devam eder)
   bool mediaPlaying = false;
 
+  /// Kullanıcı sekmenin sesini kapattı
+  bool muted = false;
+
   String url = '';
   String title = '';
   double progress = 1;
@@ -1834,6 +1837,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         const PopupMenuItem(value: 'sleepall', child: Text('Diğer sekmeleri uyut')),
         const PopupMenuDivider(),
         if (!t.showStart) const PopupMenuItem(value: 'reload', child: Text('Yeniden yükle')),
+        if (!t.showStart) PopupMenuItem(value: 'mute', child: Text(t.muted ? 'Sekmenin sesini aç' : 'Sekmenin sesini kapat')),
         if (!t.showStart) const PopupMenuItem(value: 'dup', child: Text('Sekmeyi çoğalt')),
         const PopupMenuItem(value: 'close', child: Text('Sekmeyi kapat')),
         if (_tabs.length > 1) const PopupMenuItem(value: 'others', child: Text('Diğer sekmeleri kapat')),
@@ -1874,6 +1878,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       } else {
         t.controller?.reload();
       }
+    } else if (v == 'mute') {
+      _toggleMute(t);
     } else if (v == 'dup') {
       _selectTab(_tabs.indexOf(t));
       _addTab(url: t.url, incognito: t.incognito);
@@ -1883,6 +1889,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       final at = _tabs.indexOf(t);
       _closeTabsExcept(t, (x) => _tabs.indexOf(x) > at);
     }
+  }
+
+  void _toggleMute(TabData t) {
+    setState(() => t.muted = !t.muted);
+    t.controller?.evaluateJavascript(source: 'window.__oaSetMute&&window.__oaSetMute(${t.muted})');
   }
 
   /// [keep] dışındaki, [which] koşulunu sağlayan sekmeleri kapatır (sabitlenmişler kalır).
@@ -2020,6 +2031,15 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             ),
           ),
         ),
+        if (t.mediaPlaying || t.muted)
+          IconButton(
+            tooltip: t.muted ? 'Sekmenin sesini aç' : 'Sekmenin sesini kapat',
+            iconSize: 14,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 26, minHeight: 28),
+            icon: Icon(t.muted ? Icons.volume_off : Icons.volume_up, color: t.muted ? OAColors.faint : OAColors.amber),
+            onPressed: () => _toggleMute(t),
+          ),
         if (t.pinned)
           Padding(
             padding: const EdgeInsets.only(right: 10),
@@ -6690,7 +6710,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           if (mounted && args.isNotEmpty) _onPageKey(args.first.toString());
         });
         c.addJavaScriptHandler(handlerName: 'oaMedia', callback: (args) {
-          t.mediaPlaying = args.isNotEmpty && args.first == true;
+          final on = args.isNotEmpty && args.first == true;
+          if (on == t.mediaPlaying) return;
+          t.mediaPlaying = on;
+          if (mounted) setState(() {});
         });
         c.addJavaScriptHandler(handlerName: 'oaGoHome', callback: (_) {
           if (!mounted) return;
@@ -6785,6 +6808,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         _addHistory(t);
         _autofill(t);
         _applySiteLook(t);
+        if (t.muted) c.evaluateJavascript(source: 'window.__oaSetMute&&window.__oaSetMute(true)');
         // Sayfa değiştiyse eski arama sonuçları geçersiz: yeniden ara.
         if (_findOpen && t == _tab && _findCtl.text.isNotEmpty) _runFind(_findCtl.text, now: true);
         // Sitede giriş/çıkış yapıldıysa uygulama da öğrensin.

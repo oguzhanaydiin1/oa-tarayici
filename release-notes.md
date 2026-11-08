@@ -210,3 +210,10 @@ En yeni sürüm en üstte olsun.
 • The ad blocker now also collapses the empty white space left by removed ads (like the big gap at the top of news sites).
 • New options when you right-click a tab: Reload, Duplicate tab, Close other tabs, Close tabs to the right.
 • The site permission dialog is clearer ("Wants to use: location"), and selected buttons are now orange.
+
+## 0.19.5
+• Sesli video ya da müzik çalan sekmede hoparlör simgesi görünür; simgeye tıklayınca o sekmenin sesi kapanır (sekmeye sağ tıklayarak da yapılır).
+• Okuma modu, yazıya karışan küçük simgeleri ve "Google'da takip edin" gibi kutuları ayıklar.
+
+• Tabs playing audible video or music show a speaker icon; click it to mute that tab (also available when you right-click the tab).
+• Reader mode filters out small icons and boxes like "Follow us on Google" mixed into the article.
