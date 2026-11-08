@@ -228,3 +228,12 @@ En yeni sürüm en üstte olsun.
 • In the mini window the video now fills the whole window (YouTube's top bar is hidden) and sits in the bottom-right corner of the screen.
 • Middle click and Ctrl+click now open links in a background tab on sites that don't request a new window themselves (like YouTube).
 • The installer no longer asks "folder already exists" when updating an existing folder.
+
+## 0.19.7
+• Sekmeler sürüklenerek yer değiştirir; başka bir gruptaki sekmenin üstüne bırakılan sekme o gruba katılır.
+• Açık sekmeyi kapatınca, onu açan sekmeye dönülür (Chrome gibi).
+• YouTube: izleme sayfasının yan sütunundaki "Sponsorlu" alışveriş kutuları da gizlenir.
+
+• Tabs can be dragged to reorder; a tab dropped onto a tab in another group joins that group.
+• Closing the current tab returns you to the tab that opened it (like Chrome).
+• YouTube: "Sponsored" shopping boxes in the side column of the watch page are now hidden too.

@@ -467,7 +467,10 @@ const String kYoutubeAdJs = r'''
   var st = document.createElement('style');
   st.textContent = 'ytd-ad-slot-renderer,ytd-in-feed-ad-layout-renderer,ytd-banner-promo-renderer,#player-ads,#masthead-ad,' +
     'ytd-promoted-sparkles-web-renderer,ytd-promoted-video-renderer,ytd-companion-slot-renderer,ytd-action-companion-ad-renderer,' +
-    'ytd-rich-item-renderer:has(ytd-ad-slot-renderer),ytd-statement-banner-renderer,.ytd-merch-shelf-renderer{display:none!important}';
+    'ytd-rich-item-renderer:has(ytd-ad-slot-renderer),ytd-statement-banner-renderer,.ytd-merch-shelf-renderer,' +
+    'ytd-engagement-panel-section-list-renderer[target-id*="ads"],ytd-ads-engagement-panel-content-renderer,' +
+    'ytd-player-legacy-desktop-watch-ads-renderer,ytd-shopping-companion-ad-renderer,ytd-companion-ad-renderer,' +
+    '#related ytd-ad-slot-renderer,#secondary #player-ads,ytd-search-pyv-renderer{display:none!important}';
   (document.head || document.documentElement).appendChild(st);
   var muted = false;
   setInterval(function(){

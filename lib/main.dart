@@ -2113,17 +2113,46 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
       );
     }
-    final chip = GestureDetector(
-      onTap: () => _selectTab(i),
-      onSecondaryTapUp: (d) => _tabMenu(i, d.globalPosition),
-      onTertiaryTapUp: (_) => _closeTab(i),
-      child: Container(
-        width: vertical ? null : _tabW,
-        height: vertical ? 38 : null,
-        margin: vertical ? const EdgeInsets.fromLTRB(8, 2, 8, 0) : const EdgeInsets.fromLTRB(2, 8, 0, 0),
-        padding: const EdgeInsets.only(left: 12),
-        decoration: deco,
-        child: row,
+    final box = Container(
+      width: vertical ? null : _tabW,
+      height: vertical ? 38 : null,
+      margin: vertical ? const EdgeInsets.fromLTRB(8, 2, 8, 0) : const EdgeInsets.fromLTRB(2, 8, 0, 0),
+      padding: const EdgeInsets.only(left: 12),
+      decoration: deco,
+      child: row,
+    );
+    // Sekmeler sürüklenerek yer değiştirir (masaüstü)
+    final Widget chip = DragTarget<String>(
+      onWillAcceptWithDetails: (d) => d.data != t.id,
+      onAcceptWithDetails: (d) => _moveTab(d.data, t.id),
+      builder: (context, cand, _) => Draggable<String>(
+        data: t.id,
+        axis: vertical ? Axis.vertical : Axis.horizontal,
+        affinity: vertical ? Axis.vertical : Axis.horizontal,
+        feedback: Material(
+          color: Colors.transparent,
+          child: Opacity(
+            opacity: 0.85,
+            child: SizedBox(width: vertical ? 240 : _tabW, height: vertical ? 38 : 38, child: box),
+          ),
+        ),
+        childWhenDragging: Opacity(opacity: 0.35, child: box),
+        child: GestureDetector(
+          onTap: () => _selectTab(i),
+          onSecondaryTapUp: (d) => _tabMenu(i, d.globalPosition),
+          onTertiaryTapUp: (_) => _closeTab(i),
+          child: cand.isEmpty
+              ? box
+              : DecoratedBox(
+                  position: DecorationPosition.foreground,
+                  decoration: BoxDecoration(
+                    border: vertical
+                        ? Border(top: BorderSide(color: OAColors.amber, width: 2))
+                        : Border(left: BorderSide(color: OAColors.amber, width: 2)),
+                  ),
+                  child: box,
+                ),
+        ),
       ),
     );
     if (t.showStart || i == _current) return chip;
@@ -4422,11 +4451,18 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           ..add(TabData());
         _current = 0;
       } else {
+        final wasCurrent = i == _current;
         _tabs.removeAt(i);
         if (_current >= _tabs.length) {
           _current = _tabs.length - 1;
         } else if (i < _current) {
           _current--;
+        }
+        // Açık sekme kapanınca onu açan sekmeye dönülür (Chrome gibi)
+        final opener = closing.openerId;
+        if (wasCurrent && opener != null) {
+          final o = _tabs.indexWhere((x) => x.id == opener);
+          if (o >= 0) _current = o;
         }
       }
       _urlCtl.text = _addressText(_tab);
@@ -4484,6 +4520,23 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                 },
               ),
       ));
+  }
+
+  /// Sürüklenen sekmeyi bırakıldığı sekmenin yerine taşır.
+  void _moveTab(String fromId, String toId) {
+    final from = _tabs.indexWhere((x) => x.id == fromId);
+    final to = _tabs.indexWhere((x) => x.id == toId);
+    if (from < 0 || to < 0 || from == to) return;
+    final cur = _tab;
+    final target = _tabs[to];
+    setState(() {
+      final t = _tabs.removeAt(from);
+      _tabs.insert(to, t);
+      // Bırakıldığı sekmenin grubuna katılır (grup dışına bırakılırsa gruptan çıkar)
+      t.groupId = target.groupId;
+      _current = _tabs.indexOf(cur);
+    });
+    _saveSessionSoon();
   }
 
   /// Açık sekme şeritte görünmüyorsa şerit ona kayar.
