@@ -1832,7 +1832,12 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         if (i != _current && Platform.isWindows) const PopupMenuItem(value: 'split', child: Text('Açık sekmeyle yan yana göster')),
         if (_split != null && Platform.isWindows) const PopupMenuItem(value: 'unsplit', child: Text('Yan yana görünümü kapat')),
         const PopupMenuItem(value: 'sleepall', child: Text('Diğer sekmeleri uyut')),
+        const PopupMenuDivider(),
+        if (!t.showStart) const PopupMenuItem(value: 'reload', child: Text('Yeniden yükle')),
+        if (!t.showStart) const PopupMenuItem(value: 'dup', child: Text('Sekmeyi çoğalt')),
         const PopupMenuItem(value: 'close', child: Text('Sekmeyi kapat')),
+        if (_tabs.length > 1) const PopupMenuItem(value: 'others', child: Text('Diğer sekmeleri kapat')),
+        if (i < _tabs.length - 1) const PopupMenuItem(value: 'right', child: Text('Sağdaki sekmeleri kapat')),
         PopupMenuItem(
             value: 'closeall',
             child: Text(_tabs.any((x) => x.pinned) ? 'Bütün sekmeleri kapat (sabitler kalır)' : 'Bütün sekmeleri kapat')),
@@ -1863,7 +1868,45 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       _sleepOthers();
     } else if (v == 'close') {
       _closeTab(_tabs.indexOf(t));
+    } else if (v == 'reload') {
+      if (t.sleeping) {
+        _selectTab(_tabs.indexOf(t));
+      } else {
+        t.controller?.reload();
+      }
+    } else if (v == 'dup') {
+      _selectTab(_tabs.indexOf(t));
+      _addTab(url: t.url, incognito: t.incognito);
+    } else if (v == 'others') {
+      _closeTabsExcept(t, (x) => true);
+    } else if (v == 'right') {
+      final at = _tabs.indexOf(t);
+      _closeTabsExcept(t, (x) => _tabs.indexOf(x) > at);
     }
+  }
+
+  /// [keep] dışındaki, [which] koşulunu sağlayan sekmeleri kapatır (sabitlenmişler kalır).
+  void _closeTabsExcept(TabData keep, bool Function(TabData) which) {
+    final closing = [for (final x in _tabs) if (x != keep && !x.pinned && which(x)) x];
+    if (closing.isEmpty) return;
+    for (final x in closing) {
+      if (!x.incognito && !x.showStart && x.url.isNotEmpty) {
+        _closedTabs.add({'url': x.url, 'title': x.displayTitle});
+      }
+      _disposeTab(x);
+    }
+    while (_closedTabs.length > 10) {
+      _closedTabs.removeAt(0);
+    }
+    setState(() {
+      final sp = _split;
+      if (sp != null && closing.any((x) => x.id == sp.$1 || x.id == sp.$2)) _split = null;
+      _tabs.removeWhere(closing.contains);
+      _current = _tabs.indexOf(keep).clamp(0, _tabs.length - 1);
+      _urlCtl.text = _addressText(_tab);
+    });
+    _saveSessionSoon();
+    _toast('${closing.length} sekme kapatıldı · Ctrl+Shift+T ile geri açılır');
   }
 
   Future<void> _groupMenu(TabGroup g, Offset pos) async {

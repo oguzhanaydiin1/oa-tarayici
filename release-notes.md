@@ -198,6 +198,7 @@ En yeni sürüm en üstte olsun.
 • Adres çubuğunda Türkçe harfler artık %C4%B1 gibi kodlarla değil, okunur biçimde görünür.
 • Geçmiş ve yer imlerinde arama kutusu, gün başlıkları (Bugün, Dün…) ve tek tek silme var; "Temizle" önce sorar. Yeni kısayollar: Ctrl+H geçmiş, Ctrl+D yer imi, Ctrl+Shift+O yer imleri, Ctrl+R / F5 yenile.
 • Reklam engelleyici, reklamı kaldırılan kutuların bıraktığı boş beyaz alanları da kapatır (haber sitelerinin üstündeki büyük boşluk gibi).
+• Sekmeye sağ tıklayınca yeni seçenekler: Yeniden yükle, Sekmeyi çoğalt, Diğer sekmeleri kapat, Sağdaki sekmeleri kapat.
 • Site izin penceresi daha anlaşılır ("Şunları kullanmak istiyor: konum"); seçili düğmeler artık turuncu.
 
 • Windows: for people who unzipped Pusula and run it from their own folder, updates were installed to a different folder and the copy they opened stayed old; now the folder Pusula runs from is the one updated. Download progress is shown, the install runs quietly and Pusula reopens by itself. Update files no longer fill up the Downloads list.
@@ -207,4 +208,5 @@ En yeni sürüm en üstte olsun.
 • Turkish and other non-English letters in the address bar now show as readable text, not codes like %C4%B1.
 • History and bookmarks now have a search box, day headings (Today, Yesterday…) and per-item delete; "Clear" asks first. New shortcuts: Ctrl+H history, Ctrl+D bookmark, Ctrl+Shift+O bookmarks, Ctrl+R / F5 reload.
 • The ad blocker now also collapses the empty white space left by removed ads (like the big gap at the top of news sites).
+• New options when you right-click a tab: Reload, Duplicate tab, Close other tabs, Close tabs to the right.
 • The site permission dialog is clearer ("Wants to use: location"), and selected buttons are now orange.
