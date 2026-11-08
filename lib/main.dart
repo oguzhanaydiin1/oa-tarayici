@@ -4645,6 +4645,15 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         // İlk (boş) başlangıç sekmesi kalsın; kaldığın sekme açılsın.
         final cur = j['current'] is int ? j['current'] as int : -1;
         _current = cur >= 0 && cur < list.length ? cur + 1 : 0;
+        // Yalnız kaldığın sekme yüklenir; öbürleri tıklayınca açılır (Chrome gibi). Böylece açılışta
+        // arkadaki video/canlı yayın sekmeleri kendiliğinden ses çıkarmaz, açılış da hızlanır.
+        for (var k = 0; k < _tabs.length; k++) {
+          final x = _tabs[k];
+          if (k == _current || x.showStart) continue;
+          x
+            ..webStarted = false
+            ..sleeping = true;
+        }
         _urlCtl.text = _addressText(_tab);
       });
     } catch (_) {}

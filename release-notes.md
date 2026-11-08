@@ -244,3 +244,8 @@ En yeni sürüm en üstte olsun.
 
 • The ad blocker list grew from 117 to more than 3,600 domains (added Peter Lowe's list, one of the default lists in popular ad blockers). Fewer ads, fewer trackers, faster pages.
 • The tab's speaker icon moved to the left of the title, so the close button no longer shifts when audio stops (no more closing a tab by accident).
+
+## 0.19.9
+• Açılışta yalnız kaldığın sekme yüklenir, öbür sekmeler tıklayınca açılır (Chrome gibi). Pusula daha hızlı açılır ve arka sekmelerdeki video ya da canlı yayınlar açılır açılmaz kendiliğinden ses çıkarmaz.
+
+• On startup only the tab you were on loads; the other tabs open when you click them (like Chrome). Pusula opens faster, and videos or live streams in background tabs no longer start playing sound on their own.
