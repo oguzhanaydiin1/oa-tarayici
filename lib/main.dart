@@ -5589,11 +5589,17 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               decoration: InputDecoration(
                 isDense: true,
                 hintText: '${_engine.name} ile ara veya adres yaz',
-                prefixIcon: Icon(
-                  secure ? Icons.lock_outline : Icons.search,
-                  size: 18,
-                  color: secure ? OAColors.green : OAColors.muted,
-                ),
+                prefixIcon: _tab.showStart
+                    ? Icon(Icons.search, size: 18, color: OAColors.muted)
+                    : IconButton(
+                        tooltip: 'Site bilgileri ve izinler',
+                        onPressed: _showSiteInfo,
+                        icon: Icon(
+                          secure ? Icons.lock_outline : Icons.info_outline,
+                          size: 18,
+                          color: secure ? OAColors.green : OAColors.amber,
+                        ),
+                      ),
                 contentPadding: EdgeInsets.symmetric(vertical: 12),
               ),
             ),
@@ -6987,6 +6993,92 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     if (r == PermissionResourceType.MULTIPLE_AUTOMATIC_DOWNLOADS) return 'birden çok dosya indirme';
     if (r == PermissionResourceType.DEVICE_ORIENTATION_AND_MOTION) return 'cihaz hareketi';
     return r.toString().toLowerCase();
+  }
+
+  /// Adres çubuğundaki kilide tıklayınca: bağlantı durumu, bu sitenin izinleri, çerezleri.
+  void _showSiteInfo() {
+    final t = _tab;
+    if (t.showStart) return;
+    final uri = Uri.tryParse(t.url);
+    final host = (uri?.host ?? '').replaceFirst(RegExp(r'^www\.'), '');
+    if (host.isEmpty) return;
+    final secure = t.url.startsWith('https');
+    String label(String raw) {
+      final names = [
+        for (final part in raw.split(','))
+          () {
+            for (final r in PermissionResourceType.values) {
+              if (r.toString() == part) return _permName(r);
+            }
+            return part.toLowerCase();
+          }()
+      ];
+      final s = names.join(', ');
+      return s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+    }
+
+    showModalBottomSheet(
+      context: context,
+      useSafeArea: true,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setS) {
+        final perms = _sitePerms();
+        final mine = perms.entries.where((e) => e.key.startsWith('$host|') && e.value is bool).toList();
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 8, 16),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            ListTile(
+              leading: Icon(secure ? Icons.lock_outline : Icons.lock_open, color: secure ? OAColors.green : OAColors.amber),
+              title: Text(host, style: oaDisplay(20)),
+              subtitle: Text(secure
+                  ? 'Bağlantı güvenli. Bu siteye gönderdiklerin şifrelenir.'
+                  : 'Bağlantı güvenli değil. Bu sitede şifre ya da kart bilgisi girme.'),
+            ),
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+              child: Text('İzinler', style: TextStyle(color: OAColors.amber, fontSize: 12, fontWeight: FontWeight.w600)),
+            ),
+            if (mine.isEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                child: Text('Bu site henüz bir izin istemedi.', style: TextStyle(color: OAColors.muted)),
+              ),
+            for (final e in mine)
+              ListTile(
+                dense: true,
+                title: Text(label(e.key.substring(host.length + 1))),
+                subtitle: Text(e.value == true ? 'İzin verildi' : 'Engellendi'),
+                trailing: TextButton(
+                  onPressed: () {
+                    final m = _sitePerms()..remove(e.key);
+                    _prefs?.setString('site_perms', jsonEncode(m));
+                    setS(() {});
+                  },
+                  child: const Text('Sıfırla'),
+                ),
+              ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.cookie_outlined),
+              title: const Text('Bu sitenin çerezlerini sil'),
+              subtitle: const Text('Bu sitedeki oturumların kapanır'),
+              onTap: () async {
+                Navigator.pop(ctx);
+                try {
+                  final cm = oaCookies();
+                  for (final d in [host, '.$host', 'www.$host']) {
+                    await cm.deleteCookies(url: WebUri('https://$d'), domain: d);
+                  }
+                  await cm.deleteCookies(url: WebUri(t.url));
+                } catch (_) {}
+                t.controller?.reload();
+                _toast('$host çerezleri silindi');
+              },
+            ),
+          ]),
+        );
+      }),
+    );
   }
 
   Map<String, dynamic> _sitePerms() {

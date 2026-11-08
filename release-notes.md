@@ -241,8 +241,10 @@ En yeni sürüm en üstte olsun.
 ## 0.19.9
 • Açılışta yalnız kaldığın sekme yüklenir, öbür sekmeler tıklayınca açılır (Chrome gibi). Pusula daha hızlı açılır ve arka sekmelerdeki video ya da canlı yayınlar açılır açılmaz kendiliğinden ses çıkarmaz.
 • Reklam engelleyicinin listesi 117 alan adından 3.600'ü aşkın alan adına çıktı (yaygın reklam engelleyicilerin varsayılan listelerinden Peter Lowe listesi eklendi). Daha az reklam, daha az izleyici, daha hızlı sayfalar.
+• Adres çubuğundaki kilide tıklayınca site bilgileri açılır: bağlantının güvenli olup olmadığı, sitenin izinleri (tek tek sıfırlanabilir) ve "Bu sitenin çerezlerini sil".
 • Sekmedeki hoparlör simgesi başlığın soluna taşındı; ses durunca kapatma düğmesi artık yer değiştirmiyor (yanlışlıkla sekme kapatılmıyor).
 
 • On startup only the tab you were on loads; the other tabs open when you click them (like Chrome). Pusula opens faster, and videos or live streams in background tabs no longer start playing sound on their own.
 • The ad blocker list grew from 117 to more than 3,600 domains (added Peter Lowe's list, one of the default lists in popular ad blockers). Fewer ads, fewer trackers, faster pages.
+• Clicking the lock in the address bar opens site info: whether the connection is secure, the site's permissions (each can be reset) and "Delete this site's cookies".
 • The tab's speaker icon moved to the left of the title, so the close button no longer shifts when audio stops (no more closing a tab by accident).
