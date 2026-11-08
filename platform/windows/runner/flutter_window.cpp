@@ -31,6 +31,17 @@ bool FlutterWindow::OnCreate() {
   single_channel_ = std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
       flutter_controller_->engine()->messenger(), "oa/tek_pencere",
       &flutter::StandardMethodCodec::GetInstance());
+  single_channel_->SetMethodCallHandler(
+      [this](const flutter::MethodCall<flutter::EncodableValue>& call,
+             std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
+        if (call.method_name() == "tamEkran") {
+          const auto* on = std::get_if<bool>(call.arguments());
+          SetFullscreen(on != nullptr && *on);
+          result->Success();
+        } else {
+          result->NotImplemented();
+        }
+      });
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
@@ -43,6 +54,30 @@ bool FlutterWindow::OnCreate() {
   flutter_controller_->ForceRedraw();
 
   return true;
+}
+
+void FlutterWindow::SetFullscreen(bool on) {
+  HWND hwnd = GetHandle();
+  if (!hwnd || on == fullscreen_) return;
+  if (on) {
+    saved_style_ = ::GetWindowLong(hwnd, GWL_STYLE);
+    saved_placement_.length = sizeof(WINDOWPLACEMENT);
+    ::GetWindowPlacement(hwnd, &saved_placement_);
+    MONITORINFO mi{};
+    mi.cbSize = sizeof(mi);
+    ::GetMonitorInfo(::MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &mi);
+    ::SetWindowLong(hwnd, GWL_STYLE, saved_style_ & ~WS_OVERLAPPEDWINDOW);
+    ::SetWindowPos(hwnd, HWND_TOP, mi.rcMonitor.left, mi.rcMonitor.top,
+                   mi.rcMonitor.right - mi.rcMonitor.left,
+                   mi.rcMonitor.bottom - mi.rcMonitor.top,
+                   SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+  } else {
+    ::SetWindowLong(hwnd, GWL_STYLE, saved_style_);
+    ::SetWindowPlacement(hwnd, &saved_placement_);
+    ::SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
+                   SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+  }
+  fullscreen_ = on;
 }
 
 void FlutterWindow::OnDestroy() {

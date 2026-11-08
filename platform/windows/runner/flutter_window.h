@@ -33,8 +33,15 @@ class FlutterWindow : public Win32Window {
   // The Flutter instance hosted by this window.
   std::unique_ptr<flutter::FlutterViewController> flutter_controller_;
 
-  // "oa/tek_pencere": ikinci açılıştan gelen adresler Dart'a buradan iletilir.
+  // "oa/tek_pencere": ikinci açılıştan gelen adresler Dart'a buradan iletilir; Dart da tam ekranı
+  // buradan ister ("tamEkran").
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> single_channel_;
+
+  // Video tam ekranı: başlık çubuğu ve kenarlıklar kalkar, pencere bütün ekranı kaplar.
+  void SetFullscreen(bool on);
+  bool fullscreen_ = false;
+  LONG saved_style_ = 0;
+  WINDOWPLACEMENT saved_placement_{};
 };
 
 #endif  // RUNNER_FLUTTER_WINDOW_H_

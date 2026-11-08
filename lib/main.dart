@@ -73,6 +73,7 @@ Future<void> main(List<String> args) async {
   if (Platform.isWindows) {
     try {
       await windowManager.ensureInitialized(); // videoyu küçük pencerede izleme
+      await windowManager.setMinimumSize(const Size(500, 320));
     } catch (_) {}
   }
   runApp(BrowserApp());
@@ -299,7 +300,6 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   /// Sayfadaki video tam ekranda (Windows): pencere tam ekran, uygulamanın çubukları gizli.
   bool _pageFullscreen = false;
-  bool _fsWasMax = false;
   bool get _chromeHidden => _miniVideo || _pageFullscreen;
   Rect? _savedBounds;
   bool _savedMax = false;
@@ -453,10 +453,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   TabData get _tab => _tabs[_current];
 
   /// Telefon düzeni: Android ve iOS'ta; bilgisayarda pencere çok daraltılınca da.
-  bool _isMobile(BuildContext context) =>
-      Platform.isAndroid ||
-      Platform.isIOS ||
-      MediaQuery.sizeOf(context).width < 520;
+  // Yalnız telefonda. (Bilgisayarda pencere daraltılınca telefon düzenine geçmek bütün sekmeleri
+  // baştan yüklüyordu; videoyu küçük pencerede izlerken de açık sayfa kayboluyordu.)
+  bool _isMobile(BuildContext context) => Platform.isAndroid || Platform.isIOS;
 
   @override
   void initState() {
@@ -1283,7 +1282,53 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       final z = _zoomOf(host);
       if (z != 100) await c.evaluateJavascript(source: zoomJs(z));
       if (_isDarkSite(host)) await c.evaluateJavascript(source: darkModeJs(true));
+      if (_adblockOn && !_adblockAllow.contains(host) && (host == 'youtube.com' || host.endsWith('.youtube.com'))) {
+        await c.evaluateJavascript(source: kYoutubeAdJs);
+      }
     } catch (_) {}
+  }
+
+  /// Sayfadayken basılan kısayol (bkz. shortcutRelayScript).
+  void _onPageKey(String k) {
+    final n = _tabs.length;
+    switch (k) {
+      case 'ctrl+t':
+        _addTab();
+      case 'ctrl+shift+t':
+        _reopenClosedTab();
+      case 'ctrl+shift+n':
+        _addTab(incognito: true);
+      case 'ctrl+w':
+        _closeTab(_current);
+      case 'ctrl+shift+w':
+        _closeAllTabs();
+      case 'ctrl+l':
+        _urlFocus.requestFocus();
+        _urlCtl.selection = TextSelection(baseOffset: 0, extentOffset: _urlCtl.text.length);
+      case 'ctrl+tab' || 'ctrl+pagedown':
+        if (n > 1) _selectTab((_current + 1) % n);
+      case 'ctrl+shift+tab' || 'ctrl+pageup':
+        if (n > 1) _selectTab((_current - 1 + n) % n);
+      case 'ctrl+k':
+        _showCommands();
+      case 'ctrl+f':
+        _openFind();
+      case 'ctrl+j':
+        _showDownloads();
+      case 'ctrl+p':
+        _savePdf();
+      case 'ctrl+,':
+        _openSettings();
+      case 'ctrl+=':
+        _zoomStep(1);
+      case 'ctrl+-':
+        _zoomStep(-1);
+      case 'ctrl+0':
+        _setZoom(100);
+      default:
+        final d = int.tryParse(k.replaceFirst('ctrl+', ''));
+        if (d != null && d >= 1 && d <= 9 && n > 0) _selectTab(d == 9 ? n - 1 : (d - 1).clamp(0, n - 1));
+    }
   }
 
   void _setZoom(int percent) {
@@ -3509,16 +3554,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   Future<void> _setPageFullscreen(bool on) async {
     if (!Platform.isWindows || on == _pageFullscreen) return;
     if (_miniVideo) await _exitMiniVideo();
-    if (on) {
-      try {
-        _fsWasMax = await windowManager.isMaximized();
-      } catch (_) {}
-    }
     if (!mounted) return;
     setState(() => _pageFullscreen = on);
     try {
-      await windowManager.setFullScreen(on);
-      if (!on && _fsWasMax) await windowManager.maximize();
+      // Başlık çubuğu ve kenarlıklar da kalksın diye pencere kodunda (flutter_window.cpp) yapılır.
+      await _single.invokeMethod('tamEkran', on);
     } catch (_) {}
   }
 
@@ -4880,6 +4920,12 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           SingleActivator(LogicalKeyboardKey.keyP, control: true): _savePdf,
           SingleActivator(LogicalKeyboardKey.comma, control: true): () => _openSettings(),
           SingleActivator(LogicalKeyboardKey.keyK, control: true): _showCommands,
+          SingleActivator(LogicalKeyboardKey.tab, control: true): () => _onPageKey('ctrl+tab'),
+          SingleActivator(LogicalKeyboardKey.tab, control: true, shift: true): () => _onPageKey('ctrl+shift+tab'),
+          SingleActivator(LogicalKeyboardKey.pageDown, control: true): () => _onPageKey('ctrl+tab'),
+          SingleActivator(LogicalKeyboardKey.pageUp, control: true): () => _onPageKey('ctrl+shift+tab'),
+          for (var d = 1; d <= 9; d++)
+            SingleActivator(LogicalKeyboardKey(LogicalKeyboardKey.digit1.keyId + d - 1), control: true): () => _onPageKey('ctrl+$d'),
           SingleActivator(LogicalKeyboardKey.equal, control: true): () => _zoomStep(1),
           SingleActivator(LogicalKeyboardKey.numpadAdd, control: true): () => _zoomStep(1),
           SingleActivator(LogicalKeyboardKey.minus, control: true): () => _zoomStep(-1),
@@ -5317,6 +5363,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           PopupMenuButton<String>(
             tooltip: 'Menü',
             onSelected: _onMenu,
+            // Uzun öğeler ("Kapatılan sekmeyi geri aç  Ctrl+Shift+T") iki satıra bölünmesin
+            constraints: const BoxConstraints(minWidth: 300, maxWidth: 360),
             itemBuilder: (_) => [
               _mi('new', Icons.add, 'Yeni sekme', 'Ctrl+T'),
               _mi('incognito', Icons.visibility_off_outlined, 'Yeni gizli sekme'),
@@ -5369,6 +5417,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     final v = await showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(size.width - 320, 100, 16, 0),
+      constraints: const BoxConstraints(minWidth: 300, maxWidth: 360),
       items: [
         _mi('find', Icons.find_in_page_outlined, 'Sayfada bul', 'Ctrl+F'),
         _mi('later', Icons.bookmark_add_outlined, 'Sonra oku listesine ekle'),
@@ -6461,6 +6510,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         if (Platform.isWindows) drmWatchScript(),
         if (Platform.isWindows) fullscreenWatchScript(),
         if (Platform.isWindows) touchpadScript(),
+        if (Platform.isWindows) shortcutRelayScript(),
         mediaStateScript(),
         // Şifre kaydetme (gizli sekmede değil)
         if (!t.incognito)
@@ -6490,6 +6540,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           : null,
       onWebViewCreated: (c) {
         t.controller = c;
+        c.addJavaScriptHandler(handlerName: 'oaKey', callback: (args) {
+          if (mounted && args.isNotEmpty) _onPageKey(args.first.toString());
+        });
         c.addJavaScriptHandler(handlerName: 'oaMedia', callback: (args) {
           t.mediaPlaying = args.isNotEmpty && args.first == true;
         });

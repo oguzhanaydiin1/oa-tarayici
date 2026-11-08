@@ -376,3 +376,90 @@ UserScript mediaStateScript() => UserScript(
 })();
 ''',
     );
+
+// ---------------------------------------------------------------- Kısayollar sayfadayken (bilgisayar)
+
+/// Sayfaya tıklanınca klavye web görünümüne geçer ve uygulamanın kısayolları (Ctrl+T, Ctrl+W, Ctrl+K…)
+/// çalışmaz. Bu betik kısayolları yakalayıp uygulamaya iletir. Tarayıcıya ait olanlar (yeni sekme,
+/// sekme kapatma, sekmeler arası geçiş) her zaman uygulamanındır; Ctrl+F, Ctrl+K gibi sitelerin de
+/// kullanabildiği kısayollar yalnız site kullanmadıysa uygulamaya gider.
+UserScript shortcutRelayScript() => UserScript(
+      groupName: 'oa-kisayol',
+      injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+      forMainFrameOnly: false,
+      source: r'''
+(function(){
+  if (window.__oaKeys) return; window.__oaKeys = 1;
+  var top = window.top === window;
+  function send(k){
+    if (top) { try { window.flutter_inappwebview.callHandler('oaKey', k); } catch (e) {} return; }
+    try { window.top.postMessage({ __oaKey: k }, '*'); } catch (e) {}
+  }
+  if (top) {
+    window.addEventListener('message', function(e){
+      var d = e && e.data;
+      if (d && typeof d === 'object' && typeof d.__oaKey === 'string' && /^ctrl\+/.test(d.__oaKey)) send(d.__oaKey);
+    });
+  }
+  var reserved = { KeyT: 't', KeyW: 'w', KeyL: 'l', Tab: 'tab', PageUp: 'pageup', PageDown: 'pagedown' };
+  var soft = { KeyK: 'k', KeyF: 'f', KeyJ: 'j', KeyP: 'p' };
+  function name(e){ return 'ctrl+' + (e.shiftKey ? 'shift+' : ''); }
+  window.addEventListener('keydown', function(e){
+    if (!e.ctrlKey || e.altKey || e.metaKey) return;
+    var k = reserved[e.code];
+    if (!k && e.code === 'KeyN' && e.shiftKey) k = 'n';
+    if (!k && /^Digit[1-9]$/.test(e.code) && !e.shiftKey) k = e.code.slice(5);
+    if (!k) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    send(name(e) + k);
+  }, true);
+  window.addEventListener('keydown', function(e){
+    if (!e.ctrlKey || e.altKey || e.metaKey || e.defaultPrevented) return;
+    var k = soft[e.code];
+    if (!k && !e.shiftKey) {
+      if (e.key === ',') k = ',';
+      else if (e.key === '+' || e.key === '=') k = '=';
+      else if (e.key === '-') k = '-';
+      else if (e.key === '0') k = '0';
+    }
+    if (!k) return;
+    e.preventDefault();
+    send(name(e) + k);
+  }, false);
+})();
+''',
+    );
+
+// ---------------------------------------------------------------- YouTube reklamları
+
+/// YouTube videolardaki reklamı sessize alıp sona sarar, "Atla" düğmesine basar; ana sayfadaki ve
+/// yan sütundaki reklam kutularını gizler. (YouTube reklamları kendi adresinden geldiği için adres
+/// engellemesiyle kaldırılamıyor.)
+const String kYoutubeAdJs = r'''
+(function(){
+  if (!/(^|\.)youtube\.com$/.test(location.hostname) || window.__oaYt) return;
+  window.__oaYt = 1;
+  var st = document.createElement('style');
+  st.textContent = 'ytd-ad-slot-renderer,ytd-in-feed-ad-layout-renderer,ytd-banner-promo-renderer,#player-ads,#masthead-ad,' +
+    'ytd-promoted-sparkles-web-renderer,ytd-promoted-video-renderer,ytd-companion-slot-renderer,ytd-action-companion-ad-renderer,' +
+    'ytd-rich-item-renderer:has(ytd-ad-slot-renderer),ytd-statement-banner-renderer,.ytd-merch-shelf-renderer{display:none!important}';
+  (document.head || document.documentElement).appendChild(st);
+  var muted = false;
+  setInterval(function(){
+    var p = document.querySelector('.html5-video-player');
+    if (!p) return;
+    var v = p.querySelector('video');
+    var ad = p.classList.contains('ad-showing') || p.classList.contains('ad-interrupting');
+    if (ad && v) {
+      if (!v.muted) { v.muted = true; muted = true; }
+      try { if (isFinite(v.duration) && v.duration > 0 && v.currentTime < v.duration - 0.3) v.currentTime = v.duration - 0.1; } catch (e) {}
+      var b = document.querySelector('.ytp-ad-skip-button,.ytp-ad-skip-button-modern,.ytp-skip-ad-button,.ytp-ad-skip-button-container button');
+      if (b) b.click();
+    } else if (!ad && muted && v) {
+      v.muted = false; muted = false;
+    }
+    var o = document.querySelector('.ytp-ad-overlay-close-button');
+    if (o) o.click();
+  }, 250);
+})();
+''';
