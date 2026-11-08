@@ -1318,6 +1318,12 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     switch (k) {
       case 'ctrl+bglink':
         _bgLinkAt = DateTime.now();
+      case 'ctrl+h':
+        _onMenu('history');
+      case 'ctrl+d':
+        _toggleBookmark();
+      case 'ctrl+shift+o':
+        _onMenu('bookmarks');
       case 'ctrl+t':
         _addTab();
       case 'ctrl+shift+t':
@@ -5009,6 +5015,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           SingleActivator(LogicalKeyboardKey.keyP, control: true): _savePdf,
           SingleActivator(LogicalKeyboardKey.comma, control: true): () => _openSettings(),
           SingleActivator(LogicalKeyboardKey.keyK, control: true): _showCommands,
+          SingleActivator(LogicalKeyboardKey.keyH, control: true): () => _onMenu('history'),
+          SingleActivator(LogicalKeyboardKey.keyD, control: true): _toggleBookmark,
+          SingleActivator(LogicalKeyboardKey.keyO, control: true, shift: true): () => _onMenu('bookmarks'),
+          SingleActivator(LogicalKeyboardKey.keyR, control: true): () => _tab.controller?.reload(),
+          SingleActivator(LogicalKeyboardKey.f5): () => _tab.controller?.reload(),
           SingleActivator(LogicalKeyboardKey.tab, control: true): () => _onPageKey('ctrl+tab'),
           SingleActivator(LogicalKeyboardKey.tab, control: true, shift: true): () => _onPageKey('ctrl+shift+tab'),
           SingleActivator(LogicalKeyboardKey.pageDown, control: true): () => _onPageKey('ctrl+tab'),
@@ -5569,9 +5580,12 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         _showList('Yer imleri', _bookmarks, onClear: () {
           setState(() => _bookmarks.clear());
           _save('bookmarks', _bookmarks);
+        }, onChanged: () {
+          setState(() {});
+          _save('bookmarks', _bookmarks);
         });
       case 'history':
-        _showList('Geçmiş', _history, onClear: _clearHistory);
+        _showList('Geçmiş', _history, onClear: _clearHistory, onChanged: () => _save('history', _history));
       case 'engine':
         _showSearchSettings();
       case 'home':
@@ -6959,62 +6973,131 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     String title,
     List<Map<String, String>> items, {
     required VoidCallback onClear,
+    required VoidCallback onChanged,
   }) {
+    var query = '';
+    String dayLabel(String? at) {
+      final ms = int.tryParse(at ?? '');
+      if (ms == null) return '';
+      final d = DateTime.fromMillisecondsSinceEpoch(ms);
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final day = DateTime(d.year, d.month, d.day);
+      final diff = today.difference(day).inDays;
+      if (diff == 0) return 'Bugün';
+      if (diff == 1) return 'Dün';
+      const months = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+      return '${d.day} ${months[d.month - 1]}${d.year != now.year ? ' ${d.year}' : ''}';
+    }
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (ctx) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.7,
-        builder: (_, scroll) => Column(
-          children: [
-            ListTile(
-              title: Text(title, style: oaDisplay(20)),
-              trailing: items.isEmpty
-                  ? null
-                  : TextButton(
-                      onPressed: () {
-                        onClear();
-                        Navigator.pop(ctx);
-                      },
-                      child: Text('Temizle'),
-                    ),
-            ),
-            Divider(height: 1),
-            Expanded(
-              child: items.isEmpty
-                  ? Center(
-                      child: Text('Burada henüz bir şey yok.',
-                          style: TextStyle(color: OAColors.muted)))
-                  : ListView.builder(
-                      controller: scroll,
-                      itemCount: items.length,
-                      itemBuilder: (_, i) {
-                        final it = items[i];
-                        final q = it['q'];
-                        return ListTile(
-                          dense: true,
-                          leading: Icon(q != null ? Icons.search : Icons.public,
-                              size: 18),
-                          title: Text(it['title'] ?? '',
-                              maxLines: 1, overflow: TextOverflow.ellipsis),
-                          subtitle: Text(it['url'] ?? '',
-                              maxLines: 1, overflow: TextOverflow.ellipsis),
-                          onTap: () {
-                            Navigator.pop(ctx);
-                            if (q != null) {
-                              _go(q, forceSearch: true);
-                            } else {
-                              _go(it['url'] ?? '');
-                            }
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) {
+          final q = query.trim().toLowerCase();
+          final shown = [
+            for (final it in items)
+              if (q.isEmpty ||
+                  (it['title'] ?? '').toLowerCase().contains(q) ||
+                  displayUrl(it['url'] ?? '').toLowerCase().contains(q))
+                it
+          ];
+          return DraggableScrollableSheet(
+            expand: false,
+            initialChildSize: 0.75,
+            builder: (_, scroll) => Column(
+              children: [
+                ListTile(
+                  title: Text(title, style: oaDisplay(20)),
+                  trailing: items.isEmpty
+                      ? null
+                      : TextButton(
+                          onPressed: () async {
+                            final ok = await showDialog<bool>(
+                              context: ctx,
+                              builder: (d) => AlertDialog(
+                                title: Text('$title temizlensin mi?'),
+                                content: Text('${items.length} kayıt silinecek. Bu geri alınamaz.'),
+                                actions: [
+                                  TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Vazgeç')),
+                                  TextButton(onPressed: () => Navigator.pop(d, true), child: const Text('Temizle')),
+                                ],
+                              ),
+                            );
+                            if (ok != true) return;
+                            onClear();
+                            if (ctx.mounted) Navigator.pop(ctx);
                           },
-                        );
-                      },
+                          child: const Text('Temizle'),
+                        ),
+                ),
+                if (items.length > 3)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    child: TextField(
+                      autofocus: !_isMobile(ctx),
+                      onChanged: (v) => setS(() => query = v),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        hintText: '$title içinde ara',
+                        prefixIcon: const Icon(Icons.search, size: 18),
+                      ),
                     ),
+                  ),
+                const Divider(height: 1),
+                Expanded(
+                  child: shown.isEmpty
+                      ? Center(
+                          child: Text(items.isEmpty ? 'Burada henüz bir şey yok.' : 'Bulunamadı.',
+                              style: TextStyle(color: OAColors.muted)))
+                      : ListView.builder(
+                          controller: scroll,
+                          itemCount: shown.length,
+                          itemBuilder: (_, i) {
+                            final it = shown[i];
+                            final sq = it['q'];
+                            final label = dayLabel(it['at']);
+                            final header = label.isNotEmpty && (i == 0 || dayLabel(shown[i - 1]['at']) != label);
+                            final tile = ListTile(
+                              dense: true,
+                              leading: Icon(sq != null ? Icons.search : Icons.public, size: 18),
+                              title: Text(it['title'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis),
+                              subtitle: Text(displayUrl(it['url'] ?? ''), maxLines: 1, overflow: TextOverflow.ellipsis),
+                              trailing: IconButton(
+                                tooltip: 'Sil',
+                                icon: const Icon(Icons.close, size: 16),
+                                onPressed: () {
+                                  setS(() => items.remove(it));
+                                  onChanged();
+                                },
+                              ),
+                              onTap: () {
+                                Navigator.pop(ctx);
+                                if (sq != null) {
+                                  _go(sq, forceSearch: true);
+                                } else {
+                                  _go(it['url'] ?? '');
+                                }
+                              },
+                            );
+                            if (!header) return tile;
+                            return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+                                child: Text(label,
+                                    style: TextStyle(color: OAColors.amber, fontSize: 12, fontWeight: FontWeight.w600)),
+                              ),
+                              tile,
+                            ]);
+                          },
+                        ),
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

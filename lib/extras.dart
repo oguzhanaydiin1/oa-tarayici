@@ -406,7 +406,7 @@ UserScript shortcutRelayScript() => UserScript(
   window.addEventListener('auxclick', function(e){ if (e.button === 1 && linkOf(e)) send('ctrl+bglink'); }, true);
   window.addEventListener('click', function(e){ if (e.button === 0 && (e.ctrlKey || e.metaKey) && !e.shiftKey && linkOf(e)) send('ctrl+bglink'); }, true);
   var reserved = { KeyT: 't', KeyW: 'w', KeyL: 'l', Tab: 'tab', PageUp: 'pageup', PageDown: 'pagedown' };
-  var soft = { KeyK: 'k', KeyF: 'f', KeyJ: 'j', KeyP: 'p' };
+  var soft = { KeyK: 'k', KeyF: 'f', KeyJ: 'j', KeyP: 'p', KeyH: 'h', KeyD: 'd' };
   function name(e){ return 'ctrl+' + (e.shiftKey ? 'shift+' : ''); }
   window.addEventListener('keydown', function(e){
     if (!e.ctrlKey || e.altKey || e.metaKey) return;

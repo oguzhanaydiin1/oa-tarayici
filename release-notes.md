@@ -196,6 +196,7 @@ En yeni sürüm en üstte olsun.
 • Bağlantıya orta tıkla ya da Ctrl+tıkla açılan sekme artık arkada açılır, bulunduğun sayfada kalırsın.
 • Ekran süresi, ayarlar ve benzeri ekranlar Esc ile kapanır. Bu ekranlar açıkken geçen süre, arkadaki siteye yazılmaz.
 • Adres çubuğunda Türkçe harfler artık %C4%B1 gibi kodlarla değil, okunur biçimde görünür.
+• Geçmiş ve yer imlerinde arama kutusu, gün başlıkları (Bugün, Dün…) ve tek tek silme var; "Temizle" önce sorar. Yeni kısayollar: Ctrl+H geçmiş, Ctrl+D yer imi, Ctrl+Shift+O yer imleri, Ctrl+R / F5 yenile.
 • Site izin penceresi daha anlaşılır ("Şunları kullanmak istiyor: konum"); seçili düğmeler artık turuncu.
 
 • Windows: for people who unzipped Pusula and run it from their own folder, updates were installed to a different folder and the copy they opened stayed old; now the folder Pusula runs from is the one updated. Download progress is shown, the install runs quietly and Pusula reopens by itself. Update files no longer fill up the Downloads list.
@@ -203,4 +204,5 @@ En yeni sürüm en üstte olsun.
 • Links opened with a middle click or Ctrl+click now open in a background tab, so you stay on the current page.
 • Screen time, settings and similar screens close with Esc. Time spent while these screens are open is no longer counted toward the site behind them.
 • Turkish and other non-English letters in the address bar now show as readable text, not codes like %C4%B1.
+• History and bookmarks now have a search box, day headings (Today, Yesterday…) and per-item delete; "Clear" asks first. New shortcuts: Ctrl+H history, Ctrl+D bookmark, Ctrl+Shift+O bookmarks, Ctrl+R / F5 reload.
 • The site permission dialog is clearer ("Wants to use: location"), and selected buttons are now orange.
