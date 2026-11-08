@@ -429,7 +429,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 return _switch(Icons.shield_outlined, 'Reklam ve izleyici engelleme', p._adblockOn, (v) {
                   p._adblockOn = v;
                   p._applyAdblock();
-                }, sub: '${AdBlock.domains.length} alan adı listede');
+                }, sub: '${AdBlock.count} alan adı listede');
               }),
               _Item('Çerez pencerelerini reddet', 'çerez', () {
                 return _switch(Icons.cookie_outlined, 'Çerez pencerelerini reddet', p._cookieOn, p._setCookieBlock,

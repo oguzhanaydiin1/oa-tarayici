@@ -943,7 +943,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                   child: Text(
                     'Reklam ağlarına ve izleyicilere giden istekleri engeller, sayfadaki reklam kutularını gizler. '
-                    '${AdBlock.domains.length} reklam ve izleme alan adı listede.',
+                    '${AdBlock.count} reklam ve izleme alan adı listede.',
                     style: TextStyle(color: OAColors.muted, height: 1.5),
                   ),
                 ),
@@ -2024,6 +2024,16 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             padding: const EdgeInsets.only(right: 6),
             child: Tooltip(message: 'Uykuda: tıklayınca yeniden açılır', child: Icon(Icons.bedtime_outlined, size: 14, color: OAColors.faint)),
           ),
+        // Hoparlör başlığın solunda: çıkıp kaybolunca kapatma düğmesi yer değiştirmesin
+        if (t.mediaPlaying || t.muted)
+          IconButton(
+            tooltip: t.muted ? 'Sekmenin sesini aç' : 'Sekmenin sesini kapat',
+            iconSize: 14,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 22, minHeight: 28),
+            icon: Icon(t.muted ? Icons.volume_off : Icons.volume_up, color: t.muted ? OAColors.faint : OAColors.amber),
+            onPressed: () => _toggleMute(t),
+          ),
         Expanded(
           child: Text(
             t.displayTitle,
@@ -2036,15 +2046,6 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             ),
           ),
         ),
-        if (t.mediaPlaying || t.muted)
-          IconButton(
-            tooltip: t.muted ? 'Sekmenin sesini aç' : 'Sekmenin sesini kapat',
-            iconSize: 14,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 26, minHeight: 28),
-            icon: Icon(t.muted ? Icons.volume_off : Icons.volume_up, color: t.muted ? OAColors.faint : OAColors.amber),
-            onPressed: () => _toggleMute(t),
-          ),
         if (t.pinned)
           Padding(
             padding: const EdgeInsets.only(right: 10),

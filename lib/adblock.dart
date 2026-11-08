@@ -3,6 +3,8 @@ import 'dart:typed_data';
 
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
+import 'adblock_list.dart';
+
 /// Reklam ve izleyici engelleme.
 ///
 /// İki katman:
@@ -52,7 +54,11 @@ class AdBlock {
     'bat.bing.com', 'ct.pinterest.com', 'sc-static.net', 'tr.snapchat.com',
   ];
 
-  static final Set<String> _set = domains.toSet();
+  /// Elle seçilmiş liste + Peter Lowe listesi (lib/adblock_list.dart)
+  static final Set<String> _set = {...domains, ...kAdServerList};
+
+  /// Listedeki alan adı sayısı
+  static int get count => _set.length;
 
   /// Adres listedeki bir alan adına (ya da alt alan adına) mı gidiyor?
   static bool isAdHost(String host) {
@@ -99,16 +105,18 @@ class AdBlock {
     if (!Platform.isAndroid) return const [];
     final unless = [for (final s in allowedSites) '*$s'];
     // Tek bir düzenli ifade: ^https?://(alt.)*(alanadi1|alanadi2|...)[/:]
-    final pattern =
-        '^https?://([a-z0-9-]+\\.)*(${domains.map(_escape).join('|')})([/:?]|\$)';
+    // Liste uzun olduğu için 400'lük parçalara bölünür (tek dev bir ifade yavaş eşleşir)
+    final all = _set.toList();
     return [
-      ContentBlocker(
-        trigger: ContentBlockerTrigger(
-          urlFilter: pattern,
-          unlessDomain: unless,
+      for (var i = 0; i < all.length; i += 400)
+        ContentBlocker(
+          trigger: ContentBlockerTrigger(
+            urlFilter:
+                '^https?://([a-z0-9-]+\\.)*(${all.sublist(i, i + 400 > all.length ? all.length : i + 400).map(_escape).join('|')})([/:?]|\$)',
+            unlessDomain: unless,
+          ),
+          action: ContentBlockerAction(type: ContentBlockerActionType.BLOCK),
         ),
-        action: ContentBlockerAction(type: ContentBlockerActionType.BLOCK),
-      ),
     ];
   }
 

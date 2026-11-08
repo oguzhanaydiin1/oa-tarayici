@@ -237,3 +237,10 @@ En yeni sürüm en üstte olsun.
 • Tabs can be dragged to reorder; a tab dropped onto a tab in another group joins that group.
 • Closing the current tab returns you to the tab that opened it (like Chrome).
 • YouTube: "Sponsored" shopping boxes in the side column of the watch page are now hidden too.
+
+## 0.19.8
+• Reklam engelleyicinin listesi 117 alan adından 3.600'ü aşkın alan adına çıktı (yaygın reklam engelleyicilerin varsayılan listelerinden Peter Lowe listesi eklendi). Daha az reklam, daha az izleyici, daha hızlı sayfalar.
+• Sekmedeki hoparlör simgesi başlığın soluna taşındı; ses durunca kapatma düğmesi artık yer değiştirmiyor (yanlışlıkla sekme kapatılmıyor).
+
+• The ad blocker list grew from 117 to more than 3,600 domains (added Peter Lowe's list, one of the default lists in popular ad blockers). Fewer ads, fewer trackers, faster pages.
+• The tab's speaker icon moved to the left of the title, so the close button no longer shifts when audio stops (no more closing a tab by accident).
