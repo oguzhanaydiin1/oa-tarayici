@@ -229,6 +229,9 @@ class TabData {
   /// Bu sekmeyi açan sekme (site bağlantıyı yeni sekmede açtıysa). İlk sayfada geri basınca oraya dönülür.
   String? openerId;
 
+  /// Ctrl+T ile açılan sekme, başka sekmeye geçilmeden kapatılırsa bu sekmeye dönülür.
+  String? returnToId;
+
   /// Sayfada video/ses oynuyor (ekran süresi boşta kalınca da saymaya devam eder)
   bool mediaPlaying = false;
 
@@ -4401,6 +4404,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       }
       // Yeni sekme açık sekmenin hemen yanına gelir (en sona değil).
       final at = _tabs.isEmpty ? 0 : (_current + 1).clamp(0, _tabs.length);
+      if (_tabs.isNotEmpty && _current < _tabs.length) t.returnToId = _tabs[_current].id;
       if (_tabs.isNotEmpty && _current < _tabs.length) {
         final g = _tabs[_current].groupId;
         // Bir grubun ortasına açılırsa o gruba katılır; grup bölünmesin.
@@ -4460,7 +4464,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           _current--;
         }
         // Açık sekme kapanınca onu açan sekmeye dönülür (Chrome gibi)
-        final opener = closing.openerId;
+        final opener = closing.openerId ?? closing.returnToId;
         if (wasCurrent && opener != null) {
           final o = _tabs.indexWhere((x) => x.id == opener);
           if (o >= 0) _current = o;
@@ -4555,6 +4559,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   void _selectTab(int i) {
     _revealCurrentTab();
+    // Başka sekmeye geçildi: kapatınca geri dönülecek sekme artık geçerli değil
+    if (i != _current && _current < _tabs.length) _tabs[_current].returnToId = null;
     if (_pageFullscreen && i != _current) _exitPageFullscreen();
     if (i != _current && _current < _tabs.length) _captureThumb(_tabs[_current]);
     // Bölünmüş ekrandaki sekmelerden biri değilse yan yana görünüm kapanır.

@@ -248,3 +248,8 @@ En yeni sürüm en üstte olsun.
 • The ad blocker list grew from 117 to more than 3,600 domains (added Peter Lowe's list, one of the default lists in popular ad blockers). Fewer ads, fewer trackers, faster pages.
 • Clicking the lock in the address bar opens site info: whether the connection is secure, the site's permissions (each can be reset) and "Delete this site's cookies".
 • The tab's speaker icon moved to the left of the title, so the close button no longer shifts when audio stops (no more closing a tab by accident).
+
+## 0.19.10
+• Ctrl+T ile açtığın sekmeyi başka sekmeye geçmeden kapatırsan, önceki sekmene dönersin (Chrome gibi).
+
+• If you close a tab opened with Ctrl+T without switching to another tab, you return to the tab you were on (like Chrome).
