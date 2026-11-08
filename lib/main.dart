@@ -629,7 +629,20 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  String _addressText(TabData t) => t.showStart ? '' : t.url;
+  String _addressText(TabData t) => t.showStart ? '' : displayUrl(t.url);
+
+  /// Adres çubuğunda Türkçe harfler %C4%B1 gibi kodlarla değil, okunur biçimde görünür (Chrome gibi).
+  static String displayUrl(String u) {
+    if (!u.contains('%')) return u;
+    try {
+      final d = Uri.decodeFull(u);
+      // Boşluk ya da görünmez karakter çıkarsa kodlu hali kalsın (yanıltıcı adres olmasın)
+      if (RegExp(r'[\s\u0000-\u001f\u200b-\u200f\u202a-\u202e]').hasMatch(d)) return u;
+      return d;
+    } catch (_) {
+      return u;
+    }
+  }
 
   // ---------------------------------------------------------------- Depolama
 
@@ -3505,7 +3518,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         if (!mounted || t.embed != e) return;
         setState(() {
           t.url = u;
-          if (identical(t, _tab) && !_urlFocus.hasFocus) _urlCtl.text = u;
+          if (identical(t, _tab) && !_urlFocus.hasFocus) _urlCtl.text = displayUrl(u);
         });
       },
       onTitle: (x) {
@@ -6694,7 +6707,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           _showLimitPage(t, url.toString(), siteOf(lh));
           return;
         }
-        if (t == _tab && !_urlFocus.hasFocus && !t.showStart) _urlCtl.text = t.url;
+        if (t == _tab && !_urlFocus.hasFocus && !t.showStart) _urlCtl.text = displayUrl(t.url);
       },
       onPageCommitVisible: (c, url) {
         _uncover(t);
@@ -6735,7 +6748,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         if (url == null) return;
         if (t.errorUrl != null && !url.toString().startsWith('http')) return;
         setState(() => t.url = url.toString());
-        if (t == _tab && !_urlFocus.hasFocus && !t.showStart) _urlCtl.text = t.url;
+        if (t == _tab && !_urlFocus.hasFocus && !t.showStart) _urlCtl.text = displayUrl(t.url);
         _refreshNavState(t);
       },
       onCreateWindow: (c, action) async {

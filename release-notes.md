@@ -195,10 +195,12 @@ En yeni sürüm en üstte olsun.
 • Windows: pencerenin boyutu, yeri ve tam boyutta olup olmadığı hatırlanır; Pusula kapattığın gibi açılır.
 • Bağlantıya orta tıkla ya da Ctrl+tıkla açılan sekme artık arkada açılır, bulunduğun sayfada kalırsın.
 • Ekran süresi, ayarlar ve benzeri ekranlar Esc ile kapanır. Bu ekranlar açıkken geçen süre, arkadaki siteye yazılmaz.
+• Adres çubuğunda Türkçe harfler artık %C4%B1 gibi kodlarla değil, okunur biçimde görünür.
 • Site izin penceresi daha anlaşılır ("Şunları kullanmak istiyor: konum"); seçili düğmeler artık turuncu.
 
 • Windows: for people who unzipped Pusula and run it from their own folder, updates were installed to a different folder and the copy they opened stayed old; now the folder Pusula runs from is the one updated. Download progress is shown, the install runs quietly and Pusula reopens by itself. Update files no longer fill up the Downloads list.
 • Windows: the window's size, position and maximized state are remembered; Pusula opens the way you closed it.
 • Links opened with a middle click or Ctrl+click now open in a background tab, so you stay on the current page.
 • Screen time, settings and similar screens close with Esc. Time spent while these screens are open is no longer counted toward the site behind them.
+• Turkish and other non-English letters in the address bar now show as readable text, not codes like %C4%B1.
 • The site permission dialog is clearer ("Wants to use: location"), and selected buttons are now orange.
