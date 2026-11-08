@@ -38,6 +38,11 @@ bool FlutterWindow::OnCreate() {
           const auto* on = std::get_if<bool>(call.arguments());
           SetFullscreen(on != nullptr && *on);
           result->Success();
+        } else if (call.method_name() == "cik") {
+          // Güncelleme kurulurken: oturum Dart tarafında kaydedildi, süreç hemen kapanır.
+          SavePlacement();
+          result->Success();
+          ::TerminateProcess(::GetCurrentProcess(), EXIT_SUCCESS);
         } else {
           result->NotImplemented();
         }
@@ -45,7 +50,7 @@ bool FlutterWindow::OnCreate() {
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
-    this->Show();
+    this->RestorePlacementAndShow();
   });
 
   // Flutter can complete the first frame before the "show window" callback is
@@ -54,6 +59,51 @@ bool FlutterWindow::OnCreate() {
   flutter_controller_->ForceRedraw();
 
   return true;
+}
+
+namespace {
+constexpr const wchar_t kPlacementKey[] = L"Software\\OATarayici";
+constexpr const wchar_t kPlacementValue[] = L"Pencere";
+}  // namespace
+
+void FlutterWindow::SavePlacement() {
+  HWND hwnd = GetHandle();
+  if (!hwnd) return;
+  // Küçük video penceresi (her zaman üstte) kaydedilmez; normal boyut korunur.
+  if (::GetWindowLong(hwnd, GWL_EXSTYLE) & WS_EX_TOPMOST) return;
+  WINDOWPLACEMENT wp{};
+  wp.length = sizeof(wp);
+  if (fullscreen_) {
+    wp = saved_placement_;
+  } else if (!::GetWindowPlacement(hwnd, &wp)) {
+    return;
+  }
+  if (wp.showCmd == SW_SHOWMINIMIZED || wp.showCmd == SW_MINIMIZE) {
+    wp.showCmd = (wp.flags & WPF_RESTORETOMAXIMIZED) ? SW_SHOWMAXIMIZED : SW_SHOWNORMAL;
+  }
+  ::RegSetKeyValueW(HKEY_CURRENT_USER, kPlacementKey, kPlacementValue, REG_BINARY, &wp,
+                    sizeof(wp));
+}
+
+void FlutterWindow::RestorePlacementAndShow() {
+  HWND hwnd = GetHandle();
+  WINDOWPLACEMENT wp{};
+  DWORD size = sizeof(wp);
+  if (hwnd &&
+      ::RegGetValueW(HKEY_CURRENT_USER, kPlacementKey, kPlacementValue, RRF_RT_REG_BINARY,
+                     nullptr, &wp, &size) == ERROR_SUCCESS &&
+      size == sizeof(wp) && wp.length == sizeof(wp)) {
+    RECT r = wp.rcNormalPosition;
+    // Ekran çıkarıldıysa (ikinci monitör) pencere görünmez yerde açılmasın
+    if (r.right - r.left >= 300 && r.bottom - r.top >= 200 &&
+        ::MonitorFromRect(&r, MONITOR_DEFAULTTONULL) != nullptr) {
+      wp.flags = 0;
+      if (wp.showCmd != SW_SHOWMAXIMIZED) wp.showCmd = SW_SHOWNORMAL;
+      ::SetWindowPlacement(hwnd, &wp);
+      return;
+    }
+  }
+  Show();
 }
 
 void FlutterWindow::SetFullscreen(bool on) {
@@ -108,6 +158,8 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
       return TRUE;
     }
   }
+
+  if (message == WM_CLOSE) SavePlacement();
 
   // Give Flutter, including plugins, an opportunity to handle window messages.
   if (flutter_controller_) {

@@ -66,3 +66,53 @@ class Updater {
     return null;
   }
 }
+
+/// Windows: kurulum dosyasını geçici klasöre indirir ([onProgress] 0..1).
+/// İndirilenler listesine eklenmez; her sürüm kendi adıyla iner (eski bir kurulum açık kalsa da çakışmaz).
+Future<File?> downloadInstaller(UpdateInfo u, void Function(double) onProgress) async {
+  final client = http.Client();
+  try {
+    final res = await client.send(http.Request('GET', Uri.parse(u.assetUrl))
+      ..headers['User-Agent'] = 'PusulaBrowser/$appVersion');
+    if (res.statusCode != 200) return null;
+    final f = File('${Directory.systemTemp.path}${Platform.pathSeparator}Pusula-Kurulum-${u.version}.exe');
+    final sink = f.openWrite();
+    final total = res.contentLength ?? 0;
+    var got = 0;
+    await for (final chunk in res.stream) {
+      sink.add(chunk);
+      got += chunk.length;
+      if (total > 0) onProgress(got / total);
+    }
+    await sink.close();
+    if (total > 0 && got != total) return null;
+    return f;
+  } catch (_) {
+    return null;
+  } finally {
+    client.close();
+  }
+}
+
+/// Kurulumu sessizce başlatır. Uygulama, kurulum klasörü dışından (örn. zip'ten açılmış)
+/// çalışıyorsa güncelleme bulunduğu klasöre yapılır; böylece açılan sürüm gerçekten yenilenir.
+Future<bool> runInstaller(File setup) async {
+  final dir = File(Platform.resolvedExecutable).parent.path;
+  var writable = false;
+  try {
+    final probe = File('$dir${Platform.pathSeparator}.pusula-yazma-denemesi');
+    probe.writeAsStringSync('1');
+    probe.deleteSync();
+    writable = true;
+  } catch (_) {}
+  try {
+    await Process.start(
+      setup.path,
+      ['/SILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CLOSEAPPLICATIONS', '/NOCANCEL', if (writable) '/DIR=$dir'],
+      mode: ProcessStartMode.detached,
+    );
+    return true;
+  } catch (_) {
+    return false;
+  }
+}

@@ -189,3 +189,16 @@ En yeni sürüm en üstte olsun.
 • Windows: the title bar stayed visible in video fullscreen; now the video fills the whole screen.
 • YouTube: video ads are muted and skipped right away, and the "Skip" button is pressed for you; ad boxes on the home page and in the side column are hidden.
 • Long menu items no longer wrap onto two lines.
+
+## 0.19.4
+• Windows: güncelleme, Pusula'yı zip'ten çıkarıp kendi klasöründen kullananlarda başka bir klasöre kuruluyor, açtığın sürüm eskide kalıyordu; artık Pusula hangi klasörden çalışıyorsa o güncellenir. Güncelleme indirilirken ilerleme görünür, kurulum sessizce yapılır ve Pusula kendiliğinden yeniden açılır. Güncelleme dosyaları artık İndirilenler listesini doldurmuyor.
+• Windows: pencerenin boyutu, yeri ve tam boyutta olup olmadığı hatırlanır; Pusula kapattığın gibi açılır.
+• Bağlantıya orta tıkla ya da Ctrl+tıkla açılan sekme artık arkada açılır, bulunduğun sayfada kalırsın.
+• Ekran süresi, ayarlar ve benzeri ekranlar Esc ile kapanır. Bu ekranlar açıkken geçen süre, arkadaki siteye yazılmaz.
+• Site izin penceresi daha anlaşılır ("Şunları kullanmak istiyor: konum"); seçili düğmeler artık turuncu.
+
+• Windows: for people who unzipped Pusula and run it from their own folder, updates were installed to a different folder and the copy they opened stayed old; now the folder Pusula runs from is the one updated. Download progress is shown, the install runs quietly and Pusula reopens by itself. Update files no longer fill up the Downloads list.
+• Windows: the window's size, position and maximized state are remembered; Pusula opens the way you closed it.
+• Links opened with a middle click or Ctrl+click now open in a background tab, so you stay on the current page.
+• Screen time, settings and similar screens close with Esc. Time spent while these screens are open is no longer counted toward the site behind them.
+• The site permission dialog is clearer ("Wants to use: location"), and selected buttons are now orange.

@@ -311,6 +311,15 @@ ThemeData buildOATheme(OAPalette p) {
       labelLarge: body.labelLarge?.copyWith(fontWeight: FontWeight.w600),
     ),
     iconTheme: IconThemeData(color: p.text2),
+    segmentedButtonTheme: SegmentedButtonThemeData(
+      style: ButtonStyle(
+        backgroundColor: WidgetStateProperty.resolveWith(
+            (s) => s.contains(WidgetState.selected) ? p.amber.withValues(alpha: 0.18) : Colors.transparent),
+        foregroundColor: WidgetStateProperty.resolveWith(
+            (s) => s.contains(WidgetState.selected) ? p.amber : p.text2),
+        side: WidgetStatePropertyAll(BorderSide(color: p.line)),
+      ),
+    ),
     progressIndicatorTheme: ProgressIndicatorThemeData(
         color: p.amber, linearTrackColor: Colors.transparent),
     textSelectionTheme: TextSelectionThemeData(

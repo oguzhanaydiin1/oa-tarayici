@@ -18,7 +18,8 @@ AppVerName=Pusula Browser {#AppVersion}
 AppPublisher=OA Labs
 AppPublisherURL=https://oalabs.dev
 AppSupportURL=https://oalabs.dev
-DefaultDirName={localappdata}\Programs\OA Tarayici
+DefaultDirName={code:PusulaDir}
+UsePreviousAppDir=no
 DefaultGroupName=Pusula Browser
 DisableProgramGroupPage=yes
 DisableDirPage=auto
@@ -80,3 +81,45 @@ Root: HKCU; Subkey: "Software\RegisteredApplications"; ValueType: string; ValueN
 
 [Run]
 Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,Pusula Browser}"; Flags: nowait postinstall
+
+[Code]
+// Kurulum klasörü: Pusula şu an açıksa (örn. zip'ten çıkarılıp bir klasörden çalıştırılıyorsa) o klasör
+// güncellenir; yoksa önceki kurulumun klasörü; o da yoksa kullanıcının Programlar klasörü.
+// (Eski sürümlerin güncelleyicisi /DIR vermiyordu; açık olan kopya güncellenmeden kalıyordu.)
+function RunningDir(): String;
+var
+  Locator, Service, Procs, P: Variant;
+  I: Integer;
+begin
+  Result := '';
+  try
+    Locator := CreateOleObject('WbemScripting.SWbemLocator');
+    Service := Locator.ConnectServer('.', 'root\CIMV2');
+    Procs := Service.ExecQuery('SELECT ExecutablePath FROM Win32_Process WHERE Name = ''{#AppExe}''');
+    for I := 0 to Procs.Count - 1 do
+    begin
+      P := Procs.ItemIndex(I);
+      if not VarIsNull(P.ExecutablePath) then
+      begin
+        Result := ExtractFileDir(P.ExecutablePath);
+        Exit;
+      end;
+    end;
+  except
+    Result := '';
+  end;
+end;
+
+function PusulaDir(Param: String): String;
+begin
+  Result := RunningDir();
+  // Yönetici izni gerektiren klasörlere (Program Files) bu kurulum yazamaz
+  if (Result <> '') and (Pos(LowerCase(ExpandConstant('{commonpf}')), LowerCase(Result)) = 1) then
+    Result := '';
+  if Result = '' then
+    if not RegQueryStringValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{5B0E2B3C-4F1A-4C7E-9A0F-0A1B2C3D4E5F}_is1',
+      'Inno Setup: App Path', Result) then
+      Result := '';
+  if Result = '' then
+    Result := ExpandConstant('{localappdata}\Programs\OA Tarayici');
+end;

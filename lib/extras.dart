@@ -401,6 +401,10 @@ UserScript shortcutRelayScript() => UserScript(
       if (d && typeof d === 'object' && typeof d.__oaKey === 'string' && /^ctrl\+/.test(d.__oaKey)) send(d.__oaKey);
     });
   }
+  // Orta tıkla ya da Ctrl+tıkla açılan bağlantı: yeni sekme arkada açılır (Chrome gibi)
+  function linkOf(e){ var n = e.target; while (n && n.nodeType === 1) { if (n.tagName === 'A' && n.href) return n; n = n.parentNode || n.host; } return null; }
+  window.addEventListener('auxclick', function(e){ if (e.button === 1 && linkOf(e)) send('ctrl+bglink'); }, true);
+  window.addEventListener('click', function(e){ if (e.button === 0 && (e.ctrlKey || e.metaKey) && !e.shiftKey && linkOf(e)) send('ctrl+bglink'); }, true);
   var reserved = { KeyT: 't', KeyW: 'w', KeyL: 'l', Tab: 'tab', PageUp: 'pageup', PageDown: 'pagedown' };
   var soft = { KeyK: 'k', KeyF: 'f', KeyJ: 'j', KeyP: 'p' };
   function name(e){ return 'ctrl+' + (e.shiftKey ? 'shift+' : ''); }

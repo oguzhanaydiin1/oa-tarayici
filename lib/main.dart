@@ -128,12 +128,23 @@ class _BrowserAppState extends State<BrowserApp> with WidgetsBindingObserver {
       debugShowCheckedModeBanner: false,
       theme: buildOATheme(p),
       navigatorObservers: [_RouteDepthObserver()],
+      navigatorKey: _navKey,
+      // Açılan ekranlar (ekran süresi, geçmiş, yer imleri…) Esc ile kapanır
+      builder: (context, child) => CallbackShortcuts(
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.escape): () {
+            if (kRouteDepth.value > 0) _navKey.currentState?.maybePop();
+          },
+        },
+        child: child!,
+      ),
       home: BrowserPage(key: _pageKey),
     );
   }
 }
 
 final _pageKey = GlobalKey<_BrowserPageState>();
+final _navKey = GlobalKey<NavigatorState>();
 
 /// Ana sayfanın üstünde açık olan menü, pencere ve ekran sayısı. Gömülü video bunlar açıkken gizlenir.
 final ValueNotifier<int> kRouteDepth = ValueNotifier(0);
@@ -1292,6 +1303,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   void _onPageKey(String k) {
     final n = _tabs.length;
     switch (k) {
+      case 'ctrl+bglink':
+        _bgLinkAt = DateTime.now();
       case 'ctrl+t':
         _addTab();
       case 'ctrl+shift+t':
@@ -3589,7 +3602,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     if (!active) return;
     const step = 5;
     final host = Uri.tryParse(t.url)?.host ?? '';
-    final site = (!t.showStart && t.errorUrl == null && host.isNotEmpty) ? siteOf(host) : null;
+    // Ayarlar, geçmiş gibi bir ekran açıksa (arkada video çalmıyorsa) süre siteye değil
+    // yalnız toplama yazılır
+    final covered = kRouteDepth.value > 0 && !t.mediaPlaying && t.embed == null;
+    final site = (!covered && !t.showStart && t.errorUrl == null && host.isNotEmpty) ? siteOf(host) : null;
     _st.add(site, step);
     // Kenar çubuğunda açık uygulama (toplam süreye ikinci kez eklenmez)
     final side = _sideOpen;
@@ -4232,7 +4248,29 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   // ----------------------------------------------------------------- Sekmeler
 
-  void _addTab({String? url, bool incognito = false}) {
+  /// Orta tık / Ctrl+tık ile açılan bağlantının arkada açılması için son tıklama zamanı.
+  DateTime _bgLinkAt = DateTime(2000);
+
+  void _addTab({String? url, bool incognito = false, bool background = false, String? openerId}) {
+    if (background && url != null && _tabs.isNotEmpty) {
+      setState(() {
+        final t = TabData(incognito: incognito)
+          ..showStart = false
+          ..webStarted = true
+          ..pendingUrl = url
+          ..url = url
+          ..openerId = openerId;
+        // Aynı sekmeden arka arkaya açılanlar sırayla dizilir
+        var at = _current + 1;
+        while (at < _tabs.length && openerId != null && _tabs[at].openerId == openerId) {
+          at++;
+        }
+        t.groupId = _tabs[_current].groupId;
+        _tabs.insert(at, t);
+      });
+      _saveSessionSoon();
+      return;
+    }
     setState(() {
       final t = TabData(incognito: incognito);
       if (url != null) {
@@ -4543,9 +4581,47 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       ));
   }
 
+  bool _updating = false;
+
   Future<void> _installUpdate(UpdateInfo u) async {
-    _toast('Güncelleme indiriliyor…');
-    await _downloads.start(u.assetUrl, suggestedName: u.assetName, openWhenDone: true, keepPrivate: true);
+    if (!Platform.isWindows) {
+      _toast('Güncelleme indiriliyor…');
+      await _downloads.start(u.assetUrl, suggestedName: u.assetName, openWhenDone: true, keepPrivate: true);
+      return;
+    }
+    if (_updating) return;
+    _updating = true;
+    final progress = ValueNotifier<double>(0);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        duration: const Duration(minutes: 10),
+        content: ValueListenableBuilder<double>(
+          valueListenable: progress,
+          builder: (_, v, __) => Row(children: [
+            Expanded(child: Text('Pusula ${u.version} indiriliyor… %${(v * 100).round()}')),
+            const SizedBox(width: 12),
+            SizedBox(width: 120, child: LinearProgressIndicator(value: v, color: OAColors.accent)),
+          ]),
+        ),
+      ));
+    final f = await downloadInstaller(u, (v) => progress.value = v);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    if (f == null || !await runInstaller(f)) {
+      _updating = false;
+      _toast('Güncelleme indirilemedi. Daha sonra yeniden dene.');
+      return;
+    }
+    // Kurulum uygulamayı kapatıp yeni sürümü kendisi açar; oturum ve ekran süresi önce kaydedilir.
+    _toast('Pusula güncelleniyor, birazdan yeniden açılacak…');
+    _saveSession();
+    await _st.save();
+    await Future<void>.delayed(const Duration(milliseconds: 800));
+    try {
+      await _single.invokeMethod('cik');
+    } catch (_) {}
+    exit(0);
   }
 
   // ---------------------------------------------------------------- İndirmeler ve radyo
@@ -6666,8 +6742,14 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         // target=_blank bağlantıları yeni sekmede aç
         final u = action.request.url;
         if (u != null) {
-          _addTab(url: u.toString(), incognito: t.incognito);
-          _tab.openerId = t.id;
+          final bg = DateTime.now().difference(_bgLinkAt) < const Duration(milliseconds: 1500);
+          _bgLinkAt = DateTime(2000);
+          if (bg) {
+            _addTab(url: u.toString(), incognito: t.incognito, background: true, openerId: t.id);
+          } else {
+            _addTab(url: u.toString(), incognito: t.incognito);
+            _tab.openerId = t.id;
+          }
         }
         // true: yeni sekmede açtık. false dönünce Windows eklentisi bağlantıyı bulunduğumuz
         // sekmede de açıyordu (iki sekme de aynı sayfaya gidiyordu).
@@ -6735,7 +6817,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(resources.map(_permName).join(', '), style: TextStyle(color: OAColors.text, fontSize: 16)),
+                Text('Şunları kullanmak istiyor: ${resources.map(_permName).join(', ')}',
+                    style: TextStyle(color: OAColors.text, fontSize: 16)),
                 if (!t.incognito) ...[
                   const SizedBox(height: 12),
                   CheckboxListTile(

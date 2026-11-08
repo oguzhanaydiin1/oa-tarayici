@@ -39,6 +39,9 @@ class FlutterWindow : public Win32Window {
 
   // Video tam ekranı: başlık çubuğu ve kenarlıklar kalkar, pencere bütün ekranı kaplar.
   void SetFullscreen(bool on);
+  // Pencerenin boyutu, yeri ve büyütülmüş olup olmadığı kapanırken kaydedilir, açılışta geri gelir.
+  void SavePlacement();
+  void RestorePlacementAndShow();
   bool fullscreen_ = false;
   LONG saved_style_ = 0;
   WINDOWPLACEMENT saved_placement_{};
