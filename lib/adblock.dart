@@ -139,6 +139,38 @@ iframe[src*="googlesyndication"], iframe[id^="google_ads_iframe"], .trc_related_
       (document.head || document.documentElement).appendChild(s);
     };
     if (document.documentElement) add(); else document.addEventListener('DOMContentLoaded', add);
+    // Reklamı engellenen kutular sayfada boş beyaz alan bırakmasın: adı reklam olan, içi boş kutular gizlenir
+    var adName = /(^|[\\s_-])(ad|ads|adv|advert|advertising|banner|reklam|dfp|gpt|sponsor|masthead-ad)([\\s_-]|\\d|\$)/i;
+    function visibleMedia(el){
+      var m = el.querySelectorAll('img,video,iframe,canvas,svg,picture');
+      for (var i = 0; i < m.length; i++) { var r = m[i].getBoundingClientRect(); if (r.width > 20 && r.height > 20) return true; }
+      return false;
+    }
+    function sweep(){
+      try {
+        var els = document.querySelectorAll('div[id],div[class],aside,section[class]');
+        for (var i = 0; i < els.length && i < 4000; i++) {
+          var e = els[i];
+          if (e.__oaSeen) continue;
+          var name = (e.id || '') + ' ' + (typeof e.className === 'string' ? e.className : '');
+          if (!adName.test(name)) continue;
+          var r = e.getBoundingClientRect();
+          if (r.height < 40) continue;
+          if ((e.innerText || '').replace(/reklam|advertisement|sponsorlu|ads?/gi, '').trim().length > 0) { e.__oaSeen = 1; continue; }
+          if (visibleMedia(e)) continue;
+          if (getComputedStyle(e).backgroundImage !== 'none') { e.__oaSeen = 1; continue; }
+          e.style.setProperty('display', 'none', 'important');
+          e.__oaSeen = 1;
+        }
+      } catch (x) {}
+    }
+    var t = null;
+    var schedule = function(){ if (t) return; t = setTimeout(function(){ t = null; sweep(); }, 700); };
+    document.addEventListener('DOMContentLoaded', function(){
+      schedule();
+      try { new MutationObserver(schedule).observe(document.documentElement, { childList: true, subtree: true }); } catch (x) {}
+    });
+    setTimeout(sweep, 3000); setTimeout(sweep, 8000);
   } catch (e) {}
 })();
 ''',
