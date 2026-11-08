@@ -176,3 +176,16 @@ En yeni sürüm en üstte olsun.
 • Windows: touchpad ile kaydırma yeniden yazıldı. Sayfa parmağının hareketini birebir izler, kesik kesik ya da yavaş kaymaz; parmağını kaldırınca hızına göre yavaşlayarak bir süre daha kayar. Sayfanın içindeki kaydırmalı alanlar (sohbet listesi, menü) ve haritalar da touchpad ile kayar.
 
 • Windows: touchpad scrolling has been rewritten. The page follows your fingers exactly, without stutter or slowness, and when you lift your fingers it keeps gliding for a moment, slowing down based on your speed. Scrollable areas inside a page (chat lists, menus) and maps also scroll with the touchpad.
+
+## 0.19.3
+• Windows: pencere daraltılınca ya da video küçük pencereye alınınca uygulama telefon düzenine geçip bütün sekmeleri baştan yüklüyordu (açık sayfalar kayboluyordu); düzeltildi. Küçük pencerede artık izlediğin video kalır.
+• Windows: sayfanın içine tıkladıktan sonra Ctrl+T, Ctrl+W, Ctrl+L, Ctrl+K, Ctrl+Tab gibi kısayollar çalışmıyordu; artık çalışır. Ctrl+1…9 ile sekmeler arası geçiş de eklendi.
+• Windows: video tam ekranında başlık çubuğu görünmeye devam ediyordu; artık video bütün ekranı kaplar.
+• YouTube: video reklamları sessize alınıp hemen geçilir, "Atla" düğmesine kendiliğinden basılır; ana sayfadaki ve yan sütundaki reklam kutuları gizlenir.
+• Menüdeki uzun öğeler artık iki satıra bölünmüyor.
+
+• Windows: when you made the window narrow or put a video in the mini window, the app switched to the phone layout and reloaded every tab (open pages were lost); fixed. The mini window now keeps the video you were watching.
+• Windows: after clicking inside a page, shortcuts like Ctrl+T, Ctrl+W, Ctrl+L, Ctrl+K and Ctrl+Tab didn't work; now they do. Ctrl+1…9 now also switch between tabs.
+• Windows: the title bar stayed visible in video fullscreen; now the video fills the whole screen.
+• YouTube: video ads are muted and skipped right away, and the "Skip" button is pressed for you; ad boxes on the home page and in the side column are hidden.
+• Long menu items no longer wrap onto two lines.
