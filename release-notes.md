@@ -217,3 +217,14 @@ En yeni sürüm en üstte olsun.
 
 • Tabs playing audible video or music show a speaker icon; click it to mute that tab (also available when you right-click the tab).
 • Reader mode filters out small icons and boxes like "Follow us on Google" mixed into the article.
+
+## 0.19.6
+• Çok sekme açıkken sekmeler sığmak için daralır (Chrome gibi); fare tekerleği sekme şeridini kaydırır, açtığın sekme şeritte hep görünür.
+• Küçük pencerede video artık pencereyi tamamen kaplar (YouTube'un üst çubuğu görünmez) ve ekranın sağ alt köşesine yerleşir.
+• Orta tık ve Ctrl+tık, yeni pencere açmayan sitelerde de (YouTube gibi) bağlantıyı arka sekmede açar.
+• Kurulum, var olan klasöre güncellerken artık "klasör zaten var" diye sormuyor.
+
+• With many tabs open, tabs shrink to fit (like Chrome); the mouse wheel scrolls the tab strip, and the tab you open always stays in view.
+• In the mini window the video now fills the whole window (YouTube's top bar is hidden) and sits in the bottom-right corner of the screen.
+• Middle click and Ctrl+click now open links in a background tab on sites that don't request a new window themselves (like YouTube).
+• The installer no longer asks "folder already exists" when updating an existing folder.

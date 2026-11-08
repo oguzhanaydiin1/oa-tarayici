@@ -415,8 +415,17 @@ UserScript shortcutRelayScript() => UserScript(
   }
   // Orta tıkla ya da Ctrl+tıkla açılan bağlantı: yeni sekme arkada açılır (Chrome gibi)
   function linkOf(e){ var n = e.target; while (n && n.nodeType === 1) { if (n.tagName === 'A' && n.href) return n; n = n.parentNode || n.host; } return null; }
-  window.addEventListener('auxclick', function(e){ if (e.button === 1 && linkOf(e)) send('ctrl+bglink'); }, true);
-  window.addEventListener('click', function(e){ if (e.button === 0 && (e.ctrlKey || e.metaKey) && !e.shiftKey && linkOf(e)) send('ctrl+bglink'); }, true);
+  // Sayfa bu tıklamayı kendisi işlemediyse bağlantıyı biz açarız (WebView2 her sitede yeni pencere istemiyor)
+  function bg(e){
+    var a = linkOf(e);
+    if (!a || e.defaultPrevented) return;
+    var h = a.href;
+    if (!/^https?:/i.test(h)) return;
+    e.preventDefault(); e.stopPropagation();
+    send('ctrl+bglink:' + h);
+  }
+  window.addEventListener('auxclick', function(e){ if (e.button === 1) bg(e); }, false);
+  window.addEventListener('click', function(e){ if (e.button === 0 && (e.ctrlKey || e.metaKey) && !e.shiftKey) bg(e); }, false);
   var reserved = { KeyT: 't', KeyW: 'w', KeyL: 'l', Tab: 'tab', PageUp: 'pageup', PageDown: 'pagedown' };
   var soft = { KeyK: 'k', KeyF: 'f', KeyJ: 'j', KeyP: 'p', KeyH: 'h', KeyD: 'd' };
   function name(e){ return 'ctrl+' + (e.shiftKey ? 'shift+' : ''); }

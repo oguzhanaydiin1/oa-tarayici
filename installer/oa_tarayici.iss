@@ -20,6 +20,7 @@ AppPublisherURL=https://oalabs.dev
 AppSupportURL=https://oalabs.dev
 DefaultDirName={code:PusulaDir}
 UsePreviousAppDir=no
+DirExistsWarning=no
 DefaultGroupName=Pusula Browser
 DisableProgramGroupPage=yes
 DisableDirPage=auto

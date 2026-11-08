@@ -5,6 +5,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:math' show Random, max, min;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
@@ -344,6 +345,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   final Map<String, int> _sideBadges = {};
   final Map<String, InAppWebViewController> _sideCtl = {};
   double _panelW = 420;
+
+  /// Yatay sekme şeridinde bir sekmenin genişliği (sekme sayısına göre daralır)
+  double _tabW = 184;
+  final _tabScroll = ScrollController();
   final TabData _sideTab = TabData();
 
   // Sesli okuma
@@ -2113,7 +2118,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       onSecondaryTapUp: (d) => _tabMenu(i, d.globalPosition),
       onTertiaryTapUp: (_) => _closeTab(i),
       child: Container(
-        width: vertical ? null : 184,
+        width: vertical ? null : _tabW,
         height: vertical ? 38 : null,
         margin: vertical ? const EdgeInsets.fromLTRB(8, 2, 8, 0) : const EdgeInsets.fromLTRB(2, 8, 0, 0),
         padding: const EdgeInsets.only(left: 12),
@@ -4168,9 +4173,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     } else if (Platform.isWindows) {
       try {
         _savedMax = await windowManager.isMaximized();
+        // Tam boyuttaysa küçük pencere ekranın sağ alt köşesine gelsin (önceki küçük boyutun değil)
+        final screen = await windowManager.getBounds();
         if (_savedMax) await windowManager.unmaximize();
-        final b = await windowManager.getBounds();
-        _savedBounds = b;
+        _savedBounds = await windowManager.getBounds();
+        final b = _savedMax ? screen : _savedBounds!;
         const width = 520.0;
         final height = (width * h / w).clamp(180.0, 900.0) + 32; // + pencere başlığı
         setState(() => _miniVideo = true);
@@ -4375,6 +4382,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       _urlCtl.text = _addressText(t);
       _showSuggestions = false;
     });
+    _revealCurrentTab();
     _saveSessionSoon();
     // Boş yeni sekmede imleç doğrudan arama kutusunda: tıklamadan yazılır.
     if (url == null) {
@@ -4478,7 +4486,21 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       ));
   }
 
+  /// Açık sekme şeritte görünmüyorsa şerit ona kayar.
+  void _revealCurrentTab() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_tabScroll.hasClients || _current >= _tabs.length) return;
+      final x = _current * (_tabW + 2);
+      final p = _tabScroll.position;
+      double? to;
+      if (x < p.pixels) to = x;
+      if (x + _tabW > p.pixels + p.viewportDimension) to = x + _tabW - p.viewportDimension + 48;
+      if (to != null) _tabScroll.animateTo(to.clamp(0.0, p.maxScrollExtent), duration: const Duration(milliseconds: 180), curve: Curves.easeOut);
+    });
+  }
+
   void _selectTab(int i) {
+    _revealCurrentTab();
     if (_pageFullscreen && i != _current) _exitPageFullscreen();
     if (i != _current && _current < _tabs.length) _captureThumb(_tabs[_current]);
     // Bölünmüş ekrandaki sekmelerden biri değilse yan yana görünüm kapanır.
@@ -5416,7 +5438,21 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             child: const PusulaMark(size: 24),
           ),
           Expanded(
-            child: ListView(
+            child: LayoutBuilder(builder: (context, box) {
+              // Sekmeler sığmadıkça daralır (Chrome gibi); en dar hâlde şerit kayar
+              final n = _tabs.where((x) => !x.pinned).length;
+              final fixed = _tabs.where((x) => x.pinned).length * 48.0 + _groups.length * 90.0 + 56;
+              _tabW = n == 0 ? 184 : ((box.maxWidth - fixed) / n - 2).clamp(76.0, 184.0);
+              return Listener(
+                // Fare tekerleği şeridi yana kaydırır
+                onPointerSignal: (e) {
+                  if (e is PointerScrollEvent && _tabScroll.hasClients) {
+                    final d = e.scrollDelta.dy != 0 ? e.scrollDelta.dy : e.scrollDelta.dx;
+                    _tabScroll.jumpTo((_tabScroll.offset + d).clamp(0.0, _tabScroll.position.maxScrollExtent));
+                  }
+                },
+                child: ListView(
+              controller: _tabScroll,
               scrollDirection: Axis.horizontal,
               children: [
                 ..._tabEntries(vertical: false),
@@ -5432,7 +5468,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                   ),
                 ),
               ],
-            ),
+                ),
+              );
+            }),
           ),
           IconButton(
             tooltip: 'Dikey sekmeler',
@@ -6707,7 +6745,14 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       onWebViewCreated: (c) {
         t.controller = c;
         c.addJavaScriptHandler(handlerName: 'oaKey', callback: (args) {
-          if (mounted && args.isNotEmpty) _onPageKey(args.first.toString());
+          if (!mounted || args.isEmpty) return;
+          final k = args.first.toString();
+          if (k.startsWith('ctrl+bglink:')) {
+            final u = k.substring('ctrl+bglink:'.length);
+            if (u.startsWith('http')) _addTab(url: u, incognito: t.incognito, background: true, openerId: t.id);
+            return;
+          }
+          _onPageKey(k);
         });
         c.addJavaScriptHandler(handlerName: 'oaMedia', callback: (args) {
           final on = args.isNotEmpty && args.first == true;

@@ -74,12 +74,15 @@ const String kVideoMiniJs = r'''
   });
   if (!best) return null;
   best.setAttribute('data-oa-mini', '1');
+  // Videoyu saran kutular (YouTube oynatıcısı gibi) videonun pencereyi kaplamasını engellemesin
+  for (var a = best.parentElement; a && a !== document.documentElement; a = a.parentElement) a.setAttribute('data-oa-mini-a', '1');
   var st = document.getElementById('__oamini');
   if (!st) { st = document.createElement('style'); st.id = '__oamini'; document.documentElement.appendChild(st); }
   st.textContent = 'video[data-oa-mini]{position:fixed!important;left:0!important;top:0!important;right:auto!important;bottom:auto!important;' +
     'width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;min-width:0!important;' +
     'z-index:2147483647!important;background:#000!important;object-fit:contain!important;transform:none!important;margin:0!important;' +
-    'visibility:visible!important;opacity:1!important}html,body{overflow:hidden!important}';
+    'visibility:visible!important;opacity:1!important}html,body{overflow:hidden!important}' +
+    '[data-oa-mini-a]{transform:none!important;filter:none!important;contain:none!important;will-change:auto!important;z-index:2147483647!important;clip-path:none!important}';
   if (best.paused) { try { best.play(); } catch (e) {} }
   return [best.videoWidth || 16, best.videoHeight || 9];
 })()
@@ -89,6 +92,7 @@ const String kVideoMiniExitJs = r'''
 (function(){
   var st = document.getElementById('__oamini'); if (st) st.remove();
   [].slice.call(document.querySelectorAll('video[data-oa-mini]')).forEach(function(v){ v.removeAttribute('data-oa-mini'); });
+  [].slice.call(document.querySelectorAll('[data-oa-mini-a]')).forEach(function(v){ v.removeAttribute('data-oa-mini-a'); });
 })();
 ''';
 
