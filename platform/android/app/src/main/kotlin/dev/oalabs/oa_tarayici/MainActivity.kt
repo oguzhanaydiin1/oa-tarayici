@@ -50,6 +50,28 @@ class MainActivity : AudioServiceFragmentActivity() {
         }
         pip = ch
 
+        // Pusula Köprü: açık sekmeyi eşleşmiş bilgisayara gönder (Köprü ekranı açılmadan işler)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "oa/kopru").setMethodCallHandler { call, result ->
+            if (call.method != "gonder") {
+                result.notImplemented()
+                return@setMethodCallHandler
+            }
+            val i = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                setPackage("dev.oalabs.pusula_kopru")
+                putExtra(Intent.EXTRA_TEXT, call.argument<String>("url") ?: "")
+                putExtra("dev.oalabs.kopru.OPEN", true)
+            }
+            result.success(
+                try {
+                    startActivity(i)
+                    true
+                } catch (e: Exception) {
+                    false
+                }
+            )
+        }
+
         // Sesli arama: telefonun konuşma tanıma ekranı (izin gerekmez; mikrofonu sistem kullanır).
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "oa/ses").setMethodCallHandler { call, result ->
             if (call.method != "dinle") {

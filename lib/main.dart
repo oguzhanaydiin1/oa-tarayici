@@ -39,6 +39,7 @@ import 'radio.dart';
 import 'updater.dart';
 import 'vault.dart';
 import 'oa_theme.dart';
+import 'kopru_link.dart';
 import 'offline_page.dart';
 import 'page_tools.dart';
 import 'passwords.dart';
@@ -2473,6 +2474,37 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     );
   }
 
+  /// Pusula Köprü ile: Windows'ta eşleşmiş telefona, Android'de eşleşmiş bilgisayara.
+  Future<void> _sendKopru() async {
+    final t = _tab;
+    if (t.showStart || !t.url.startsWith('http')) {
+      _toast('Önce göndermek istediğin sayfayı aç');
+      return;
+    }
+    final (ok, msg) = await KopruLink.send(t.url);
+    if (!mounted) return;
+    if (ok || !msg.contains('açık değil') && !msg.contains('kurulu değil')) {
+      _toast(msg);
+      return;
+    }
+    // Köprü yok: ne olduğunu anlat, indirme sayfasını öner
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Pusula Köprü', style: oaDisplay(22)),
+        content: Text(
+          '$msg. Pusula Köprü, bilgisayarın ile telefonun arasında sekme, dosya ve pano paylaşır; '
+          'hesap gerekmez, aynı Wi-Fi yeter. İki cihaza da kurup bir kez QR kodla eşleştirmen yeterli.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Kapat')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('İndir')),
+        ],
+      ),
+    );
+    if (go == true) _addTab(url: KopruLink.indirUrl);
+  }
+
   Future<void> _sendTab() async {
     final t = _tab;
     if (t.showStart || !t.url.startsWith('http')) {
@@ -3099,6 +3131,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         (Icons.find_in_page_outlined, 'Sayfada bul', 'ara', () => menu('find')),
         (Icons.qr_code_2, 'QR kod ile telefona aktar', 'paylas', _showQrShare),
         (Icons.send_to_mobile_outlined, 'Bu sekmeyi öbür cihaza gönder', 'paylas', () => menu('send')),
+        (Icons.cast_connected_outlined, Platform.isAndroid ? 'Bilgisayara gönder (Pusula Köprü)' : 'Telefona gönder (Pusula Köprü)', 'kopru paylas telefon bilgisayar', () => menu('kopru')),
         (Icons.swap_horiz_rounded, 'OA Akış: öbür cihaza not, fotoğraf, dosya gönder', 'akis flow not dosya foto', () => menu('flow')),
         (Icons.bookmark_add_outlined, 'Sonra oku listesine ekle', 'kaydet', () => menu('later')),
         (Icons.chrome_reader_mode_outlined, 'Okuma modu', 'reader', () => menu('reader')),
@@ -5698,6 +5731,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         _mi('find', Icons.find_in_page_outlined, 'Sayfada bul', 'Ctrl+F'),
         _mi('later', Icons.bookmark_add_outlined, 'Sonra oku listesine ekle'),
         _mi('send', Icons.send_to_mobile_outlined, 'Öbür cihaza gönder'),
+        _mi('kopru', Icons.cast_connected_outlined, 'Telefona gönder', 'Pusula Köprü'),
         _mi('flow', Icons.swap_horiz_rounded, 'OA Akış'),
         _mi('qrshare', Icons.qr_code_2, 'QR kod ile telefona aktar'),
         _mi('pin', Icons.push_pin_outlined, _tab.pinned ? 'Sabitlemeyi kaldır' : 'Sekmeyi sabitle'),
@@ -5834,6 +5868,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         _showDevices();
       case 'send':
         _sendTab();
+      case 'kopru':
+        _sendKopru();
       case 'flow':
         _showFlow();
       case 'syncset':
@@ -6364,6 +6400,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                     tool(Icons.find_in_page_outlined, 'Bul', 'find'),
                     tool(Icons.bookmark_add_outlined, 'Sonra oku', 'later'),
                     tool(Icons.send_to_mobile_outlined, 'Gönder', 'send'),
+                    tool(Icons.cast_connected_outlined, 'Bilgisayara', 'kopru'),
                     tool(Icons.swap_horiz_rounded, 'OA Akış', 'flow'),
                     tool(Icons.chrome_reader_mode_outlined, 'Okuma', 'reader'),
                     tool(Icons.record_voice_over_outlined, 'Sesli oku', 'tts'),

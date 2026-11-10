@@ -249,6 +249,9 @@ En yeni sürüm en üstte olsun.
 • Clicking the lock in the address bar opens site info: whether the connection is secure, the site's permissions (each can be reset) and "Delete this site's cookies".
 • The tab's speaker icon moved to the left of the title, so the close button no longer shifts when audio stops (no more closing a tab by accident).
 
+## 0.19.11
+• "Telefona gönder (Pusula Köprü)": açık sekme, Pusula Köprü ile eşleşmiş telefonda hemen açılır. Telefonda "Bilgisayara gönder" aynısını tersine yapar. Hesap gerekmez, aynı Wi-Fi yeter.
+
 ## 0.19.10
 • Ctrl+T ile açtığın sekmeyi başka sekmeye geçmeden kapatırsan, önceki sekmene dönersin (Chrome gibi).
 
