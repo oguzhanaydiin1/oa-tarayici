@@ -1,5 +1,7 @@
 # Pusula Browser
 
+**Windows ve Android için ücretsiz, reklamsız tarayıcı.** İndir ve özellikleri gör: **[oalabs.dev/tarayici](https://oalabs.dev/tarayici/)** · English: [oalabs.dev/en/tarayici](https://oalabs.dev/en/tarayici/)
+
 OA Labs'in Windows ve Android tarayıcısı (eski adı OA Tarayıcı). Flutter + `flutter_inappwebview`: sayfaları Windows'ta
 WebView2 (Edge motoru), Android'de Android WebView çizer; arayüz OA Labs tasarım sistemiyle yazılır.
 

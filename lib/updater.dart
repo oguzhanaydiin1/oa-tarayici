@@ -58,7 +58,8 @@ class Updater {
             a['browser_download_url'].toString(),
             wanted,
             rel['html_url']?.toString() ?? '',
-            rel['body']?.toString() ?? '',
+            // Sürüm notunun altındaki "---" sonrası (site bağlantısı) uygulamada gösterilmez.
+            (rel['body']?.toString() ?? '').split('\n---\n').first.trim(),
           );
         }
       }

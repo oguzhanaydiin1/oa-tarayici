@@ -38,7 +38,8 @@ jobs:
         shell: bash
         run: |
           awk -v v="${{ steps.ver.outputs.v }}" '/^## /{p=($2==v); next} p' release-notes.md > notes.txt 2>/dev/null || true
-          if [ -s notes.txt ]; then echo "path=notes.txt" >> "$GITHUB_OUTPUT"; fi
+          printf '\n---\n**İndir / Download:** https://oalabs.dev/tarayici/\n' >> notes.txt
+          echo "path=notes.txt" >> "$GITHUB_OUTPUT"
 
       - uses: subosito/flutter-action@v2
         with:
@@ -120,7 +121,8 @@ jobs:
         shell: bash
         run: |
           awk -v v="${{ steps.ver.outputs.v }}" '/^## /{p=($2==v); next} p' release-notes.md > notes.txt 2>/dev/null || true
-          if [ -s notes.txt ]; then echo "path=notes.txt" >> "$GITHUB_OUTPUT"; fi
+          printf '\n---\n**İndir / Download:** https://oalabs.dev/tarayici/\n' >> notes.txt
+          echo "path=notes.txt" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-java@v5
         with:
