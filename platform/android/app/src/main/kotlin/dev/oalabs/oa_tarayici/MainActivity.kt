@@ -17,6 +17,7 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : AudioServiceFragmentActivity() {
     private var pip: MethodChannel? = null
     private var sesSonuc: MethodChannel.Result? = null
+    private var centerSonuc: MethodChannel.Result? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -49,6 +50,34 @@ class MainActivity : AudioServiceFragmentActivity() {
             }
         }
         pip = ch
+
+        // OA Labs Center ile giriş (tek giriş): Center'ın onay ekranı açılır, onaylanırsa tek
+        // kullanımlık kod döner; Dart tarafı kodu sunucuda Pusula'nın kendi oturumuna çevirir.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "oa/center").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "var" -> result.success(
+                    try {
+                        packageManager.getPackageInfo(CENTER_PAKET, 0)
+                        true
+                    } catch (e: PackageManager.NameNotFoundException) {
+                        false
+                    }
+                )
+                "giris" -> {
+                    val i = Intent(CENTER_GIRIS).setClassName(CENTER_PAKET, "$CENTER_PAKET.MainActivity")
+                    centerSonuc?.success(null)
+                    centerSonuc = result
+                    try {
+                        @Suppress("DEPRECATION")
+                        startActivityForResult(i, CENTER_ISTEK)
+                    } catch (e: Exception) {
+                        centerSonuc = null
+                        result.success(null)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
 
         // Pusula Köprü: açık sekmeyi eşleşmiş bilgisayara gönder (Köprü ekranı açılmadan işler)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "oa/kopru").setMethodCallHandler { call, result ->
@@ -118,10 +147,18 @@ class MainActivity : AudioServiceFragmentActivity() {
             val t = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
             r?.success(if (resultCode == Activity.RESULT_OK) t else null)
         }
+        if (requestCode == CENTER_ISTEK) {
+            val r = centerSonuc
+            centerSonuc = null
+            r?.success(if (resultCode == Activity.RESULT_OK) data?.getStringExtra("kod") else null)
+        }
     }
 
     companion object {
         private const val SES_ISTEK = 7301
+        private const val CENTER_ISTEK = 7302
+        private const val CENTER_PAKET = "dev.oalabs.oa_center"
+        private const val CENTER_GIRIS = "dev.oalabs.center.GIRIS"
     }
 
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {

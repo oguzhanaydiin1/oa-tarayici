@@ -1,7 +1,7 @@
 name: oa_tarayici
 description: Pusula Browser — OA Labs tasarım sistemiyle Windows ve Android tarayıcı taslağı.
 publish_to: 'none'
-version: 0.19.11+59
+version: 0.20.0+60
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -13,6 +13,7 @@ dependencies:
   shared_preferences: ^2.3.2
   google_fonts: ^6.2.1
   http: ^1.2.2
+  ffi: ^2.1.3
   flutter_secure_storage: ^9.2.4
   file_picker: ^8.1.7
   path_provider: ^2.1.5

@@ -15,6 +15,15 @@ Biçim (başlık tam olarak `## ` ve sürüm numarası olmalı):
 
 En yeni sürüm en üstte olsun.
 
+## 0.20.0
+• OA Labs Center ile tek giriş: Windows'ta OA Labs Center'da giriş yaptıysan Pusula açılınca kendiliğinden girişli gelir; Pusula'da girdiysen OA Labs Center da girişli açılır.
+• Telefonda giriş penceresinde "OA Labs Center ile giriş yap": kod beklemeden, tek onayla.
+• Her uygulamanın kendi oturumu olur; oalabs.dev'deki cihaz listesinde ayrı görünür.
+
+• Single sign-on with OA Labs Center: on Windows, if you're signed in to OA Labs Center, Pusula opens signed in, and the other way round.
+• On the phone, the sign-in window has "Sign in with OA Labs Center": no code to wait for, one tap to approve.
+• Each app gets its own session and shows up separately in your device list on oalabs.dev.
+
 ## 0.14.5
 • OA Labs hesabına profil fotoğrafı eklediysen, uygulamada baş harflerin yerine artık fotoğrafın görünüyor. Fotoğrafı oalabs.dev’de Hesabım sayfasından ekleyip değiştirebilirsin; yalnızca sen görürsün.
 

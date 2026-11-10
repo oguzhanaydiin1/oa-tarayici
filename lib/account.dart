@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'oa_theme.dart' show oaAvatarImage;
+import 'shared_session.dart';
 import 'web_env.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -88,12 +90,15 @@ class OAAccount extends ChangeNotifier {
     return 'OATarayici/0.3 ($os)';
   }
 
-  Map<String, String> _headers({bool json = false}) => {
-        'User-Agent': _userAgent,
-        'Accept': 'application/json',
-        if (json) 'Content-Type': 'application/json',
-        if (_token != null) 'Cookie': '$_cookieName=$_token',
-      };
+  Map<String, String> _headers({bool json = false, String? as}) {
+    final t = as ?? _token;
+    return {
+      'User-Agent': _userAgent,
+      'Accept': 'application/json',
+      if (json) 'Content-Type': 'application/json',
+      if (t != null) 'Cookie': '$_cookieName=$t',
+    };
+  }
 
   /// Kaydedilmiş oturumu yükler; yoksa tarayıcıda sitede açılmış bir oturum varsa onu alır.
   Future<void> load() async {
@@ -103,22 +108,71 @@ class OAAccount extends ChangeNotifier {
       _token = null;
     }
     if (_token == null) await adoptFromWebView(notify: false);
+    if (_token == null) await _adoptShared();
     if (_token != null) await refresh(notify: false);
+    // Windows: OA Labs Center da bu oturumla girebilsin (ortak oturum yoksa yaz).
+    if (user != null && _token != null && SharedSession.supported && await SharedSession.read() == null) {
+      await SharedSession.write(_token!, 'pusula');
+    }
     loading = false;
     notifyListeners();
   }
 
-  Future<Map<String, dynamic>> _call(String path, [Map<String, dynamic>? body]) async {
+  // ---------------------------------------------------------------- Tek giriş (OA Labs Center)
+
+  static const _center = MethodChannel('oa/center');
+
+  /// Windows: OA Labs Center'da (ya da başka bir OA uygulamasında) açık oturum varsa onunla
+  /// sunucudan tek kullanımlık kod alıp Pusula'nın kendi oturumunu açar.
+  Future<void> _adoptShared() async {
+    final shared = await SharedSession.read();
+    if (shared == null) return;
+    final h = await _call('/v1/auth/handoff', {'app': 'pusula'}, shared.token);
+    final code = h['code'];
+    if (h['ok'] != true || code is! String) return;
+    await _call('/v1/auth/redeem', {'code': code});
+  }
+
+  /// Android: telefonda OA Labs Center kurulu mu?
+  Future<bool> centerAvailable() async {
+    if (!Platform.isAndroid) return false;
+    try {
+      return await _center.invokeMethod<bool>('var') ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Android: OA Labs Center'ın onay ekranını açar; onaylanırsa Pusula'nın kendi oturumu açılır.
+  /// Vazgeçilirse ok: false ve hata kodu null döner.
+  Future<AccountResult> signInWithCenter() async {
+    String? code;
+    try {
+      code = await _center.invokeMethod<String>('giris');
+    } catch (_) {
+      code = null;
+    }
+    if (code == null) return const AccountResult(false);
+    final r = await _call('/v1/auth/redeem', {'code': code});
+    if (r['ok'] != true) return AccountResult(false, error: r['error']?.toString());
+    await refresh(notify: false);
+    await syncToWebView();
+    notifyListeners();
+    return const AccountResult(true);
+  }
+
+  /// [as]: bu istek için kendi oturumu yerine verilen anahtarı kullan (ortak oturumla kod almak için).
+  Future<Map<String, dynamic>> _call(String path, [Map<String, dynamic>? body, String? as]) async {
     try {
       final uri = Uri.parse('$api$path');
       final res = body == null
-          ? await http.get(uri, headers: _headers()).timeout(const Duration(seconds: 12))
+          ? await http.get(uri, headers: _headers(as: as)).timeout(const Duration(seconds: 12))
           : await http
               .post(uri,
-                  headers: _headers(json: true),
+                  headers: _headers(json: true, as: as),
                   body: jsonEncode({'lang': 'tr', ...body}))
               .timeout(const Duration(seconds: 12));
-      _readCookie(res.headers['set-cookie']);
+      if (as == null) _readCookie(res.headers['set-cookie']);
       final data = jsonDecode(utf8.decode(res.bodyBytes));
       return data is Map<String, dynamic> ? data : {'ok': false, 'error': 'sunucu'};
     } catch (_) {
@@ -168,6 +222,7 @@ class OAAccount extends ChangeNotifier {
     if (r['ok'] == true) {
       await refresh(notify: false);
       await syncToWebView();
+      if (_token != null) await SharedSession.write(_token!, 'pusula');
       notifyListeners();
       return AccountResult(true, created: r['created'] == true);
     }
@@ -235,7 +290,9 @@ class OAAccount extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    final old = _token;
     if (_token != null) await _call('/v1/auth/logout', {});
+    await SharedSession.clearIf(old);
     _token = null;
     user = null;
     _avatarShown = null;
