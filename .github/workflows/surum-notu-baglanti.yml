@@ -1,0 +1,20 @@
+name: Sürüm notlarına site bağlantısı (tek seferlik)
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  ekle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Bağlantısı olmayan sürüm notlarına ekle
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh api --paginate "repos/$REPO/releases?per_page=100" --jq '.[].id' | while read id; do
+            body=$(gh api "repos/$REPO/releases/$id" --jq '.body // ""')
+            case "$body" in *"oalabs.dev/tarayici"*) continue;; esac
+            printf '%s\n\n---\n**İndir / Download:** https://oalabs.dev/tarayici/\n' "$body" > b.txt
+            gh api -X PATCH "repos/$REPO/releases/$id" -F body=@b.txt --silent && echo "eklendi $id"
+          done
