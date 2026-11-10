@@ -61,6 +61,10 @@ def manifest():
             s = s.replace('</queries>', '    ' + tts + '</queries>', 1)
         else:
             s = s.replace('<application', '<queries>\n        ' + tts + '</queries>\n    <application', 1)
+    # OA Labs Center ile giriş: Android 11+ Center'ın kurulu olup olmadığını ancak burada adı geçiyorsa söyler
+    if 'dev.oalabs.oa_center' not in s:
+        pk = '<package android:name="dev.oalabs.oa_center" />\n    '
+        s = s.replace('</queries>', '    ' + pk + '</queries>', 1)
     # Bildirimler (ekran süresi haftalık özeti): izin ve zamanlanmış bildirimin alıcıları
     if 'POST_NOTIFICATIONS' not in s:
         s = s.replace('<application', '<uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>\n    <application', 1)

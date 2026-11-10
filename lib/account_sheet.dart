@@ -66,6 +66,32 @@ class _SignInFormState extends State<_SignInForm> {
   final _email = TextEditingController();
   final _code = TextEditingController();
 
+  /// Android: telefonda OA Labs Center kuruluysa tek dokunuşla giriş.
+  bool _center = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.account.centerAvailable().then((v) {
+      if (mounted && v) setState(() => _center = true);
+    });
+  }
+
+  Future<void> _withCenter() async {
+    setState(() => _busy = true);
+    _show(null);
+    final r = await widget.account.signInWithCenter();
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (r.ok) {
+      _show('Giriş yapıldı!', ok: true);
+      await Future.delayed(const Duration(milliseconds: 700));
+      if (mounted) Navigator.of(context).pop();
+    } else if (r.error != null) {
+      _show(r.message, code: r.error);
+    }
+  }
+
   @override
   void dispose() {
     _name.dispose();
@@ -172,6 +198,25 @@ class _SignInFormState extends State<_SignInForm> {
   }
 
   List<Widget> _step1() => [
+        if (_center && !_register) ...[
+          FilledButton(
+            onPressed: _busy ? null : _withCenter,
+            child: const Text('OA Labs Center ile giriş yap'),
+          ),
+          const SizedBox(height: 8),
+          Text('Telefonundaki OA Labs Center hesabınla, kod beklemeden.',
+              textAlign: TextAlign.center, style: TextStyle(color: OAColors.muted, fontSize: 13)),
+          const SizedBox(height: 18),
+          Row(children: [
+            Expanded(child: Divider(color: OAColors.line)),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Text('ya da e-postayla', style: TextStyle(color: OAColors.muted, fontSize: 13)),
+            ),
+            Expanded(child: Divider(color: OAColors.line)),
+          ]),
+          const SizedBox(height: 18),
+        ],
         _tabs(),
         const SizedBox(height: 20),
         if (_register) ...[
