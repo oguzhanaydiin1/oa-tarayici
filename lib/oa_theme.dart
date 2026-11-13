@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'i18n.dart';
 /// Bir tema için OA Labs renkleri.
 class OAPalette {
   const OAPalette({
@@ -135,14 +136,14 @@ class OAAccent {
   final Color lightText; // açık temada yazı rengi olarak okunur hali
 }
 
-const kAccents = <OAAccent>[
-  OAAccent('turuncu', 'OA turuncusu', Color(0xFFF2A541), Color(0xFFF7BF6E), Color(0xFF9A5800)),
-  OAAccent('mor', 'Mor', Color(0xFFA78BFA), Color(0xFFC4B5FD), Color(0xFF6D4BD8)),
-  OAAccent('mavi', 'Mavi', Color(0xFF6EA8FE), Color(0xFF9CC3FF), Color(0xFF2A63C4)),
-  OAAccent('yesil', 'Yeşil', Color(0xFF5BC48C), Color(0xFF86D9AB), Color(0xFF1D7A4A)),
-  OAAccent('pembe', 'Pembe', Color(0xFFF0729A), Color(0xFFF59DB8), Color(0xFFB8325C)),
-  OAAccent('kirmizi', 'Kırmızı', Color(0xFFF08A7E), Color(0xFFF5AEA5), Color(0xFFB93A2C)),
-  OAAccent('camgobegi', 'Camgöbeği', Color(0xFF5CC8D7), Color(0xFF8EDCE6), Color(0xFF1E7F8C)),
+final kAccents = <OAAccent>[
+  OAAccent('turuncu', tx('OA turuncusu', 'OA orange'), Color(0xFFF2A541), Color(0xFFF7BF6E), Color(0xFF9A5800)),
+  OAAccent('mor', tx('Mor', 'Purple'), Color(0xFFA78BFA), Color(0xFFC4B5FD), Color(0xFF6D4BD8)),
+  OAAccent('mavi', tx('Mavi', 'Blue'), Color(0xFF6EA8FE), Color(0xFF9CC3FF), Color(0xFF2A63C4)),
+  OAAccent('yesil', tx('Yeşil', 'Green'), Color(0xFF5BC48C), Color(0xFF86D9AB), Color(0xFF1D7A4A)),
+  OAAccent('pembe', tx('Pembe', 'Pink'), Color(0xFFF0729A), Color(0xFFF59DB8), Color(0xFFB8325C)),
+  OAAccent('kirmizi', tx('Kırmızı', 'Red'), Color(0xFFF08A7E), Color(0xFFF5AEA5), Color(0xFFB93A2C)),
+  OAAccent('camgobegi', tx('Camgöbeği', 'Cyan'), Color(0xFF5CC8D7), Color(0xFF8EDCE6), Color(0xFF1E7F8C)),
 ];
 
 OAAccent accentById(String? id) => kAccents.firstWhere((a) => a.id == id, orElse: () => kAccents.first);
@@ -177,13 +178,13 @@ OAPalette withAccent(OAPalette p, OAAccent a) {
 }
 
 /// Hazır temalar: vurgu rengi + başlangıç sayfası arka planı.
-const kThemePresets = <(String, String, String)>[
+final kThemePresets = <(String, String, String)>[
   ('OA', 'turuncu', 'glow'),
-  ('Gece', 'mor', 'glow'),
-  ('Okyanus', 'mavi', 'rings'),
-  ('Orman', 'yesil', 'dots'),
-  ('Gün batımı', 'pembe', 'dusk'),
-  ('Kadran', 'kirmizi', 'dial'),
+  (tx('Gece', 'Night'), 'mor', 'glow'),
+  (tx('Okyanus', 'Ocean'), 'mavi', 'rings'),
+  (tx('Orman', 'Forest'), 'yesil', 'dots'),
+  (tx('Gün batımı', 'Sunset'), 'pembe', 'dusk'),
+  (tx('Kadran', 'Dial'), 'kirmizi', 'dial'),
 ];
 
 ThemeMode themeModeFromString(String? s) => switch (s) {

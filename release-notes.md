@@ -15,6 +15,15 @@ Biçim (başlık tam olarak `## ` ve sürüm numarası olmalı):
 
 En yeni sürüm en üstte olsun.
 
+## 0.21.0
+• İngilizce dil desteği: cihazın dili Türkçe değilse Pusula İngilizce açılır. Ayarlar → Görünüm → Dil'den Türkçe, English ya da Otomatik seçebilirsin.
+• İngilizcede sayılar (1,234.5), tarihler, hava durumu ve sesli okuma da İngilizce; başlangıç sayfasında İngilizce haber kaynakları gelir.
+• Güncelleme penceresinde sürüm notları uygulamanın dilinde görünür.
+
+• English language support: if your device isn't set to Turkish, Pusula opens in English. You can pick Turkish, English or Auto in Settings → Appearance → Language.
+• In English, numbers (1,234.5), dates, weather and read-aloud are in English too, and the start page gets English news sources.
+• Release notes in the update window are shown in the app's language.
+
 ## 0.20.0
 • OA Labs Center ile tek giriş: Windows'ta OA Labs Center'da giriş yaptıysan Pusula açılınca kendiliğinden girişli gelir; Pusula'da girdiysen OA Labs Center da girişli açılır.
 • Telefonda giriş penceresinde "OA Labs Center ile giriş yap": kod beklemeden, tek onayla.

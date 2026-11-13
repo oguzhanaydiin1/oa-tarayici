@@ -5,6 +5,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 
 import 'oa_theme.dart';
 
+import 'i18n.dart';
 // Sesli okuma: sayfanın yazısını cihazın kendi Türkçe sesiyle okur (Android ve Windows'un
 // konuşma motoru; ek ücret ya da internet gerekmez).
 
@@ -29,7 +30,7 @@ class ReadAloud extends ChangeNotifier {
     _ready = true;
     try {
       await _tts.awaitSpeakCompletion(true);
-      await _tts.setLanguage('tr-TR');
+      await _tts.setLanguage(L.en ? 'en-US' : 'tr-TR');
       await _tts.setVolume(1);
     } catch (_) {}
   }
@@ -148,30 +149,30 @@ class ReadAloudBar extends StatelessWidget {
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                     Text(tts.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: OAColors.text, fontSize: 13.5, fontWeight: FontWeight.w600)),
-                    Text('Sesli okuma · ${tts.index + 1}/${tts.total}', style: TextStyle(color: OAColors.muted, fontSize: 12)),
+                    Text(tx('Sesli okuma · ${tts.index + 1}/${tts.total}', 'Read aloud · ${tts.index + 1}/${tts.total}'), style: TextStyle(color: OAColors.muted, fontSize: 12)),
                   ]),
                 ),
-                IconButton(tooltip: 'Geri', icon: const Icon(Icons.replay_10, size: 22), onPressed: () => tts.skip(-1)),
+                IconButton(tooltip: tx('Geri', 'Back'), icon: const Icon(Icons.replay_10, size: 22), onPressed: () => tts.skip(-1)),
                 IconButton(
-                  tooltip: playing ? 'Duraklat' : 'Devam',
+                  tooltip: playing ? tx('Duraklat', 'Pause') : tx('Devam', 'Resume'),
                   icon: Icon(playing ? Icons.pause_circle_filled : Icons.play_circle_fill, size: 32, color: OAColors.amber),
                   onPressed: playing ? tts.pause : tts.resume,
                 ),
-                IconButton(tooltip: 'İleri', icon: const Icon(Icons.forward_10, size: 22), onPressed: () => tts.skip(1)),
+                IconButton(tooltip: tx('İleri', 'Forward'), icon: const Icon(Icons.forward_10, size: 22), onPressed: () => tts.skip(1)),
                 PopupMenuButton<double>(
-                  tooltip: 'Hız',
+                  tooltip: tx('Hız', 'Speed'),
                   initialValue: tts.speed,
                   onSelected: tts.setSpeed,
                   itemBuilder: (_) => [
                     for (final v in const [0.75, 1.0, 1.25, 1.5, 1.75])
-                      PopupMenuItem(value: v, child: Text('${v.toString().replaceAll('.', ',')}×')),
+                      PopupMenuItem(value: v, child: Text(tx('${v.toString().replaceAll('.', ',')}×', '${v.toString()}×'))),
                   ],
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                    child: Text('${tts.speed.toString().replaceAll('.', ',')}×', style: TextStyle(color: OAColors.text2, fontWeight: FontWeight.w600)),
+                    child: Text(tx('${tts.speed.toString().replaceAll('.', ',')}×', '${tts.speed.toString()}×'), style: TextStyle(color: OAColors.text2, fontWeight: FontWeight.w600)),
                   ),
                 ),
-                IconButton(tooltip: 'Durdur', icon: const Icon(Icons.close, size: 20), onPressed: tts.stop),
+                IconButton(tooltip: tx('Durdur', 'Stop'), icon: const Icon(Icons.close, size: 20), onPressed: tts.stop),
               ]),
             ),
           ]),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'oa_theme.dart';
 import 'wallpaper.dart';
 
+import 'i18n.dart';
 /// Başlangıç sayfasındaki hızlı erişim kutusu. Kullanıcı ekler, düzenler, kaldırır.
 class QuickLink {
   const QuickLink(this.name, this.url, {this.color});
@@ -25,11 +26,11 @@ class QuickLink {
           color: j['color']?.toString());
 }
 
-const kDefaultQuickLinks = <QuickLink>[
+final kDefaultQuickLinks = <QuickLink>[
   QuickLink('OA Labs', 'https://oalabs.dev', color: 'amber'),
   QuickLink('OA Radyo', 'https://oalabs.dev/radyo/', color: 'amber'),
   QuickLink('Harrier Cleaner', 'https://oalabs.dev/#uygulamalar', color: 'harrier'),
-  QuickLink('Vikipedi', 'https://tr.wikipedia.org'),
+  QuickLink(tx('Vikipedi', 'Wikipedia'), 'https://tr.wikipedia.org'),
   QuickLink('GitHub', 'https://github.com'),
   QuickLink('OpenStreetMap', 'https://www.openstreetmap.org'),
 ];
@@ -163,9 +164,9 @@ class _StartPageState extends State<StartPage> {
       height: 1.0,
     );
     final kicker = widget.incognito
-        ? 'Gizli sekme'
+        ? tx('Gizli sekme', 'Private tab')
         : widget.userFirstName != null
-            ? 'Merhaba ${widget.userFirstName}'
+            ? tx('Merhaba ${widget.userFirstName}', 'Hi ${widget.userFirstName}')
             : 'Pusula Browser';
 
     return LayoutBuilder(builder: (context, box) {
@@ -199,15 +200,15 @@ class _StartPageState extends State<StartPage> {
                     style: titleStyle,
                     children: widget.incognito
                         ? [
-                            const TextSpan(text: 'Gezdiklerin '),
+                             TextSpan(text: tx('Gezdiklerin ', 'Your browsing ')),
                             TextSpan(
-                                text: 'kaydedilmez.',
+                                text: tx('kaydedilmez.', "isn't saved."),
                                 style: TextStyle(color: OAColors.accent)),
                           ]
                         : [
-                            const TextSpan(text: 'Nereye '),
+                             TextSpan(text: tx('Nereye ', 'Where ')),
                             TextSpan(
-                                text: 'gidiyoruz?',
+                                text: tx('gidiyoruz?', 'to next?'),
                                 style: TextStyle(color: OAColors.accent)),
                           ],
                   ),
@@ -222,12 +223,12 @@ class _StartPageState extends State<StartPage> {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Expanded(child: Text('Hızlı erişim', style: oaDisplay(22))),
+                    Expanded(child: Text(tx('Hızlı erişim', 'Quick access'), style: oaDisplay(22))),
                     if (widget.quickLinks.length > 1 || _arranging)
                       TextButton.icon(
                         onPressed: () => setState(() => _arranging = !_arranging),
                         icon: Icon(_arranging ? Icons.check : Icons.drag_indicator, size: 18),
-                        label: Text(_arranging ? 'Bitti' : 'Düzenle'),
+                        label: Text(_arranging ? tx('Bitti', 'Done') : tx('Düzenle', 'Edit')),
                       ),
                   ],
                 ),
@@ -236,11 +237,11 @@ class _StartPageState extends State<StartPage> {
                   child: Text(
                     _arranging
                         ? (compact
-                            ? 'Kutuyu basılı tutup sürükleyerek yerini değiştir. Dokununca düzenlenir.'
-                            : 'Kutuyu sürükleyerek yerini değiştir. Tıklayınca düzenlenir.')
+                            ? tx('Kutuyu basılı tutup sürükleyerek yerini değiştir. Dokununca düzenlenir.', 'Press and hold a tile, then drag to move it. Tap to edit.')
+                            : tx('Kutuyu sürükleyerek yerini değiştir. Tıklayınca düzenlenir.', 'Drag a tile to move it. Click to edit.'))
                         : (compact
-                            ? 'Bir kutuyu basılı tutarak düzenleyebilir ya da kaldırabilirsin.'
-                            : 'Bir kutuya sağ tıklayarak düzenleyebilir ya da kaldırabilirsin.'),
+                            ? tx('Bir kutuyu basılı tutarak düzenleyebilir ya da kaldırabilirsin.', 'Press and hold a tile to edit or remove it.')
+                            : tx('Bir kutuya sağ tıklayarak düzenleyebilir ya da kaldırabilirsin.', 'Right-click a tile to edit or remove it.')),
                     style: TextStyle(color: OAColors.faint, fontSize: 13),
                   ),
                 ),
@@ -254,13 +255,13 @@ class _StartPageState extends State<StartPage> {
                   widget.news!,
                 ],
                 const SizedBox(height: 40),
-                Text('Yer imleri', style: oaDisplay(22)),
+                Text(tx('Yer imleri', 'Bookmarks'), style: oaDisplay(22)),
                 const SizedBox(height: 14),
                 if (widget.bookmarks.isEmpty)
                   Text(
                     compact
-                        ? 'Henüz yer imi yok. Bir sayfadayken alttaki yıldıza dokun.'
-                        : 'Henüz yer imi yok. Bir sayfadayken yıldıza dokun.',
+                        ? tx('Henüz yer imi yok. Bir sayfadayken alttaki yıldıza dokun.', 'No bookmarks yet. On a page, tap the star at the bottom.')
+                        : tx('Henüz yer imi yok. Bir sayfadayken yıldıza dokun.', 'No bookmarks yet. On a page, tap the star.'),
                     style: TextStyle(color: OAColors.muted, fontSize: 15),
                   )
                 else
@@ -276,13 +277,13 @@ class _StartPageState extends State<StartPage> {
                 const SizedBox(height: 40),
                 Divider(height: 1, color: OAColors.line),
                 const SizedBox(height: 20),
-                const Wrap(
+                 Wrap(
                   spacing: 24,
                   runSpacing: 8,
                   children: [
-                    _Perk('Reklam yok'),
-                    _Perk('Hesap zorunlu değil'),
-                    _Perk('Geçmişin cihazında kalır'),
+                    _Perk(tx('Reklam yok', 'No ads')),
+                    _Perk(tx('Hesap zorunlu değil', 'No account required')),
+                    _Perk(tx('Geçmişin cihazında kalır', 'Your history stays on your device')),
                   ],
                 ),
               ],
@@ -298,7 +299,7 @@ class _StartPageState extends State<StartPage> {
           right: 8,
           child: SafeArea(
             child: IconButton(
-              tooltip: 'Arka plan',
+              tooltip: tx('Arka plan', 'Background'),
               icon: const Icon(Icons.wallpaper_outlined),
               style: IconButton.styleFrom(
                 backgroundColor: OAColors.surface.withValues(alpha: 0.7),
@@ -402,7 +403,7 @@ class _StartPageState extends State<StartPage> {
             children: [
               Icon(Icons.add, color: OAColors.muted),
               const SizedBox(height: 8),
-              Text('Ekle',
+              Text(tx('Ekle', 'Add'),
                   style: TextStyle(
                       fontSize: 15, fontWeight: FontWeight.w600, color: OAColors.text2)),
             ],
@@ -422,10 +423,10 @@ class _StartPageState extends State<StartPage> {
         context: context,
         position: RelativeRect.fromRect(
             globalPos & const Size(1, 1), Offset.zero & overlay.size),
-        items: const [
-          PopupMenuItem(value: QuickAction.openNewTab, child: Text('Yeni sekmede aç')),
-          PopupMenuItem(value: QuickAction.edit, child: Text('Düzenle')),
-          PopupMenuItem(value: QuickAction.remove, child: Text('Kaldır')),
+        items: [
+          PopupMenuItem(value: QuickAction.openNewTab, child: Text(tx('Yeni sekmede aç', 'Open in new tab'))),
+          PopupMenuItem(value: QuickAction.edit, child: Text(tx('Düzenle', 'Edit'))),
+          PopupMenuItem(value: QuickAction.remove, child: Text(tx('Kaldır', 'Remove'))),
         ],
       );
     } else {
@@ -444,17 +445,17 @@ class _StartPageState extends State<StartPage> {
               const Divider(height: 8),
               ListTile(
                 leading: const Icon(Icons.open_in_new),
-                title: const Text('Yeni sekmede aç'),
+                title: Text(tx('Yeni sekmede aç', 'Open in new tab')),
                 onTap: () => Navigator.pop(ctx, QuickAction.openNewTab),
               ),
               ListTile(
                 leading: const Icon(Icons.edit_outlined),
-                title: const Text('Düzenle'),
+                title: Text(tx('Düzenle', 'Edit')),
                 onTap: () => Navigator.pop(ctx, QuickAction.edit),
               ),
               ListTile(
                 leading: Icon(Icons.delete_outline, color: OAColors.danger),
-                title: Text('Kaldır', style: TextStyle(color: OAColors.danger)),
+                title: Text(tx('Kaldır', 'Remove'), style: TextStyle(color: OAColors.danger)),
                 onTap: () => Navigator.pop(ctx, QuickAction.remove),
               ),
             ],
@@ -475,7 +476,7 @@ class _StartPageState extends State<StartPage> {
             onSubmitted: (_) => _submit(),
             style: const TextStyle(fontSize: 17),
             decoration: InputDecoration(
-              hintText: '${widget.engineName} ile ara veya adres yaz',
+              hintText: tx('${widget.engineName} ile ara veya adres yaz', 'Search with ${widget.engineName} or type an address'),
               fillColor: OAColors.surface,
               prefixIcon: Padding(
                 padding: const EdgeInsets.only(left: 18, right: 10),
@@ -487,7 +488,7 @@ class _StartPageState extends State<StartPage> {
           ),
         ),
         const SizedBox(width: 10),
-        FilledButton(onPressed: _submit, child: const Text('Git')),
+        FilledButton(onPressed: _submit, child: Text(tx('Git', 'Go'))),
       ],
     );
   }
@@ -496,7 +497,7 @@ class _StartPageState extends State<StartPage> {
     return Wrap(
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        Text('Arama motoru: ${widget.engineName} · ',
+        Text(tx('Arama motoru: ${widget.engineName} · ', 'Search engine: ${widget.engineName} · '),
             style: TextStyle(color: OAColors.muted, fontSize: 14)),
         InkWell(
           onTap: widget.onChangeEngine,
@@ -504,7 +505,7 @@ class _StartPageState extends State<StartPage> {
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
             child: Text(
-              'Değiştir',
+              tx('Değiştir', 'Change'),
               style: TextStyle(
                 color: OAColors.accent,
                 fontWeight: FontWeight.w600,

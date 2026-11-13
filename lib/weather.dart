@@ -9,14 +9,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'oa_theme.dart';
 
+import 'i18n.dart';
 // Başlangıç sayfasındaki saat, tarih ve hava durumu.
 // Hava verisi: Open-Meteo (ücretsiz, anahtar gerektirmez). Şehir cihazda saklanır.
 
-const _days = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'];
-const _daysShort = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
-const _months = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+final _days = [tx('Pazartesi', 'Monday'), tx('Salı', 'Tuesday'), tx('Çarşamba', 'Wednesday'), tx('Perşembe', 'Thursday'), tx('Cuma', 'Friday'), tx('Cumartesi', 'Saturday'), tx('Pazar', 'Sunday')];
+final _daysShort = [tx('Pzt', 'Mon'), tx('Sal', 'Tue'), tx('Çar', 'Wed'), tx('Per', 'Thu'), tx('Cum', 'Fri'), tx('Cmt', 'Sat'), tx('Paz', 'Sun')];
+final _months = [tx('Ocak', 'January'), tx('Şubat', 'February'), tx('Mart', 'March'), tx('Nisan', 'April'), tx('Mayıs', 'May'), tx('Haziran', 'June'), tx('Temmuz', 'July'), tx('Ağustos', 'August'), tx('Eylül', 'September'), tx('Ekim', 'October'), tx('Kasım', 'November'), tx('Aralık', 'December')];
 
-String trDate(DateTime d) => '${d.day} ${_months[d.month - 1]}, ${_days[d.weekday - 1]}';
+String trDate(DateTime d) => tx('${d.day} ${_months[d.month - 1]}, ${_days[d.weekday - 1]}', '${_days[d.weekday - 1]}, ${d.day} ${_months[d.month - 1]}');
 String hhmm(DateTime d) => '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 
 class City {
@@ -54,26 +55,26 @@ class DayWx {
 
 /// WMO hava kodu → açıklama ve simge.
 String wxText(int c) => switch (c) {
-      0 => 'Açık',
-      1 => 'Çoğunlukla açık',
-      2 => 'Parçalı bulutlu',
-      3 => 'Bulutlu',
-      45 || 48 => 'Sisli',
-      51 || 53 || 55 => 'Çiseleme',
-      56 || 57 => 'Dondurucu çiseleme',
-      61 => 'Hafif yağmurlu',
-      63 => 'Yağmurlu',
-      65 => 'Şiddetli yağmur',
-      66 || 67 => 'Dondurucu yağmur',
-      71 => 'Hafif kar',
-      73 => 'Karlı',
-      75 => 'Yoğun kar',
-      77 => 'Kar taneleri',
-      80 || 81 => 'Sağanak',
-      82 => 'Şiddetli sağanak',
-      85 || 86 => 'Kar sağanağı',
-      95 => 'Gök gürültülü',
-      96 || 99 => 'Dolu ve fırtına',
+      0 => tx('Açık', 'Clear'),
+      1 => tx('Çoğunlukla açık', 'Mostly clear'),
+      2 => tx('Parçalı bulutlu', 'Partly cloudy'),
+      3 => tx('Bulutlu', 'Cloudy'),
+      45 || 48 => tx('Sisli', 'Foggy'),
+      51 || 53 || 55 => tx('Çiseleme', 'Drizzle'),
+      56 || 57 => tx('Dondurucu çiseleme', 'Freezing drizzle'),
+      61 => tx('Hafif yağmurlu', 'Light rain'),
+      63 => tx('Yağmurlu', 'Rain'),
+      65 => tx('Şiddetli yağmur', 'Heavy rain'),
+      66 || 67 => tx('Dondurucu yağmur', 'Freezing rain'),
+      71 => tx('Hafif kar', 'Light snow'),
+      73 => tx('Karlı', 'Snow'),
+      75 => tx('Yoğun kar', 'Heavy snow'),
+      77 => tx('Kar taneleri', 'Snow grains'),
+      80 || 81 => tx('Sağanak', 'Showers'),
+      82 => tx('Şiddetli sağanak', 'Heavy showers'),
+      85 || 86 => tx('Kar sağanağı', 'Snow showers'),
+      95 => tx('Gök gürültülü', 'Thunderstorm'),
+      96 || 99 => tx('Dolu ve fırtına', 'Hail and thunderstorm'),
       _ => '—',
     };
 
@@ -220,7 +221,7 @@ class WeatherService extends ChangeNotifier {
       _prefs?.setString('weather_cache', jsonEncode(j));
       _pushWidget();
     } catch (e) {
-      error = 'Hava durumu alınamadı';
+      error = tx('Hava durumu alınamadı', "Couldn't get the weather");
     }
     loading = false;
     notifyListeners();
@@ -267,7 +268,7 @@ class WeatherService extends ChangeNotifier {
   static Future<List<City>> searchCities(String q) async {
     if (q.trim().length < 2) return [];
     final uri = Uri.https('geocoding-api.open-meteo.com', '/v1/search',
-        {'name': q.trim(), 'count': '10', 'language': 'tr', 'format': 'json'});
+        {'name': q.trim(), 'count': '10', 'language': L.code, 'format': 'json'});
     final r = await http.get(uri).timeout(const Duration(seconds: 8));
     if (r.statusCode != 200) return [];
     final j = jsonDecode(utf8.decode(r.bodyBytes)) as Map;
@@ -360,13 +361,13 @@ class _WxButton extends StatelessWidget {
       child = Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(Icons.wb_cloudy_outlined, size: 20, color: OAColors.text2),
         const SizedBox(width: 8),
-        Text('Hava durumu için şehir seç', style: TextStyle(color: OAColors.text2, fontSize: 14)),
+        Text(tx('Hava durumu için şehir seç', 'Choose a city for the weather'), style: TextStyle(color: OAColors.text2, fontSize: 14)),
       ]);
     } else if (!wx.hasData) {
       child = Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(Icons.wb_cloudy_outlined, size: 20, color: OAColors.muted),
         const SizedBox(width: 8),
-        Text(wx.loading ? '${wx.city!.name} · yükleniyor…' : (wx.error ?? wx.city!.name),
+        Text(wx.loading ? tx('${wx.city!.name} · yükleniyor…', '${wx.city!.name} · loading…') : (wx.error ?? wx.city!.name),
             style: TextStyle(color: OAColors.muted, fontSize: 14)),
       ]);
     } else {
@@ -459,8 +460,8 @@ class ClockWeatherCard extends StatelessWidget {
                             padding: const EdgeInsets.only(top: 8),
                             child: Text(
                               wx.city == null
-                                  ? 'Hava durumu için\nşehir seç ›'
-                                  : (wx.loading ? 'Yükleniyor…' : (wx.error ?? '')),
+                                  ? tx('Hava durumu için\nşehir seç ›', 'Choose a city\nfor the weather ›')
+                                  : (wx.loading ? tx('Yükleniyor…', 'Loading…') : (wx.error ?? '')),
                               textAlign: TextAlign.right,
                               style: TextStyle(color: OAColors.text2, fontSize: 13.5),
                             ),
@@ -524,7 +525,7 @@ Future<void> showWeatherDetails(BuildContext context, WeatherService wx) async {
               Expanded(child: Text(wx.city!.name, style: oaDisplay(26))),
               TextButton.icon(
                 icon: const Icon(Icons.edit_location_alt_outlined, size: 18),
-                label: const Text('Şehri değiştir'),
+                label: Text(tx('Şehri değiştir', 'Change city')),
                 onPressed: () => pickCity(ctx, wx),
               ),
             ]),
@@ -541,16 +542,16 @@ Future<void> showWeatherDetails(BuildContext context, WeatherService wx) async {
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(wxText(wx.code), style: TextStyle(color: OAColors.text, fontSize: 16)),
                     if (wx.days.isNotEmpty)
-                      Text('En yüksek ${_deg(wx.days.first.max)} · en düşük ${_deg(wx.days.first.min)}',
+                      Text(tx('En yüksek ${_deg(wx.days.first.max)} · en düşük ${_deg(wx.days.first.min)}', 'High ${_deg(wx.days.first.max)} · low ${_deg(wx.days.first.min)}'),
                           style: TextStyle(color: OAColors.muted, fontSize: 13)),
                   ]),
                 ),
               ])
             else
-              Text(wx.loading ? 'Yükleniyor…' : (wx.error ?? ''), style: TextStyle(color: OAColors.muted)),
+              Text(wx.loading ? tx('Yükleniyor…', 'Loading…') : (wx.error ?? ''), style: TextStyle(color: OAColors.muted)),
             const SizedBox(height: 20),
             if (wx.hours.isNotEmpty) ...[
-              Text('Saatlik', style: oaDisplay(18)),
+              Text(tx('Saatlik', 'Hourly'), style: oaDisplay(18)),
               const SizedBox(height: 10),
               SizedBox(
                 height: 92,
@@ -568,7 +569,7 @@ Future<void> showWeatherDetails(BuildContext context, WeatherService wx) async {
                         borderRadius: BorderRadius.circular(14),
                       ),
                       child: Column(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                        Text(i == 0 ? 'Şimdi' : hhmm(h.time), style: TextStyle(color: OAColors.muted, fontSize: 12)),
+                        Text(i == 0 ? tx('Şimdi', 'Now') : hhmm(h.time), style: TextStyle(color: OAColors.muted, fontSize: 12)),
                         WxIcon(h.code, isDay: h.isDay, size: 24),
                         Text(_deg(h.temp), style: TextStyle(color: OAColors.text, fontWeight: FontWeight.w600)),
                       ]),
@@ -579,7 +580,7 @@ Future<void> showWeatherDetails(BuildContext context, WeatherService wx) async {
               const SizedBox(height: 22),
             ],
             if (wx.days.isNotEmpty) ...[
-              Text('7 gün', style: oaDisplay(18)),
+              Text(tx('7 gün', '7 days'), style: oaDisplay(18)),
               const SizedBox(height: 6),
               for (final d in wx.days.take(7))
                 Padding(
@@ -588,7 +589,7 @@ Future<void> showWeatherDetails(BuildContext context, WeatherService wx) async {
                     SizedBox(
                       width: 92,
                       child: Text(
-                        d.date.day == DateTime.now().day ? 'Bugün' : _days[d.date.weekday - 1],
+                        d.date.day == DateTime.now().day ? tx('Bugün', 'Today') : _days[d.date.weekday - 1],
                         style: TextStyle(color: OAColors.text, fontSize: 15),
                       ),
                     ),
@@ -609,7 +610,7 @@ Future<void> showWeatherDetails(BuildContext context, WeatherService wx) async {
             ],
             const SizedBox(height: 12),
             Text(
-              'Veri: Open-Meteo${wx.updated != null ? ' · ${hhmm(wx.updated!)} güncellendi' : ''}',
+              tx('Veri: Open-Meteo${wx.updated != null ? ' · ${hhmm(wx.updated!)} güncellendi' : ''}', "Data: Open-Meteo${wx.updated != null ? ' · updated ${hhmm(wx.updated!)}' : ''}"),
               style: TextStyle(color: OAColors.faint, fontSize: 12),
             ),
           ],
@@ -675,7 +676,7 @@ class _CityDialogState extends State<_CityDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Şehir seç'),
+      title: Text(tx('Şehir seç', 'Choose city')),
       content: SizedBox(
         width: 420,
         height: 380,
@@ -684,7 +685,7 @@ class _CityDialogState extends State<_CityDialog> {
             autofocus: true,
             decoration: InputDecoration(
               prefixIcon: const Icon(Icons.search),
-              hintText: 'Şehir ya da ilçe yaz',
+              hintText: tx('Şehir ya da ilçe yaz', 'Type a city or district'),
               suffixIcon: _loading
                   ? const Padding(
                       padding: EdgeInsets.all(12),
@@ -696,7 +697,7 @@ class _CityDialogState extends State<_CityDialog> {
           const SizedBox(height: 8),
           Expanded(
             child: _results.isEmpty
-                ? Center(child: Text('Sonuç yok', style: TextStyle(color: OAColors.muted)))
+                ? Center(child: Text(tx('Sonuç yok', 'No results'), style: TextStyle(color: OAColors.muted)))
                 : ListView(
                     children: [
                       for (final c in _results)
@@ -711,7 +712,7 @@ class _CityDialogState extends State<_CityDialog> {
           ),
         ]),
       ),
-      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Vazgeç'))],
+      actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text(tx('Vazgeç', 'Cancel')))],
     );
   }
 }

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'oa_theme.dart';
 import 'start_page.dart' show SiteIcon;
 
+import 'i18n.dart';
 // Kenar çubuğu (bilgisayar): WhatsApp, Gmail, Instagram… sitelerin web sürümleri soldaki küçük
 // panelde açılır; sekme açmadan kullanılır. Simgeler fare üzerine gelince büyür (dock gibi).
 
@@ -39,12 +40,12 @@ List<SideApp> defaultSideApps() => [
 List<SideApp> suggestedSideApps() => [
       SideApp('telegram', 'Telegram', 'https://web.telegram.org/a/'),
       SideApp('discord', 'Discord', 'https://discord.com/app'),
-      SideApp('gcal', 'Google Takvim', 'https://calendar.google.com/'),
+      SideApp('gcal', tx('Google Takvim', 'Google Calendar'), 'https://calendar.google.com/'),
       SideApp('outlook', 'Outlook', 'https://outlook.live.com/mail/'),
       SideApp('x', 'X', 'https://x.com/'),
       SideApp('twitch', 'Twitch', 'https://www.twitch.tv/'),
       SideApp('keep', 'Google Keep', 'https://keep.google.com/'),
-      SideApp('translate', 'Google Çeviri', 'https://translate.google.com/'),
+      SideApp('translate', tx('Google Çeviri', 'Google Translate'), 'https://translate.google.com/'),
     ];
 
 /// Sayfa başlığındaki okunmamış sayısı: "(3) WhatsApp", "Gelen Kutusu (12) - Gmail".
@@ -215,7 +216,7 @@ class _SidebarDockState extends State<SidebarDock> with SingleTickerProviderStat
               Padding(
                 padding: const EdgeInsets.only(left: 8, top: 2),
                 child: Tooltip(
-                  message: 'Kenar çubuğuna ekle',
+                  message: tx('Kenar çubuğuna ekle', 'Add to sidebar'),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(12),
                     onTap: widget.onAdd,

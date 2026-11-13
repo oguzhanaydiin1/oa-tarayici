@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'oa_theme.dart';
 
+import 'i18n.dart';
 // Sayfa açılamayınca gösterilen OA sayfası. İnternet yoksa küçük bir oyun da var:
 // OA işareti engellerin üstünden atlar (boşluk / yukarı ok / dokun).
 
@@ -17,12 +18,12 @@ String offlinePageHtml({required String url, required String detail, required bo
   final amber = _hex(p.amber.toARGB32());
   final ink = _hex(p.amberInk.toARGB32());
   final host = Uri.tryParse(url)?.host ?? url;
-  final title = offline ? 'İnternet yok gibi' : 'Sayfa açılamadı';
+  final title = offline ? tx('İnternet yok gibi', "Looks like you're offline") : tx('Sayfa açılamadı', "This page couldn't be opened");
   final sub = offline
-      ? 'Bağlantın gelene kadar bir oyun? Boşluk tuşuna bas ya da ekrana dokun.'
-      : '$host şu an yanıt vermiyor. Biraz sonra yeniden dene.';
+      ? tx('Bağlantın gelene kadar bir oyun? Boşluk tuşuna bas ya da ekrana dokun.', 'A game while you wait for the connection? Press space or tap the screen.')
+      : tx('$host şu an yanıt vermiyor. Biraz sonra yeniden dene.', "$host isn't responding right now. Try again in a moment.");
   String esc(String s) => const HtmlEscape().convert(s);
-  return '''<!doctype html><html lang="tr"><head><meta charset="utf-8">
+  return '''<!doctype html><html lang="${L.code}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
 <title>${esc(title)}</title>
 <style>
@@ -65,7 +66,7 @@ function draw(){
   x.fillStyle='$ink';x.font='800 15px "Bricolage Grotesque","Segoe UI",sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText('OA',77,y+17);
   x.fillStyle='$muted';
   for(var i=0;i<obs.length;i++){var o=obs[i];rr(o.x,G+34-o.h,o.w,o.h,4);x.fill();}
-  if(!run||over){x.fillStyle='$text';x.font='600 16px "DM Sans","Segoe UI",sans-serif';x.fillText(over?'Oyun bitti · yeniden başlamak için dokun':'Başlamak için boşluk tuşu ya da dokun',W/2,60);}
+  if(!run||over){x.fillStyle='$text';x.font='600 16px "DM Sans","Segoe UI",sans-serif';x.fillText(over?'${tx('Oyun bitti · yeniden başlamak için dokun', 'Game over · tap to restart')}':'${tx('Başlamak için boşluk tuşu ya da dokun', 'Press space or tap to start')}',W/2,60);}
 }
 function step(){
   if(run&&!over){
@@ -97,10 +98,10 @@ String limitPageHtml({required String site, required int minutes}) {
   final ink = _hex(p.amberInk.toARGB32());
   String esc(String s) => const HtmlEscape().convert(s);
   final h = minutes ~/ 60, m = minutes % 60;
-  final limit = h > 0 ? (m > 0 ? '$h saat $m dakika' : '$h saat') : '$m dakika';
-  return '''<!doctype html><html lang="tr"><head><meta charset="utf-8">
+  final limit = h > 0 ? (m > 0 ? tx('$h saat $m dakika', '$h h $m min') : tx('$h saat', '$h h')) : tx('$m dakika', '$m min');
+  return '''<!doctype html><html lang="${L.code}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Bugünlük süre doldu</title>
+<title>${tx('Bugünlük süre doldu', 'Time is up for today')}</title>
 <style>
 html,body{margin:0;height:100%;background:$bg;color:$text;font:16px/1.5 "DM Sans","Segoe UI",Roboto,system-ui,sans-serif}
 .w{max-width:560px;margin:0 auto;padding:72px 20px;box-sizing:border-box;text-align:center}
@@ -113,11 +114,11 @@ button.p{background:$amber;color:$ink;border-color:$amber}
 button:focus-visible{outline:2px solid $amber;outline-offset:3px}
 </style></head><body><div class="w">
 <div class="i"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="$amber" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
-<h1>Bugünlük süre doldu</h1>
-<p>${esc(site)} için günlük sınırın $limit. Yarın yeniden açılır.</p>
+<h1>${tx('Bugünlük süre doldu', 'Time is up for today')}</h1>
+<p>${tx('${esc(site)} için günlük sınırın $limit. Yarın yeniden açılır.', 'Your daily limit for ${esc(site)} is $limit. It opens again tomorrow.')}</p>
 <div class="btns">
-<button class="p" id="h">Başlangıç sayfasına dön</button>
-<button id="m">15 dakika daha</button>
+<button class="p" id="h">${tx('Başlangıç sayfasına dön', 'Back to start page')}</button>
+<button id="m">${tx('15 dakika daha', '15 more minutes')}</button>
 </div>
 </div>
 <script>

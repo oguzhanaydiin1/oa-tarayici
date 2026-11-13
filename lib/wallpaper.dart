@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import 'oa_theme.dart';
 
+import 'i18n.dart';
 /// Başlangıç sayfası arka planları. Hepsi OA renklerinden kodla çizilir (dosya indirmez);
 /// "photo" kullanıcının seçtiği fotoğraftır.
 class Wallpaper {
@@ -12,14 +13,14 @@ class Wallpaper {
   final String id;
   final String name;
 
-  static const none = Wallpaper('none', 'Düz');
-  static const all = <Wallpaper>[
+  static final none = Wallpaper('none', tx('Düz', 'Plain'));
+  static final all = <Wallpaper>[
     none,
-    Wallpaper('glow', 'Amber ışık'),
-    Wallpaper('dots', 'Noktalar'),
-    Wallpaper('dial', 'Radyo kadranı'),
-    Wallpaper('rings', 'Halkalar'),
-    Wallpaper('dusk', 'Gün batımı'),
+    Wallpaper('glow', tx('Amber ışık', 'Amber glow')),
+    Wallpaper('dots', tx('Noktalar', 'Dots')),
+    Wallpaper('dial', tx('Radyo kadranı', 'Radio dial')),
+    Wallpaper('rings', tx('Halkalar', 'Rings')),
+    Wallpaper('dusk', tx('Gün batımı', 'Sunset')),
   ];
 
   static Wallpaper byId(String? id) =>

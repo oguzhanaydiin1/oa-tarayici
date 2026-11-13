@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'oa_theme.dart';
 
+import 'i18n.dart';
 // Sonra oku: sayfanın yazısı (Mozilla Readability ile ayıklanır) resimleriyle birlikte cihaza
 // kaydedilir; internet yokken de okunur.
 
@@ -137,7 +138,7 @@ class ReadingList extends ChangeNotifier {
     final p = OAColors.palette;
     String hex(Color c) => '#${(c.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}';
     final by = [byline, site].where((e) => e.trim().isNotEmpty).join(' · ');
-    return '''<!doctype html><html lang="tr"><head><meta charset="utf-8">
+    return '''<!doctype html><html lang="${L.code}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${_esc(a.title)}</title>
 <style>
@@ -190,7 +191,7 @@ $content
 }
 
 String _date(DateTime d) {
-  const m = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+  final m = [tx('Oca', 'Jan'), tx('Şub', 'Feb'), tx('Mar', 'Mar'), tx('Nis', 'Apr'), tx('May', 'May'), tx('Haz', 'Jun'), tx('Tem', 'Jul'), tx('Ağu', 'Aug'), tx('Eyl', 'Sep'), tx('Eki', 'Oct'), tx('Kas', 'Nov'), tx('Ara', 'Dec')];
   return '${d.day} ${m[d.month - 1]}';
 }
 
@@ -217,19 +218,19 @@ class ReadingListSheet extends StatelessWidget {
               child: Row(children: [
                 Icon(Icons.bookmark_added_outlined, color: OAColors.amber),
                 const SizedBox(width: 10),
-                Expanded(child: Text('Okuma listesi', style: oaDisplay(22))),
-                Text('${list.unread} okunmadı', style: TextStyle(color: OAColors.muted)),
+                Expanded(child: Text(tx('Okuma listesi', 'Reading list'), style: oaDisplay(22))),
+                Text(tx('${list.unread} okunmadı', '${list.unread} unread'), style: TextStyle(color: OAColors.muted)),
               ]),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-              child: Text('Kaydettiğin yazılar resimleriyle birlikte cihazında; internetsiz de okunur.',
+              child: Text(tx('Kaydettiğin yazılar resimleriyle birlikte cihazında; internetsiz de okunur.', 'Saved articles are kept on your device with their images and can be read offline.'),
                   style: TextStyle(color: OAColors.muted, fontSize: 13)),
             ),
             if (list.items.isEmpty)
               Padding(
                 padding: const EdgeInsets.all(24),
-                child: Text('Liste boş. Bir yazıyı okurken menüden "Sonra oku"ya dokun.',
+                child: Text(tx('Liste boş. Bir yazıyı okurken menüden "Sonra oku"ya dokun.', 'The list is empty. While reading an article, tap "Read later" in the menu.'),
                     textAlign: TextAlign.center, style: TextStyle(color: OAColors.muted)),
               ),
             for (final a in list.items)
@@ -240,15 +241,15 @@ class ReadingListSheet extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(color: a.read ? OAColors.muted : OAColors.text, fontWeight: FontWeight.w600)),
-                subtitle: Text('${a.host} · ${a.minutes} dk · ${_date(a.saved)}'),
+                subtitle: Text(tx('${a.host} · ${a.minutes} dk · ${_date(a.saved)}', '${a.host} · ${a.minutes} min · ${_date(a.saved)}')),
                 trailing: PopupMenuButton<String>(
                   onSelected: (v) {
                     if (v == 'read') list.markRead(a, !a.read);
                     if (v == 'del') list.remove(a);
                   },
                   itemBuilder: (_) => [
-                    PopupMenuItem(value: 'read', child: Text(a.read ? 'Okunmadı yap' : 'Okundu yap')),
-                    const PopupMenuItem(value: 'del', child: Text('Sil')),
+                    PopupMenuItem(value: 'read', child: Text(a.read ? tx('Okunmadı yap', 'Mark as unread') : tx('Okundu yap', 'Mark as read'))),
+                     PopupMenuItem(value: 'del', child: Text(tx('Sil', 'Delete'))),
                   ],
                 ),
                 onTap: () {

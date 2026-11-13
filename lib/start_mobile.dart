@@ -4,6 +4,7 @@ import 'oa_theme.dart';
 import 'start_page.dart';
 import 'wallpaper.dart';
 
+import 'i18n.dart';
 /// Başlangıç sayfasındaki kaydırmalı kartlar: OA Labs'in kendi uygulamaları ve üyelik.
 class Promo {
   const Promo(this.id, this.title, this.text, this.letter, this.bg, this.fg, {this.url});
@@ -88,14 +89,14 @@ class _MobileStartPageState extends State<MobileStartPage> {
   }
 
   List<Promo> get _promos => [
-        Promo('radyo', 'OA Radyo', 'Gezinirken radyo dinle. Dokun, istasyonunu seç.', 'R',
+        Promo('radyo', 'OA Radyo', tx('Gezinirken radyo dinle. Dokun, istasyonunu seç.', 'Listen to the radio while you browse. Tap and pick a station.'), 'R',
             OAColors.amber, OAColors.amberInk,
             url: 'https://oalabs.dev/radyo/'),
-        const Promo('harrier', 'Harrier Cleaner', 'Bilgisayarını derli toplu ve hızlı tutar.', 'H',
+         Promo('harrier', 'Harrier Cleaner', tx('Bilgisayarını derli toplu ve hızlı tutar.', 'Keeps your computer tidy and fast.'), 'H',
             Color(0xFF1E3A8A), Color(0xFFEEEAE2),
             url: 'https://oalabs.dev/#uygulamalar'),
         if (!widget.signedIn)
-          Promo('uye', 'OA Labs’e üye ol', 'Yer imlerin ve hızlı erişimin bütün cihazlarında.', 'OA',
+          Promo('uye', tx('OA Labs’e üye ol', 'Join OA Labs'), tx('Yer imlerin ve hızlı erişimin bütün cihazlarında.', 'Your bookmarks and shortcuts on all your devices.'), 'OA',
               OAColors.text, OAColors.bg),
       ].where((p) => !widget.hiddenPromos.contains(p.id)).toList();
 
@@ -117,21 +118,21 @@ class _MobileStartPageState extends State<MobileStartPage> {
               Row(
                 children: [
                   _roundButton(
-                    tooltip: widget.signedIn ? 'Hesabım' : 'Giriş yap',
+                    tooltip: widget.signedIn ? tx('Hesabım', 'My account') : tx('Giriş yap', 'Sign in'),
                     onTap: widget.onAccount,
                     child: OAAvatar(name: widget.userName, size: 34),
                   ),
                   const Spacer(),
                   if (widget.onQr != null) ...[
                     _roundButton(
-                      tooltip: 'QR kod okut',
+                      tooltip: tx('QR kod okut', 'Scan QR code'),
                       onTap: widget.onQr!,
                       child: Icon(Icons.qr_code_scanner, size: 26, color: OAColors.text),
                     ),
                     const SizedBox(width: 12),
                   ],
                   _roundButton(
-                    tooltip: 'Özelleştir',
+                    tooltip: tx('Özelleştir', 'Customize'),
                     onTap: widget.onCustomize,
                     child: Icon(Icons.tune, size: 26, color: OAColors.text),
                   ),
@@ -141,7 +142,7 @@ class _MobileStartPageState extends State<MobileStartPage> {
               _logo(),
               if (widget.incognito) ...[
                 const SizedBox(height: 10),
-                Text('Gizli sekme · gezdiklerin kaydedilmez',
+                Text(tx('Gizli sekme · gezdiklerin kaydedilmez', "Private tab · your browsing isn't saved"),
                     textAlign: TextAlign.center,
                     style: TextStyle(color: OAColors.text2, fontSize: 15)),
               ],
@@ -206,7 +207,7 @@ class _MobileStartPageState extends State<MobileStartPage> {
         child: Row(
           children: [
             Tooltip(
-              message: widget.adblockOn ? 'Reklam engelleme açık' : 'Reklam engelleme kapalı',
+              message: widget.adblockOn ? tx('Reklam engelleme açık', 'Ad blocking on') : tx('Reklam engelleme kapalı', 'Ad blocking off'),
               child: InkWell(
                 borderRadius: const BorderRadius.horizontal(left: Radius.circular(24)),
                 onTap: widget.onAdblock,
@@ -244,7 +245,7 @@ class _MobileStartPageState extends State<MobileStartPage> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          '${widget.engineName} içinde ara',
+                          tx('${widget.engineName} içinde ara', 'Search with ${widget.engineName}'),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(fontSize: 18, color: OAColors.faint),
@@ -353,7 +354,7 @@ class _MobileStartPageState extends State<MobileStartPage> {
               top: 6,
               right: 6,
               child: IconButton(
-                tooltip: 'Bu kartı gizle',
+                tooltip: tx('Bu kartı gizle', 'Hide this card'),
                 visualDensity: VisualDensity.compact,
                 style: IconButton.styleFrom(backgroundColor: OAColors.surface2),
                 icon: Icon(Icons.close, size: 18, color: OAColors.text2),
@@ -374,8 +375,8 @@ class _MobileStartPageState extends State<MobileStartPage> {
       final items = <Widget>[
         for (var i = 0; i < widget.quickLinks.length; i++) _cell(i, w),
         if (_arranging && widget.quickLinks.length < kMaxQuickLinks)
-          _actionCell(w, Icons.add, 'Ekle', widget.onQuickAdd),
-        _actionCell(w, _arranging ? Icons.check : Icons.edit_outlined, _arranging ? 'Bitti' : '',
+          _actionCell(w, Icons.add, tx('Ekle', 'Add'), widget.onQuickAdd),
+        _actionCell(w, _arranging ? Icons.check : Icons.edit_outlined, _arranging ? tx('Bitti', 'Done') : '',
             () => setState(() => _arranging = !_arranging),
             highlighted: _arranging),
       ];
@@ -510,17 +511,17 @@ class _MobileStartPageState extends State<MobileStartPage> {
             const Divider(height: 8),
             ListTile(
               leading: const Icon(Icons.open_in_new),
-              title: const Text('Yeni sekmede aç'),
+              title: Text(tx('Yeni sekmede aç', 'Open in new tab')),
               onTap: () => Navigator.pop(ctx, QuickAction.openNewTab),
             ),
             ListTile(
               leading: const Icon(Icons.edit_outlined),
-              title: const Text('Düzenle'),
+              title: Text(tx('Düzenle', 'Edit')),
               onTap: () => Navigator.pop(ctx, QuickAction.edit),
             ),
             ListTile(
               leading: const Icon(Icons.drag_indicator),
-              title: const Text('Yerlerini değiştir'),
+              title: Text(tx('Yerlerini değiştir', 'Rearrange')),
               onTap: () {
                 Navigator.pop(ctx);
                 setState(() => _arranging = true);
@@ -528,7 +529,7 @@ class _MobileStartPageState extends State<MobileStartPage> {
             ),
             ListTile(
               leading: Icon(Icons.delete_outline, color: OAColors.danger),
-              title: Text('Kaldır', style: TextStyle(color: OAColors.danger)),
+              title: Text(tx('Kaldır', 'Remove'), style: TextStyle(color: OAColors.danger)),
               onTap: () => Navigator.pop(ctx, QuickAction.remove),
             ),
           ],

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:http/http.dart' as http;
 
+import 'i18n.dart';
 /// Adres çubuğunda yazarken çıkan hızlı cevap ("125*18 = 2.250", "100 dolar = 4.300 TL").
 class SmartAnswer {
   const SmartAnswer(this.text, this.source, {this.copy});
@@ -25,14 +26,18 @@ String formatTr(double v, {int maxDecimals = 6}) {
   var s = v.toStringAsFixed(maxDecimals);
   if (s.contains('.')) s = s.replaceFirst(RegExp(r'0+$'), '').replaceFirst(RegExp(r'\.$'), '');
   final parts = s.split('.');
-  final intPart = parts[0].replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => '.');
-  return '${neg ? '-' : ''}$intPart${parts.length > 1 ? ',${parts[1]}' : ''}';
+  // Türkçede 1.234,5; İngilizcede 1,234.5
+  final group = L.en ? ',' : '.', dec = L.en ? '.' : ',';
+  final intPart = parts[0].replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => group);
+  return '${neg ? '-' : ''}$intPart${parts.length > 1 ? '$dec${parts[1]}' : ''}';
 }
 
 /// "1,5" ve "1.5" ikisini de sayı olarak okur; binlik ayıracı "1.000" de olabilir.
 double? _num(String s) {
   s = s.trim();
-  if (RegExp(r'^\d{1,3}(\.\d{3})+(,\d+)?$').hasMatch(s)) {
+  if (L.en && RegExp(r'^\d{1,3}(,\d{3})+(\.\d+)?$').hasMatch(s)) {
+    s = s.replaceAll(',', '');
+  } else if (RegExp(r'^\d{1,3}(\.\d{3})+(,\d+)?$').hasMatch(s)) {
     s = s.replaceAll('.', '').replaceAll(',', '.');
   } else {
     s = s.replaceAll(',', '.');
@@ -147,7 +152,7 @@ SmartAnswer? _calculator(String q) {
   final v = _Calc.eval(s);
   if (v == null || v.isNaN || v.isInfinite) return null;
   final text = formatTr(v, maxDecimals: 8);
-  return SmartAnswer('= $text', 'Hesap makinesi', copy: text);
+  return SmartAnswer('= $text', tx('Hesap makinesi', 'Calculator'), copy: text);
 }
 
 // ------------------------------------------------------------------ Birim çevirisi
@@ -160,7 +165,7 @@ class _Unit {
   final double offset;
 }
 
-const _units = <String, _Unit>{
+final _units = <String, _Unit>{
   'km': _Unit('km', 'uzunluk', 1000),
   'kilometre': _Unit('km', 'uzunluk', 1000),
   'm': _Unit('m', 'uzunluk', 1),
@@ -218,6 +223,9 @@ double _convert(double v, _Unit from, _Unit to) {
   return v * from.toBase / to.toBase;
 }
 
+/// Birimin ekranda gösterilen adı (İngilizcede inç → in, mil → mi, galon → gal).
+String _uName(String n) => L.en ? (const {'inç': 'in', 'mil': 'mi', 'galon': 'gal'}[n] ?? n) : n;
+
 _Unit? _unitByName(String n) {
   for (final u in _units.values) {
     if (u.name == n) return u;
@@ -239,7 +247,7 @@ SmartAnswer? _unitConvert(String q) {
   if (to == null || to.kind != from.kind || to.name == from.name) return null;
   final r = _convert(v, from, to);
   final text = formatTr(r, maxDecimals: r.abs() < 10 ? 3 : 2);
-  return SmartAnswer('${formatTr(v)} ${from.name} = $text ${to.name}', 'Birim çevirisi', copy: text);
+  return SmartAnswer('${formatTr(v)} ${_uName(from.name)} = $text ${_uName(to.name)}', tx('Birim çevirisi', 'Unit conversion'), copy: text);
 }
 
 // ------------------------------------------------------------------ Döviz
@@ -327,7 +335,7 @@ SmartAnswer? _currency(String q) {
   final d = Rates.date;
   final dateTr = d != null && d.length == 10 ? '${d.substring(8)}.${d.substring(5, 7)}.${d.substring(0, 4)}' : '';
   return SmartAnswer('${formatTr(amount)} ${sym(from)} = $text ${sym(to)}',
-      'Döviz · ECB${dateTr.isEmpty ? '' : ' $dateTr'}', copy: text);
+      tx('Döviz · ECB${dateTr.isEmpty ? '' : ' $dateTr'}', "Currency · ECB${dateTr.isEmpty ? '' : ' $dateTr'}"), copy: text);
 }
 
 /// Yazılan için hızlı cevap varsa döndürür. Döviz kuru gerekiyorsa ve henüz inmemişse

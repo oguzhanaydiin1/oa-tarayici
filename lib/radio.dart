@@ -14,6 +14,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'oa_theme.dart';
 
+import 'i18n.dart';
 /// Bir radyo istasyonu (OA Radyo ile aynı alanlar).
 class Station {
   const Station({
@@ -42,7 +43,7 @@ class Station {
     if (!url.startsWith('http')) return null;
     return Station(
       id: (j['id'] ?? url).toString(),
-      name: (j['name'] ?? 'Adsız istasyon').toString(),
+      name: (j['name'] ?? tx('Adsız istasyon', 'Unnamed station')).toString(),
       url: url,
       hls: j['hls'] == true,
       favicon: (j['favicon'] ?? '').toString(),
@@ -57,7 +58,7 @@ class Station {
     if (!url.startsWith('http')) return null;
     return Station(
       id: (j['stationuuid'] ?? url).toString(),
-      name: (j['name'] ?? '').toString().trim().isEmpty ? 'Adsız istasyon' : j['name'].toString().trim(),
+      name: (j['name'] ?? '').toString().trim().isEmpty ? tx('Adsız istasyon', 'Unnamed station') : j['name'].toString().trim(),
       url: url,
       hls: j['hls'] == 1 || j['hls'] == true || url.contains('.m3u8'),
       favicon: (j['favicon'] ?? '').toString(),
@@ -77,7 +78,7 @@ Future<void> initRadioBackground() async {
     await JustAudioBackground.init(
       androidNotificationChannelId: 'dev.oalabs.oa_tarayici.radyo',
       androidNotificationChannelName: 'OA Radyo',
-      androidNotificationChannelDescription: 'Çalan radyo istasyonu',
+      androidNotificationChannelDescription: tx('Çalan radyo istasyonu', 'Playing radio station'),
       androidNotificationOngoing: false,
       androidStopForegroundOnPause: true,
     );
@@ -179,7 +180,7 @@ class RadioPlayer extends ChangeNotifier {
           'error' => RadioState.error,
           _ => state,
         };
-        error = s == 'error' ? (e.isEmpty ? 'Yayın açılamadı' : 'Yayın açılamadı ($e)') : null;
+        error = s == 'error' ? (e.isEmpty ? tx('Yayın açılamadı', "Stream couldn't be opened") : tx('Yayın açılamadı ($e)', "Stream couldn't be opened ($e)")) : null;
         notifyListeners();
       },
     );
@@ -296,7 +297,7 @@ window.oaVolume = function(v){ a.volume = v; };
       }
     }, onError: (Object e) {
       state = RadioState.error;
-      error = 'Yayın açılamadı';
+      error = tx('Yayın açılamadı', "Stream couldn't be opened");
       notifyListeners();
     });
     return _ap = ap;
@@ -330,12 +331,12 @@ window.oaVolume = function(v){ a.volume = v; };
       }
     } on PlayerException catch (e) {
       state = RadioState.error;
-      error = 'Yayın açılamadı${e.message == null ? '' : ' (${e.message})'}';
+      error = tx('Yayın açılamadı${e.message == null ? '' : ' (${e.message})'}', "Stream couldn't be opened${e.message == null ? '' : ' (${e.message})'}");
       notifyListeners();
     } catch (e) {
       _starting = null; // bir dahaki sefere yeniden denensin
       state = RadioState.error;
-      error = 'Radyo başlatılamadı ($e)';
+      error = tx('Radyo başlatılamadı ($e)', "Radio couldn't start ($e)");
       notifyListeners();
     }
     // Radio Browser'ın "dinlenme" sayacına katkı (OA Radyo da yapıyor).
@@ -396,7 +397,7 @@ window.oaVolume = function(v){ a.volume = v; };
         if (r.statusCode == 200) return jsonDecode(utf8.decode(r.bodyBytes)) as List;
       } catch (_) {}
     }
-    throw Exception('İstasyon listesine ulaşılamadı. İnternet bağlantını kontrol et.');
+    throw Exception(tx('İstasyon listesine ulaşılamadı. İnternet bağlantını kontrol et.', "Couldn't reach the station list. Check your internet connection."));
   }
 
   /// Türkiye'nin en çok dinlenen istasyonları ve OA Radyo'nun ek istasyonları.
@@ -487,10 +488,10 @@ class RadioMiniBar extends StatelessWidget {
         final s = radio.station;
         if (s == null) return const SizedBox.shrink();
         final sub = switch (radio.state) {
-          RadioState.loading => 'Bağlanıyor…',
-          RadioState.playing => 'OA Radyo · çalıyor',
-          RadioState.paused => 'Duraklatıldı',
-          RadioState.error => radio.error ?? 'Yayın açılamadı',
+          RadioState.loading => tx('Bağlanıyor…', 'Connecting…'),
+          RadioState.playing => tx('OA Radyo · çalıyor', 'OA Radyo · playing'),
+          RadioState.paused => tx('Duraklatıldı', 'Paused'),
+          RadioState.error => radio.error ?? tx('Yayın açılamadı', "Stream couldn't be opened"),
           RadioState.idle => '',
         };
         return Material(
@@ -524,7 +525,7 @@ class RadioMiniBar extends StatelessWidget {
                     ),
                   ),
                   IconButton(
-                    tooltip: radio.playing ? 'Duraklat' : 'Çal',
+                    tooltip: radio.playing ? tx('Duraklat', 'Pause') : tx('Çal', 'Play'),
                     icon: radio.state == RadioState.loading
                         ? SizedBox(
                             width: 20,
@@ -534,7 +535,7 @@ class RadioMiniBar extends StatelessWidget {
                     onPressed: radio.toggle,
                   ),
                   IconButton(
-                    tooltip: 'Radyoyu kapat',
+                    tooltip: tx('Radyoyu kapat', 'Close radio'),
                     icon: Icon(Icons.close, size: 20, color: OAColors.muted),
                     onPressed: radio.stop,
                   ),
@@ -640,7 +641,7 @@ class _RadioSheetState extends State<RadioSheet> {
                 textInputAction: TextInputAction.search,
                 onSubmitted: _search,
                 decoration: InputDecoration(
-                  hintText: 'İstasyon ara (ör. Kral FM, TRT)',
+                  hintText: tx('İstasyon ara (ör. Kral FM, TRT)', 'Search stations (e.g. Kral FM, TRT)'),
                   prefixIcon: const Icon(Icons.search),
                   fillColor: OAColors.surface2,
                 ),
@@ -651,13 +652,13 @@ class _RadioSheetState extends State<RadioSheet> {
               child: Row(
                 children: [
                   ChoiceChip(
-                    label: const Text('Popüler'),
+                    label: Text(tx('Popüler', 'Popular')),
                     selected: !_favs,
                     onSelected: (_) => _search(''),
                   ),
                   const SizedBox(width: 8),
                   ChoiceChip(
-                    label: Text('Favoriler (${r.favorites.length})'),
+                    label: Text(tx('Favoriler (${r.favorites.length})', 'Favorites (${r.favorites.length})')),
                     selected: _favs,
                     onSelected: (_) => setState(() => _favs = true),
                   ),
@@ -668,7 +669,7 @@ class _RadioSheetState extends State<RadioSheet> {
             Expanded(
               child: _favs
                   ? _list(scroll, r.favorites,
-                      empty: 'Henüz favori istasyonun yok. Bir istasyonun yanındaki yıldıza dokun.')
+                      empty: tx('Henüz favori istasyonun yok. Bir istasyonun yanındaki yıldıza dokun.', 'No favorite stations yet. Tap the star next to a station.'))
                   : FutureBuilder<List<Station>>(
                       future: _future,
                       builder: (context, snap) {
@@ -684,7 +685,7 @@ class _RadioSheetState extends State<RadioSheet> {
                             ),
                           );
                         }
-                        return _list(scroll, snap.data ?? const [], empty: 'İstasyon bulunamadı.');
+                        return _list(scroll, snap.data ?? const [], empty: tx('İstasyon bulunamadı.', 'No stations found.'));
                       },
                     ),
             ),
@@ -719,7 +720,7 @@ class _RadioSheetState extends State<RadioSheet> {
                   color: current ? OAColors.accent : OAColors.text)),
           subtitle: s.tags.isEmpty ? null : Text(s.tags.join(' · '), maxLines: 1, overflow: TextOverflow.ellipsis),
           trailing: IconButton(
-            tooltip: r.isFavorite(s) ? 'Favorilerden çıkar' : 'Favorilere ekle',
+            tooltip: r.isFavorite(s) ? tx('Favorilerden çıkar', 'Remove from favorites') : tx('Favorilere ekle', 'Add to favorites'),
             icon: Icon(r.isFavorite(s) ? Icons.star : Icons.star_border,
                 color: r.isFavorite(s) ? OAColors.amber : OAColors.muted),
             onPressed: () => r.toggleFavorite(s),

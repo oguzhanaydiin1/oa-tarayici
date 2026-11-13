@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import 'i18n.dart';
 /// Şifre eşitlemesi için kasa anahtarı. Kullanıcının eşitleme parolasından (PBKDF2) türetilir;
 /// şifreler cihazdan AES-256-GCM ile şifrelenmiş olarak çıkar, sunucu içini göremez.
 /// Parola hiçbir yere gönderilmez; türetilen anahtar yalnız cihazın güvenli deposunda durur.
@@ -36,7 +37,7 @@ class Vault {
   /// Parolayla kasayı açar. Sunucuda kasa varsa parola onunla denenir.
   /// Hata metni döner; başarılıysa null.
   Future<String?> enable(String pass, Map? remote) async {
-    if (pass.length < 8) return 'Parola en az 8 karakter olmalı';
+    if (pass.length < 8) return tx('Parola en az 8 karakter olmalı', 'Password must be at least 8 characters');
     String salt;
     if (remote != null && remote['s'] is String) {
       salt = remote['s'] as String;
@@ -47,7 +48,7 @@ class Vault {
     final key = await _derive(pass, base64Decode(salt));
     if (remote != null && remote['c'] is String) {
       final ok = await _open(remote, key) != null;
-      if (!ok) return 'Parola yanlış: öbür cihazda belirlediğin eşitleme parolasını yaz';
+      if (!ok) return tx('Parola yanlış: öbür cihazda belirlediğin eşitleme parolasını yaz', 'Wrong password: enter the sync password you set on your other device');
     }
     _key = key;
     _salt = salt;

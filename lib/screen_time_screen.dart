@@ -7,9 +7,10 @@ import 'oa_theme.dart';
 import 'screen_time.dart';
 import 'start_page.dart' show SiteIcon;
 
+import 'i18n.dart';
 // Ekran süresi ekranı: bugün / bu hafta, siteler, site ayrıntısı, sınırlar ve ayarlar.
 
-const _gunler = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+final _gunler = [tx('Pzt', 'Mon'), tx('Sal', 'Tue'), tx('Çar', 'Wed'), tx('Per', 'Thu'), tx('Cum', 'Fri'), tx('Cmt', 'Sat'), tx('Paz', 'Sun')];
 
 /// Basit çubuk grafik. [highlight]: amber gösterilecek çubuk.
 Widget barChart(List<int> values, List<String> labels, {int? highlight, double height = 120, int? goalSeconds}) {
@@ -121,17 +122,17 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
     final avg = daysUsed == 0 ? 0 : weekSum ~/ daysUsed;
     String compare;
     if (_week) {
-      compare = 'Günlük ortalama ${fmtDuration(avg)}';
+      compare = tx('Günlük ortalama ${fmtDuration(avg)}', 'Daily average ${fmtDuration(avg)}');
     } else if (yesterday == 0) {
-      compare = 'Dün için kayıt yok';
+      compare = tx('Dün için kayıt yok', 'No data for yesterday');
     } else {
       final d = today - yesterday;
-      compare = d.abs() < 60 ? 'Dünle aynı' : 'Dünden ${fmtDuration(d.abs())} ${d < 0 ? 'az' : 'fazla'}';
+      compare = d.abs() < 60 ? tx('Dünle aynı', 'Same as yesterday') : tx('Dünden ${fmtDuration(d.abs())} ${d < 0 ? 'az' : 'fazla'}', "${fmtDuration(d.abs())} ${d < 0 ? 'less' : 'more'} than yesterday");
     }
     final goal = st.dailyGoal * 60;
     return _card(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(_week ? 'Son 7 gün' : 'Bugün', style: TextStyle(color: OAColors.muted, fontWeight: FontWeight.w600)),
+        Text(_week ? tx('Son 7 gün', 'Last 7 days') : tx('Bugün', 'Today'), style: TextStyle(color: OAColors.muted, fontWeight: FontWeight.w600)),
         const SizedBox(height: 4),
         Text(fmtDuration(_week ? weekSum : today), style: oaDisplay(44)),
         Text(compare, style: TextStyle(color: OAColors.text2)),
@@ -149,8 +150,8 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
           const SizedBox(height: 6),
           Text(
             today >= goal
-                ? 'Günlük hedefin (${fmtDuration(goal)}) doldu'
-                : 'Günlük hedef ${fmtDuration(goal)} · ${fmtDuration(goal - today)} kaldı',
+                ? tx('Günlük hedefin (${fmtDuration(goal)}) doldu', 'Daily goal (${fmtDuration(goal)}) reached')
+                : tx('Günlük hedef ${fmtDuration(goal)} · ${fmtDuration(goal - today)} kaldı', 'Daily goal ${fmtDuration(goal)} · ${fmtDuration(goal - today)} left'),
             style: TextStyle(color: today >= goal ? OAColors.danger : OAColors.muted, fontSize: 13),
           ),
         ],
@@ -170,7 +171,7 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
     if (list.isEmpty) {
       return _card(
         child: Text(
-          st.enabled ? 'Henüz kayıt yok. Siteleri gezdikçe burada görünür.' : 'Ölçüm kapalı. Aşağıdan açabilirsin.',
+          st.enabled ? tx('Henüz kayıt yok. Siteleri gezdikçe burada görünür.', 'No data yet. Sites appear here as you browse.') : tx('Ölçüm kapalı. Aşağıdan açabilirsin.', 'Tracking is off. You can turn it on below.'),
           style: TextStyle(color: OAColors.muted),
         ),
       );
@@ -245,14 +246,14 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
     final v = await showDialog<int>(
       context: context,
       builder: (ctx) => SimpleDialog(
-        title: const Text('Günlük hedef'),
+        title: Text(tx('Günlük hedef', 'Daily goal')),
         children: [
           for (final m in const [0, 60, 120, 180, 240, 300, 360])
             SimpleDialogOption(
               onPressed: () => Navigator.pop(ctx, m),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Text(m == 0 ? 'Hedef yok' : 'Günde en çok ${m ~/ 60} saat',
+                child: Text(m == 0 ? tx('Hedef yok', 'No goal') : tx('Günde en çok ${m ~/ 60} saat', 'At most ${m ~/ 60} h a day'),
                     style: TextStyle(fontWeight: st.dailyGoal == m ? FontWeight.w700 : FontWeight.w400)),
               ),
             ),
@@ -276,16 +277,16 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
     return _card(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Column(children: [
-        row(Icons.timer_outlined, 'Ekran süresini ölç', 'Yalnız bu cihazda tutulur; gizli sekmeler sayılmaz',
+        row(Icons.timer_outlined, tx('Ekran süresini ölç', 'Track screen time'), tx('Yalnız bu cihazda tutulur; gizli sekmeler sayılmaz', "Kept only on this device; private tabs aren't counted"),
             Switch(value: st.enabled, onChanged: (v) => setState(() {
                   st.enabled = v;
                   st.changed();
                 }))),
-        row(Icons.flag_outlined, 'Günlük hedef', st.dailyGoal == 0 ? 'Yok' : 'Günde en çok ${st.dailyGoal ~/ 60} saat',
+        row(Icons.flag_outlined, tx('Günlük hedef', 'Daily goal'), st.dailyGoal == 0 ? tx('Yok', 'None') : tx('Günde en çok ${st.dailyGoal ~/ 60} saat', 'At most ${st.dailyGoal ~/ 60} h a day'),
             Icon(Icons.chevron_right, color: OAColors.faint),
             onTap: _pickGoal),
         if (Platform.isAndroid)
-          row(Icons.notifications_outlined, 'Haftalık özet', 'Pazar akşamı 20:00\'de bir bildirim',
+          row(Icons.notifications_outlined, tx('Haftalık özet', 'Weekly summary'), tx('Pazar akşamı 20:00\'de bir bildirim', 'A notification on Sunday at 8 pm'),
               Switch(
                   value: st.weeklySummary,
                   onChanged: (v) async {
@@ -298,10 +299,10 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
                   })),
         row(
           Icons.devices_outlined,
-          'Cihazları birleştir',
+          tx('Cihazları birleştir', 'Combine devices'),
           widget.signedIn
-              ? 'Öbür cihazlarının süreleri de görünür (site başına özet hesabına eşitlenir)'
-              : 'Hesapla giriş yapınca açılabilir',
+              ? tx('Öbür cihazlarının süreleri de görünür (site başına özet hesabına eşitlenir)', "Your other devices' time is shown too (a per-site summary syncs to your account)")
+              : tx('Hesapla giriş yapınca açılabilir', 'Available after you sign in'),
           Switch(
               value: st.mergeDevices && widget.signedIn,
               onChanged: widget.signedIn
@@ -318,16 +319,16 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
                     }
                   : null),
         ),
-        row(Icons.delete_outline, 'Ekran süresi kayıtlarını sil', 'Sınırlar ve hedef kalır', const SizedBox.shrink(),
+        row(Icons.delete_outline, tx('Ekran süresi kayıtlarını sil', 'Delete screen time data'), tx('Sınırlar ve hedef kalır', 'Limits and goal are kept'), const SizedBox.shrink(),
             onTap: () async {
           final ok = await showDialog<bool>(
             context: context,
             builder: (ctx) => AlertDialog(
-              title: const Text('Kayıtlar silinsin mi?'),
-              content: const Text('Bu cihazdaki bütün ekran süresi kayıtları silinir.'),
+              title: Text(tx('Kayıtlar silinsin mi?', 'Delete data?')),
+              content: Text(tx('Bu cihazdaki bütün ekran süresi kayıtları silinir.', 'All screen time data on this device will be deleted.')),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Vazgeç')),
-                FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Sil')),
+                TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tx('Vazgeç', 'Cancel'))),
+                FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tx('Sil', 'Delete'))),
               ],
             ),
           );
@@ -347,7 +348,7 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
       backgroundColor: OAColors.bg,
       appBar: AppBar(
         backgroundColor: OAColors.bg,
-        title: Text('Ekran süresi', style: oaDisplay(22)),
+        title: Text(tx('Ekran süresi', 'Screen time'), style: oaDisplay(22)),
       ),
       body: ListenableBuilder(
         listenable: st,
@@ -360,18 +361,18 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Wrap(spacing: 8, runSpacing: 8, children: [
                     SegmentedButton<bool>(
-                      segments: const [
-                        ButtonSegment(value: false, label: Text('Bugün')),
-                        ButtonSegment(value: true, label: Text('Bu hafta')),
+                      segments: [
+                        ButtonSegment(value: false, label: Text(tx('Bugün', 'Today'))),
+                        ButtonSegment(value: true, label: Text(tx('Bu hafta', 'This week'))),
                       ],
                       selected: {_week},
                       onSelectionChanged: (s) => setState(() => _week = s.first),
                     ),
                     if (hasRemote)
                       SegmentedButton<bool>(
-                        segments: const [
-                          ButtonSegment(value: false, label: Text('Bu cihaz')),
-                          ButtonSegment(value: true, label: Text('Tüm cihazlar')),
+                        segments: [
+                          ButtonSegment(value: false, label: Text(tx('Bu cihaz', 'This device'))),
+                          ButtonSegment(value: true, label: Text(tx('Tüm cihazlar', 'All devices'))),
                         ],
                         selected: {_all},
                         onSelectionChanged: (s) => setState(() => _all = s.first),
@@ -380,13 +381,13 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
                   const SizedBox(height: 14),
                   _summary(),
                   const SizedBox(height: 22),
-                  Text(_week ? 'Bu hafta en çok' : 'Bugün en çok', style: oaDisplay(18)),
+                  Text(_week ? tx('Bu hafta en çok', 'Top this week') : tx('Bugün en çok', 'Top today'), style: oaDisplay(18)),
                   const SizedBox(height: 4),
-                  Text('Sınır koymak için bir siteye dokun', style: TextStyle(color: OAColors.muted, fontSize: 13)),
+                  Text(tx('Sınır koymak için bir siteye dokun', 'Tap a site to set a limit'), style: TextStyle(color: OAColors.muted, fontSize: 13)),
                   const SizedBox(height: 10),
                   _sites(),
                   const SizedBox(height: 22),
-                  Text('Ayarlar', style: oaDisplay(18)),
+                  Text(tx('Ayarlar', 'Settings'), style: oaDisplay(18)),
                   const SizedBox(height: 10),
                   _settings(),
                 ]),
@@ -434,29 +435,29 @@ class _SiteSheetState extends State<_SiteSheet> {
           ),
           const SizedBox(width: 12),
           Expanded(child: Text(widget.name, style: oaDisplay(22), maxLines: 1, overflow: TextOverflow.ellipsis)),
-          IconButton(tooltip: 'Kapat', icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
+          IconButton(tooltip: tx('Kapat', 'Close'), icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
         ]),
         const SizedBox(height: 14),
         Row(children: [
-          Expanded(child: _stat('Bugün', fmtDuration(today))),
+          Expanded(child: _stat(tx('Bugün', 'Today'), fmtDuration(today))),
           const SizedBox(width: 10),
-          Expanded(child: _stat('Son 7 gün', fmtDuration(w.fold<int>(0, (a, b) => a + b)))),
+          Expanded(child: _stat(tx('Son 7 gün', 'Last 7 days'), fmtDuration(w.fold<int>(0, (a, b) => a + b)))),
         ]),
         const SizedBox(height: 20),
-        Text('Son 7 gün', style: TextStyle(color: OAColors.muted, fontWeight: FontWeight.w600)),
+        Text(tx('Son 7 gün', 'Last 7 days'), style: TextStyle(color: OAColors.muted, fontWeight: FontWeight.w600)),
         const SizedBox(height: 10),
         bars(w, weekLabels, 6, 90, goal: limit != null ? limit.minutes * 60 : null),
         const SizedBox(height: 18),
-        Text('Bugün hangi saatlerde', style: TextStyle(color: OAColors.muted, fontWeight: FontWeight.w600)),
+        Text(tx('Bugün hangi saatlerde', 'Hours used today'), style: TextStyle(color: OAColors.muted, fontWeight: FontWeight.w600)),
         const SizedBox(height: 10),
         bars(hours, [for (var h = 0; h < 24; h++) h % 6 == 0 ? '$h' : ''], now.hour, 60),
         const SizedBox(height: 22),
-        Text('Günlük sınır', style: oaDisplay(18)),
+        Text(tx('Günlük sınır', 'Daily limit'), style: oaDisplay(18)),
         const SizedBox(height: 10),
         Wrap(spacing: 8, runSpacing: 8, children: [
           for (final m in const [0, 15, 30, 45, 60, 90, 120, 180])
             ChoiceChip(
-              label: Text(m == 0 ? 'Yok' : (m < 60 ? '$m dk' : (m % 60 == 0 ? '${m ~/ 60} sa' : '${m ~/ 60} sa ${m % 60} dk'))),
+              label: Text(m == 0 ? tx('Yok', 'None') : (m < 60 ? tx('$m dk', '$m min') : (m % 60 == 0 ? tx('${m ~/ 60} sa', '${m ~/ 60} h') : tx('${m ~/ 60} sa ${m % 60} dk', '${m ~/ 60} h ${m % 60} min')))),
               selected: (limit?.minutes ?? 0) == m,
               onSelected: (_) => setState(() {
                 if (m == 0) {
@@ -477,11 +478,11 @@ class _SiteSheetState extends State<_SiteSheet> {
               limit.lock = v;
               st.changed();
             }),
-            title: Text('Süre dolunca siteyi kilitle', style: TextStyle(color: OAColors.text, fontWeight: FontWeight.w600)),
+            title: Text(tx('Süre dolunca siteyi kilitle', 'Lock the site when time is up'), style: TextStyle(color: OAColors.text, fontWeight: FontWeight.w600)),
             subtitle: Text(
                 limit.lock
-                    ? 'Süre dolunca site o gün açılmaz ("15 dakika daha" ile uzatılabilir)'
-                    : 'Süre dolunca yalnız uyarı çıkar',
+                    ? tx('Süre dolunca site o gün açılmaz ("15 dakika daha" ile uzatılabilir)', 'When time is up the site won\'t open that day ("15 more minutes" extends it)')
+                    : tx('Süre dolunca yalnız uyarı çıkar', 'When time is up you only get a warning'),
                 style: TextStyle(color: OAColors.muted, fontSize: 13)),
           ),
         ],
