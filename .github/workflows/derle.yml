@@ -91,6 +91,7 @@ jobs:
             Pusula-Windows.zip
 
       - name: Sürüme ekle
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.ver.outputs.v }}
@@ -178,6 +179,7 @@ jobs:
           path: Pusula-Android.apk
 
       - name: Sürüme ekle
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.ver.outputs.v }}

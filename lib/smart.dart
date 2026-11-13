@@ -26,14 +26,18 @@ String formatTr(double v, {int maxDecimals = 6}) {
   var s = v.toStringAsFixed(maxDecimals);
   if (s.contains('.')) s = s.replaceFirst(RegExp(r'0+$'), '').replaceFirst(RegExp(r'\.$'), '');
   final parts = s.split('.');
-  final intPart = parts[0].replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => '.');
-  return '${neg ? '-' : ''}$intPart${parts.length > 1 ? ',${parts[1]}' : ''}';
+  // Türkçede 1.234,5; İngilizcede 1,234.5
+  final group = L.en ? ',' : '.', dec = L.en ? '.' : ',';
+  final intPart = parts[0].replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => group);
+  return '${neg ? '-' : ''}$intPart${parts.length > 1 ? '$dec${parts[1]}' : ''}';
 }
 
 /// "1,5" ve "1.5" ikisini de sayı olarak okur; binlik ayıracı "1.000" de olabilir.
 double? _num(String s) {
   s = s.trim();
-  if (RegExp(r'^\d{1,3}(\.\d{3})+(,\d+)?$').hasMatch(s)) {
+  if (L.en && RegExp(r'^\d{1,3}(,\d{3})+(\.\d+)?$').hasMatch(s)) {
+    s = s.replaceAll(',', '');
+  } else if (RegExp(r'^\d{1,3}(\.\d{3})+(,\d+)?$').hasMatch(s)) {
     s = s.replaceAll('.', '').replaceAll(',', '.');
   } else {
     s = s.replaceAll(',', '.');
@@ -172,10 +176,10 @@ final _units = <String, _Unit>{
   'mil': _Unit('mil', 'uzunluk', 1609.344),
   'mile': _Unit('mil', 'uzunluk', 1609.344),
   'mi': _Unit('mil', 'uzunluk', 1609.344),
-  'inç': _Unit(tx('inç', 'in'), 'uzunluk', 0.0254),
-  'inc': _Unit(tx('inç', 'in'), 'uzunluk', 0.0254),
-  'inch': _Unit(tx('inç', 'in'), 'uzunluk', 0.0254),
-  'in': _Unit(tx('inç', 'in'), 'uzunluk', 0.0254),
+  'inç': _Unit('inç', 'uzunluk', 0.0254),
+  'inc': _Unit('inç', 'uzunluk', 0.0254),
+  'inch': _Unit('inç', 'uzunluk', 0.0254),
+  'in': _Unit('inç', 'uzunluk', 0.0254),
   'ft': _Unit('ft', 'uzunluk', 0.3048),
   'feet': _Unit('ft', 'uzunluk', 0.3048),
   'fit': _Unit('ft', 'uzunluk', 0.3048),
@@ -219,6 +223,9 @@ double _convert(double v, _Unit from, _Unit to) {
   return v * from.toBase / to.toBase;
 }
 
+/// Birimin ekranda gösterilen adı (İngilizcede inç → in, mil → mi, galon → gal).
+String _uName(String n) => L.en ? (const {'inç': 'in', 'mil': 'mi', 'galon': 'gal'}[n] ?? n) : n;
+
 _Unit? _unitByName(String n) {
   for (final u in _units.values) {
     if (u.name == n) return u;
@@ -240,7 +247,7 @@ SmartAnswer? _unitConvert(String q) {
   if (to == null || to.kind != from.kind || to.name == from.name) return null;
   final r = _convert(v, from, to);
   final text = formatTr(r, maxDecimals: r.abs() < 10 ? 3 : 2);
-  return SmartAnswer('${formatTr(v)} ${from.name} = $text ${to.name}', tx('Birim çevirisi', 'Unit conversion'), copy: text);
+  return SmartAnswer('${formatTr(v)} ${_uName(from.name)} = $text ${_uName(to.name)}', tx('Birim çevirisi', 'Unit conversion'), copy: text);
 }
 
 // ------------------------------------------------------------------ Döviz

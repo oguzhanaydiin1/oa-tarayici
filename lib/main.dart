@@ -71,7 +71,9 @@ Future<void> main(List<String> args) async {
     L.init(prefs.getString('dil'));
     themeModeNotifier.value = themeModeFromString(prefs.getString('theme'));
     accentNotifier.value = prefs.getString('accent') ?? 'turuncu';
-  } catch (_) {}
+  } catch (_) {
+    L.init(null);
+  }
   await initWebEnv(); // Windows: Edge ortamı (radyo için sesin kendiliğinden başlamasına izin)
   await initRadioBackground(); // Android: radyo arka planda çalar, bildirimde kontrol edilir
   if (Platform.isWindows) {

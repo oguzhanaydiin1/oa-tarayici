@@ -116,8 +116,8 @@ class MarketService extends ChangeNotifier {
 String trMoney(double v) {
   final fixed = v >= 1000 ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
   final parts = fixed.split('.');
-  final intPart = parts[0].replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => '.');
-  return parts.length > 1 ? '$intPart,${parts[1]}' : intPart;
+  final intPart = parts[0].replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => L.en ? ',' : '.');
+  return parts.length > 1 ? '$intPart${L.en ? '.' : ','}${parts[1]}' : intPart;
 }
 
 /// Döviz ve altın: yan yana küçük kutular.
