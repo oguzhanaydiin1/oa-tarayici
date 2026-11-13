@@ -174,7 +174,7 @@ class _MarketStripState extends State<MarketStrip> {
           if (c != null) ...[
             const SizedBox(width: 6),
             Icon(up ? Icons.arrow_drop_up : (down ? Icons.arrow_drop_down : Icons.remove), size: 18, color: color),
-            Text('%${c.abs().toStringAsFixed(2).replaceAll('.', ',')}', style: TextStyle(color: color, fontSize: 11.5)),
+            Text(L.en ? '${c.abs().toStringAsFixed(2)}%' : '%${c.abs().toStringAsFixed(2).replaceAll('.', ',')}', style: TextStyle(color: color, fontSize: 11.5)),
           ],
         ]),
       ]),
