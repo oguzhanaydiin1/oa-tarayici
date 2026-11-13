@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'i18n.dart';
 // Ekran süresi: hangi sitede ne kadar kalındığı, gün gün. Veriler yalnız bu cihazda,
 // uygulamanın kendi klasöründe tutulur (isteğe bağlı: hesapla öbür cihazlara özet gider).
 //
@@ -31,12 +32,12 @@ String siteOf(String host) {
 
 String fmtDuration(int seconds, {bool short = false}) {
   final m = (seconds / 60).round();
-  if (m < 1) return seconds > 0 ? '1 dk\'dan az' : '0 dk';
+  if (m < 1) return seconds > 0 ? tx('1 dk\'dan az', 'under 1 min') : tx('0 dk', '0 min');
   final h = m ~/ 60;
   final mm = m % 60;
-  if (h == 0) return '$mm dk';
-  if (mm == 0 || short) return '$h sa';
-  return '$h sa $mm dk';
+  if (h == 0) return tx('$mm dk', '$mm min');
+  if (mm == 0 || short) return tx('$h sa', '$h h');
+  return tx('$h sa $mm dk', '$h h $mm min');
 }
 
 /// Site süre sınırı.

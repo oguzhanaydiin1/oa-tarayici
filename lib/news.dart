@@ -8,6 +8,7 @@ import 'package:xml/xml.dart';
 
 import 'oa_theme.dart';
 
+import 'i18n.dart';
 // Başlangıç sayfasındaki haber akışı: seçilen sitelerin RSS beslemelerinden son haberler.
 
 class NewsSource {
@@ -38,7 +39,15 @@ class NewsItem {
       DateTime.fromMillisecondsSinceEpoch((j['d'] as num).toInt()), j['i']?.toString());
 }
 
-List<NewsSource> _defaults() => [
+List<NewsSource> _defaults() => L.en
+    ? [
+        NewsSource('BBC News', 'https://feeds.bbci.co.uk/news/world/rss.xml'),
+        NewsSource('The Verge', 'https://www.theverge.com/rss/index.xml'),
+        NewsSource('Ars Technica', 'https://feeds.arstechnica.com/arstechnica/index'),
+        NewsSource('The Guardian', 'https://www.theguardian.com/world/rss', on: false),
+        NewsSource('BBC Türkçe', 'https://feeds.bbci.co.uk/turkce/rss.xml', on: false),
+      ]
+    : [
       NewsSource('BBC Türkçe', 'https://feeds.bbci.co.uk/turkce/rss.xml'),
       NewsSource('NTV', 'https://www.ntv.com.tr/gundem.rss'),
       NewsSource('DW Türkçe', 'https://rss.dw.com/xml/rss-tur-all'),
@@ -235,11 +244,11 @@ List<NewsItem> parseFeed(String xml, String source) {
 
 String _ago(DateTime d) {
   final m = DateTime.now().difference(d).inMinutes;
-  if (m < 1) return 'şimdi';
-  if (m < 60) return '$m dk önce';
+  if (m < 1) return tx('şimdi', 'now');
+  if (m < 60) return tx('$m dk önce', '$m min ago');
   final h = m ~/ 60;
-  if (h < 24) return '$h sa önce';
-  return '${h ~/ 24} gün önce';
+  if (h < 24) return tx('$h sa önce', '$h h ago');
+  return tx('${h ~/ 24} gün önce', '${h ~/ 24} d ago');
 }
 
 /// Başlangıç sayfasındaki haber listesi.
@@ -273,7 +282,7 @@ class _NewsFeedState extends State<NewsFeed> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(children: [
-              Expanded(child: Text('Haberler', style: oaDisplay(22))),
+              Expanded(child: Text(tx('Haberler', 'News'), style: oaDisplay(22))),
               if (n.loading)
                 const Padding(
                   padding: EdgeInsets.only(right: 8),
@@ -281,7 +290,7 @@ class _NewsFeedState extends State<NewsFeed> {
                 ),
               TextButton.icon(
                 icon: const Icon(Icons.tune, size: 18),
-                label: const Text('Kaynaklar'),
+                label: Text(tx('Kaynaklar', 'Sources')),
                 onPressed: () => showNewsSources(context, n),
               ),
             ]),
@@ -291,10 +300,10 @@ class _NewsFeedState extends State<NewsFeed> {
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 child: Text(
                   n.loading
-                      ? 'Haberler yükleniyor…'
+                      ? tx('Haberler yükleniyor…', 'Loading news…')
                       : n.sources.any((s) => s.on)
-                          ? 'Haberler alınamadı. İnternet bağlantını kontrol et.'
-                          : 'Kaynak seçilmedi. "Kaynaklar"dan haber sitelerini seç.',
+                          ? tx('Haberler alınamadı. İnternet bağlantını kontrol et.', "Couldn't load news. Check your internet connection.")
+                          : tx('Kaynak seçilmedi. "Kaynaklar"dan haber sitelerini seç.', 'No source selected. Pick news sites under "Sources".'),
                   style: TextStyle(color: OAColors.muted),
                 ),
               ),
@@ -303,7 +312,7 @@ class _NewsFeedState extends State<NewsFeed> {
               Center(
                 child: TextButton(
                   onPressed: () => setState(() => _show += 10),
-                  child: const Text('Daha fazla haber'),
+                  child: Text(tx('Daha fazla haber', 'More news')),
                 ),
               ),
           ],
@@ -386,11 +395,11 @@ Future<void> showNewsSources(BuildContext context, NewsService n) {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-              child: Text('Haber kaynakları', style: oaDisplay(22)),
+              child: Text(tx('Haber kaynakları', 'News sources'), style: oaDisplay(22)),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Text('Başlangıç sayfasında hangi sitelerin haberleri görünsün?',
+              child: Text(tx('Başlangıç sayfasında hangi sitelerin haberleri görünsün?', "Which sites' news should appear on the start page?"),
                   style: TextStyle(color: OAColors.muted)),
             ),
             for (final s in n.sources)
@@ -403,7 +412,7 @@ Future<void> showNewsSources(BuildContext context, NewsService n) {
                 secondary: _defaults().any((d) => d.url == s.url)
                     ? null
                     : IconButton(
-                        tooltip: 'Kaldır',
+                        tooltip: tx('Kaldır', 'Remove'),
                         icon: const Icon(Icons.delete_outline),
                         onPressed: () {
                           n.remove(s);
@@ -417,26 +426,26 @@ Future<void> showNewsSources(BuildContext context, NewsService n) {
               ),
             ListTile(
               leading: const Icon(Icons.add),
-              title: const Text('RSS adresiyle kaynak ekle'),
+              title: Text(tx('RSS adresiyle kaynak ekle', 'Add a source by RSS address')),
               onTap: () async {
                 final name = TextEditingController();
                 final url = TextEditingController();
                 final ok = await showDialog<bool>(
                   context: ctx,
                   builder: (d) => AlertDialog(
-                    title: const Text('Kaynak ekle'),
+                    title: Text(tx('Kaynak ekle', 'Add source')),
                     content: Column(mainAxisSize: MainAxisSize.min, children: [
-                      TextField(controller: name, decoration: const InputDecoration(labelText: 'Adı (isteğe bağlı)')),
+                      TextField(controller: name, decoration: InputDecoration(labelText: tx('Adı (isteğe bağlı)', 'Name (optional)'))),
                       const SizedBox(height: 10),
                       TextField(
                         controller: url,
                         keyboardType: TextInputType.url,
-                        decoration: const InputDecoration(labelText: 'RSS adresi', hintText: 'https://site.com/rss'),
+                        decoration: InputDecoration(labelText: tx('RSS adresi', 'RSS address'), hintText: 'https://site.com/rss'),
                       ),
                     ]),
                     actions: [
-                      TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Vazgeç')),
-                      FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('Ekle')),
+                      TextButton(onPressed: () => Navigator.pop(d, false), child: Text(tx('Vazgeç', 'Cancel'))),
+                      FilledButton(onPressed: () => Navigator.pop(d, true), child: Text(tx('Ekle', 'Add'))),
                     ],
                   ),
                 );

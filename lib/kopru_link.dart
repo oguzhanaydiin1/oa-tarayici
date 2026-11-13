@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 
+import 'i18n.dart';
 /// Pusula Köprü ile bağlantı: açık sekmeyi eşleşmiş telefona (Windows'ta) ya da
 /// bilgisayara (Android'de) gönderir; karşıda bağlantı hemen açılır. Hesap gerekmez, aynı Wi-Fi yeter.
 class KopruLink {
@@ -16,9 +17,9 @@ class KopruLink {
     if (Platform.isAndroid) {
       try {
         final ok = await _ch.invokeMethod<bool>('gonder', {'url': url}) ?? false;
-        if (ok) return (true, 'Bilgisayara gönderiliyor');
+        if (ok) return (true, tx('Bilgisayara gönderiliyor', 'Sending to the computer'));
       } catch (_) {}
-      return (false, 'Pusula Köprü kurulu değil');
+      return (false, tx('Pusula Köprü kurulu değil', "Pusula Köprü isn't installed"));
     }
     if (Platform.isWindows) {
       try {
@@ -27,15 +28,15 @@ class KopruLink {
                 headers: {'content-type': 'application/json'}, body: jsonEncode({'text': url, 'open': true}))
             .timeout(const Duration(seconds: 10));
         final j = jsonDecode(utf8.decode(r.bodyBytes));
-        if (j is Map && j['ok'] == true) return (true, '${j['peer'] ?? 'Telefon'} cihazında açıldı');
-        if (j is Map && j['error'] == 'eslesme') return (false, 'Pusula Köprü\'de eşleşmiş telefon yok');
+        if (j is Map && j['ok'] == true) return (true, tx('${j['peer'] ?? 'Telefon'} cihazında açıldı', "Opened on ${j['peer'] ?? 'the phone'}"));
+        if (j is Map && j['error'] == 'eslesme') return (false, tx('Pusula Köprü\'de eşleşmiş telefon yok', 'No phone is paired in Pusula Köprü'));
         if (j is Map && j['error'] == 'ulasilamadi') {
-          return (false, '${j['peer'] ?? 'Telefon'} bağlı değil: aynı Wi-Fi\'de ve Pusula Köprü açık mı?');
+          return (false, tx('${j['peer'] ?? 'Telefon'} bağlı değil: aynı Wi-Fi\'de ve Pusula Köprü açık mı?', "${j['peer'] ?? 'The phone'} isn't connected: is it on the same Wi-Fi with Pusula Köprü open?"));
         }
       } catch (_) {
-        return (false, 'Pusula Köprü açık değil');
+        return (false, tx('Pusula Köprü açık değil', "Pusula Köprü isn't open"));
       }
     }
-    return (false, 'Gönderilemedi');
+    return (false, tx('Gönderilemedi', "Couldn't send"));
   }
 }

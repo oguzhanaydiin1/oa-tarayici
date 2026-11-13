@@ -7,6 +7,7 @@ import 'package:local_auth/local_auth.dart';
 
 import 'oa_theme.dart';
 
+import 'i18n.dart';
 /// Bir sitenin kayıtlı girişi.
 class SavedLogin {
   SavedLogin({required this.origin, required this.user, required this.pass, required this.updated});
@@ -251,23 +252,23 @@ class _PasswordsSheetState extends State<PasswordsSheet> {
                     Icon(Icons.key_outlined, color: OAColors.amber),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: Text('Şifreler',
+                      child: Text(tx('Şifreler', 'Passwords'),
                           style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: OAColors.text)),
                     ),
-                    Text('${s.items.length} kayıt', style: TextStyle(color: OAColors.muted)),
+                    Text(tx('${s.items.length} kayıt', '${s.items.length} saved'), style: TextStyle(color: OAColors.muted)),
                   ],
                 ),
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                child: Text('Şifreler yalnız bu cihazın güvenli deposunda saklanır, hesabınla eşitlenmez.',
+                child: Text(tx('Şifreler yalnız bu cihazın güvenli deposunda saklanır, hesabınla eşitlenmez.', "Passwords are stored only in this device's secure storage and aren't synced with your account."),
                     style: TextStyle(color: OAColors.muted, fontSize: 13)),
               ),
               if (s.items.length > 6)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                   child: TextField(
-                    decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Site ya da kullanıcı ara'),
+                    decoration: InputDecoration(prefixIcon: Icon(Icons.search), hintText: tx('Site ya da kullanıcı ara', 'Search sites or usernames')),
                     onChanged: (v) => setState(() => _q = v.trim().toLowerCase()),
                   ),
                 ),
@@ -277,7 +278,7 @@ class _PasswordsSheetState extends State<PasswordsSheet> {
                         child: Padding(
                           padding: const EdgeInsets.all(24),
                           child: Text(
-                            'Henüz kayıtlı şifre yok.\nBir siteye giriş yapınca Pusula kaydetmeyi sorar.',
+                            tx('Henüz kayıtlı şifre yok.\nBir siteye giriş yapınca Pusula kaydetmeyi sorar.', 'No saved passwords yet.\nWhen you sign in to a site, Pusula offers to save it.'),
                             textAlign: TextAlign.center,
                             style: TextStyle(color: OAColors.muted),
                           ),
@@ -297,7 +298,7 @@ class _PasswordsSheetState extends State<PasswordsSheet> {
                             ),
                             title: Text(e.host, style: TextStyle(color: OAColors.text)),
                             subtitle: Text(
-                              '${e.user.isEmpty ? '(kullanıcı adı yok)' : e.user}\n${shown ? e.pass : '•' * 10}',
+                              tx('${e.user.isEmpty ? '(kullanıcı adı yok)' : e.user}\n${shown ? e.pass : '•' * 10}', "${e.user.isEmpty ? '(no username)' : e.user}\n${shown ? e.pass : '•' * 10}"),
                               style: TextStyle(color: OAColors.muted),
                             ),
                             isThreeLine: true,
@@ -305,31 +306,31 @@ class _PasswordsSheetState extends State<PasswordsSheet> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 IconButton(
-                                  tooltip: shown ? 'Gizle' : 'Göster',
+                                  tooltip: shown ? tx('Gizle', 'Hide') : tx('Göster', 'Show'),
                                   icon: Icon(shown ? Icons.visibility_off_outlined : Icons.visibility_outlined),
                                   onPressed: () => setState(() => shown ? _shown.remove(e) : _shown.add(e)),
                                 ),
                                 IconButton(
-                                  tooltip: 'Şifreyi kopyala',
+                                  tooltip: tx('Şifreyi kopyala', 'Copy password'),
                                   icon: const Icon(Icons.copy),
                                   onPressed: () {
                                     Clipboard.setData(ClipboardData(text: e.pass));
                                     ScaffoldMessenger.of(context)
-                                        .showSnackBar(const SnackBar(content: Text('Şifre kopyalandı')));
+                                        .showSnackBar( SnackBar(content: Text(tx('Şifre kopyalandı', 'Password copied'))));
                                   },
                                 ),
                                 IconButton(
-                                  tooltip: 'Sil',
+                                  tooltip: tx('Sil', 'Delete'),
                                   icon: const Icon(Icons.delete_outline),
                                   onPressed: () async {
                                     final ok = await showDialog<bool>(
                                       context: context,
                                       builder: (c) => AlertDialog(
-                                        title: const Text('Şifre silinsin mi?'),
+                                        title: Text(tx('Şifre silinsin mi?', 'Delete this password?')),
                                         content: Text('${e.host} · ${e.user}'),
                                         actions: [
-                                          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Vazgeç')),
-                                          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Sil')),
+                                          TextButton(onPressed: () => Navigator.pop(c, false), child: Text(tx('Vazgeç', 'Cancel'))),
+                                          FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(tx('Sil', 'Delete'))),
                                         ],
                                       ),
                                     );
@@ -347,7 +348,7 @@ class _PasswordsSheetState extends State<PasswordsSheet> {
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
                   child: TextButton.icon(
                     icon: const Icon(Icons.restart_alt),
-                    label: Text('"Asla kaydetme" denen ${s.never.length} siteyi sıfırla'),
+                    label: Text(tx('"Asla kaydetme" denen ${s.never.length} siteyi sıfırla', 'Reset ${s.never.length} sites marked "Never save"')),
                     onPressed: s.clearNever,
                   ),
                 ),

@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'oa_theme.dart';
 
+import 'i18n.dart';
 /// Bir indirme: listede gösterilir, bitince açılabilir.
 class DownloadItem {
   DownloadItem({
@@ -233,8 +234,8 @@ String formatBytes(int? b) {
   if (b == null) return '';
   if (b < 1024) return '$b B';
   if (b < 1024 * 1024) return '${(b / 1024).toStringAsFixed(0)} KB';
-  if (b < 1024 * 1024 * 1024) return '${(b / 1024 / 1024).toStringAsFixed(1).replaceAll('.', ',')} MB';
-  return '${(b / 1024 / 1024 / 1024).toStringAsFixed(2).replaceAll('.', ',')} GB';
+  if (b < 1024 * 1024 * 1024) return tx('${(b / 1024 / 1024).toStringAsFixed(1).replaceAll('.', ',')} MB', '${(b / 1024 / 1024).toStringAsFixed(1)} MB');
+  return tx('${(b / 1024 / 1024 / 1024).toStringAsFixed(2).replaceAll('.', ',')} GB', '${(b / 1024 / 1024 / 1024).toStringAsFixed(2)} GB');
 }
 
 /// İndirilenler listesi (alttan açılır).
@@ -255,19 +256,19 @@ class DownloadsSheet extends StatelessWidget {
           return Column(
             children: [
               ListTile(
-                title: Text('İndirilenler', style: oaDisplay(20)),
+                title: Text(tx('İndirilenler', 'Downloads'), style: oaDisplay(20)),
                 subtitle: Text(Platform.isAndroid
-                    ? 'Dosyalar telefonun İndirilenler klasörüne kaydedilir'
-                    : 'Dosyalar İndirilenler klasörüne kaydedilir'),
+                    ? tx('Dosyalar telefonun İndirilenler klasörüne kaydedilir', "Files are saved to your phone's Downloads folder")
+                    : tx('Dosyalar İndirilenler klasörüne kaydedilir', 'Files are saved to your Downloads folder')),
                 trailing: items.any((i) => !i.active)
-                    ? TextButton(onPressed: downloads.clearFinished, child: const Text('Listeyi temizle'))
+                    ? TextButton(onPressed: downloads.clearFinished, child: Text(tx('Listeyi temizle', 'Clear list')))
                     : null,
               ),
               const Divider(height: 1),
               Expanded(
                 child: items.isEmpty
                     ? Center(
-                        child: Text('Henüz bir şey indirmedin.',
+                        child: Text(tx('Henüz bir şey indirmedin.', "You haven't downloaded anything yet."),
                             style: TextStyle(color: OAColors.muted)))
                     : ListView.builder(
                         controller: scroll,
@@ -285,11 +286,11 @@ class DownloadsSheet extends StatelessWidget {
   Widget _row(BuildContext context, DownloadItem it) {
     final (IconData icon, Color color, String sub) = switch (it.status) {
       'complete' => (Icons.check_circle, OAColors.green, formatBytes(it.size)),
-      'failed' => (Icons.error_outline, OAColors.danger, 'İndirilemedi'),
-      'notFound' => (Icons.error_outline, OAColors.danger, 'Dosya bulunamadı (404)'),
-      'canceled' => (Icons.cancel_outlined, OAColors.muted, 'İptal edildi'),
-      'paused' => (Icons.pause_circle_outline, OAColors.muted, 'Duraklatıldı'),
-      _ => (Icons.downloading, OAColors.accent, 'İndiriliyor… %${(it.progress * 100).round()}'),
+      'failed' => (Icons.error_outline, OAColors.danger, tx('İndirilemedi', 'Download failed')),
+      'notFound' => (Icons.error_outline, OAColors.danger, tx('Dosya bulunamadı (404)', 'File not found (404)')),
+      'canceled' => (Icons.cancel_outlined, OAColors.muted, tx('İptal edildi', 'Canceled')),
+      'paused' => (Icons.pause_circle_outline, OAColors.muted, tx('Duraklatıldı', 'Paused')),
+      _ => (Icons.downloading, OAColors.accent, tx('İndiriliyor… %${(it.progress * 100).round()}', 'Downloading… ${(it.progress * 100).round()}%')),
     };
     return ListTile(
       leading: Icon(icon, color: color),
@@ -308,17 +309,17 @@ class DownloadsSheet extends StatelessWidget {
       onTap: it.done
           ? () async {
               final ok = await downloads.open(it);
-              if (!ok) onToast('Dosya açılamadı. İndirilenler klasöründe: ${it.name}');
+              if (!ok) onToast(tx('Dosya açılamadı. İndirilenler klasöründe: ${it.name}', "Couldn't open the file. It's in your Downloads folder: ${it.name}"));
             }
           : null,
       trailing: it.active
           ? IconButton(
-              tooltip: 'İptal et',
+              tooltip: tx('İptal et', 'Cancel'),
               icon: const Icon(Icons.close),
               onPressed: () => downloads.cancel(it),
             )
           : IconButton(
-              tooltip: 'Listeden kaldır',
+              tooltip: tx('Listeden kaldır', 'Remove from list'),
               icon: const Icon(Icons.delete_outline),
               onPressed: () => downloads.remove(it),
             ),

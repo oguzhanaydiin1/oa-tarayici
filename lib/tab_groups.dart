@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'oa_theme.dart';
 
+import 'i18n.dart';
 // Sekme grupları (bilgisayar): sekmeler adlı ve renkli gruplara ayrılır, grup daraltılabilir.
 
 const kGroupColors = <Color>[
@@ -45,18 +46,18 @@ Future<(String, int)?> editGroupDialog(BuildContext context, {String name = '', 
     context: context,
     builder: (ctx) => StatefulBuilder(
       builder: (ctx, setD) => AlertDialog(
-        title: Text(isNew ? 'Yeni sekme grubu' : 'Grubu düzenle'),
+        title: Text(isNew ? tx('Yeni sekme grubu', 'New tab group') : tx('Grubu düzenle', 'Edit group')),
         content: SizedBox(
           width: 360,
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
             TextField(
               controller: ctl,
               autofocus: true,
-              decoration: const InputDecoration(labelText: 'Grup adı', hintText: 'Örn. İş, Alışveriş, Okunacaklar'),
+              decoration: InputDecoration(labelText: tx('Grup adı', 'Group name'), hintText: tx('Örn. İş, Alışveriş, Okunacaklar', 'e.g. Work, Shopping, To read')),
               onSubmitted: (_) => Navigator.pop(ctx, (ctl.text.trim(), sel)),
             ),
             const SizedBox(height: 16),
-            Text('Renk', style: TextStyle(color: OAColors.muted, fontSize: 13)),
+            Text(tx('Renk', 'Color'), style: TextStyle(color: OAColors.muted, fontSize: 13)),
             const SizedBox(height: 8),
             Wrap(spacing: 10, runSpacing: 10, children: [
               for (var i = 0; i < kGroupColors.length; i++)
@@ -78,8 +79,8 @@ Future<(String, int)?> editGroupDialog(BuildContext context, {String name = '', 
           ]),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Vazgeç')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, (ctl.text.trim(), sel)), child: Text(isNew ? 'Oluştur' : 'Kaydet')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tx('Vazgeç', 'Cancel'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, (ctl.text.trim(), sel)), child: Text(isNew ? tx('Oluştur', 'Create') : tx('Kaydet', 'Save'))),
         ],
       ),
     ),

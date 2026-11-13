@@ -4,6 +4,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
+import 'i18n.dart';
 // Telefonun kendi bildirimleri (Android). Şimdilik ekran süresinin haftalık özeti için.
 
 class OaNotify {
@@ -65,8 +66,8 @@ class OaNotify {
         NotificationDetails(
           android: AndroidNotificationDetails(
             'ekran_suresi',
-            'Ekran süresi',
-            channelDescription: 'Haftalık ekran süresi özeti',
+            tx('Ekran süresi', 'Screen time'),
+            channelDescription: tx('Haftalık ekran süresi özeti', 'Weekly screen time summary'),
             importance: Importance.defaultImportance,
             styleInformation: BigTextStyleInformation(body),
           ),

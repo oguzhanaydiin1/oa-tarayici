@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'i18n.dart';
 /// Bir arama motoru: kullanıcının yazdığı, motorun arama adresine eklenir.
 class SearchEngine {
   const SearchEngine({
@@ -33,11 +34,11 @@ class SearchEngine {
   String home({bool dark = true}) => homeUrl.replaceAll('%k', dark ? 'd' : '-1');
 }
 
-const kEngines = <SearchEngine>[
+final kEngines = <SearchEngine>[
   SearchEngine(
     id: 'ddg',
     name: 'DuckDuckGo',
-    note: 'Seni takip etmez · önerilen',
+    note: tx('Seni takip etmez · önerilen', "Doesn't track you · recommended"),
     homeUrl: 'https://duckduckgo.com/?kae=%k',
     searchTemplate: 'https://duckduckgo.com/?kae=%k&q=%s',
     suggestTemplate: 'https://duckduckgo.com/ac/?type=list&q=%s',
@@ -45,7 +46,7 @@ const kEngines = <SearchEngine>[
   SearchEngine(
     id: 'google',
     name: 'Google',
-    note: 'En geniş sonuçlar',
+    note: tx('En geniş sonuçlar', 'Broadest results'),
     homeUrl: 'https://www.google.com/',
     searchTemplate: 'https://www.google.com/search?q=%s',
     suggestTemplate:
@@ -62,7 +63,7 @@ const kEngines = <SearchEngine>[
   SearchEngine(
     id: 'yandex',
     name: 'Yandex',
-    note: 'Türkçe sonuçlarda güçlü',
+    note: tx('Türkçe sonuçlarda güçlü', 'Strong for Turkish results'),
     homeUrl: 'https://yandex.com.tr/',
     searchTemplate: 'https://yandex.com.tr/search/?text=%s',
     suggestTemplate: 'https://suggest.yandex.com.tr/suggest-ff.cgi?uil=tr&part=%s',
@@ -70,7 +71,7 @@ const kEngines = <SearchEngine>[
   SearchEngine(
     id: 'brave',
     name: 'Brave Search',
-    note: 'Kendi dizini, takip etmez',
+    note: tx('Kendi dizini, takip etmez', "Its own index, doesn't track you"),
     homeUrl: 'https://search.brave.com/',
     searchTemplate: 'https://search.brave.com/search?q=%s',
     suggestTemplate: 'https://search.brave.com/api/suggest?q=%s',
@@ -78,14 +79,14 @@ const kEngines = <SearchEngine>[
   SearchEngine(
     id: 'ecosia',
     name: 'Ecosia',
-    note: 'Geliriyle ağaç diker · öneriler DuckDuckGo\'dan',
+    note: tx('Geliriyle ağaç diker · öneriler DuckDuckGo\'dan', 'Plants trees with its income · suggestions from DuckDuckGo'),
     homeUrl: 'https://www.ecosia.org/',
     searchTemplate: 'https://www.ecosia.org/search?q=%s',
   ),
   SearchEngine(
     id: 'startpage',
     name: 'Startpage',
-    note: 'Google sonuçları, kimliksiz · öneriler DuckDuckGo\'dan',
+    note: tx('Google sonuçları, kimliksiz · öneriler DuckDuckGo\'dan', 'Google results, anonymously · suggestions from DuckDuckGo'),
     homeUrl: 'https://www.startpage.com/',
     searchTemplate: 'https://www.startpage.com/sp/search?query=%s',
   ),

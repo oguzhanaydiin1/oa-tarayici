@@ -11,19 +11,19 @@ class _Section {
   final String sub;
 }
 
-const _sections = <_Section>[
-  _Section('hesap', 'Hesap ve eşitleme', Icons.person_outline, 'OA Labs hesabın ve cihazlar arasında eşitlenenler'),
-  _Section('gorunum', 'Görünüm', Icons.light_mode_outlined, 'Tema ve sayfaların görünüşü'),
-  _Section('baslangic', 'Başlangıç sayfası', Icons.home_outlined, 'Yeni sekmede ne görünsün?'),
-  _Section('kenar', 'Kenar çubuğu', Icons.view_sidebar_outlined, 'WhatsApp, Gmail, Spotify… soldaki panelde'),
-  _Section('performans', 'Performans', Icons.speed, 'Sekme uyutma ve bellek'),
-  _Section('arama', 'Arama', Icons.search, 'Adres çubuğu ve arama motoru'),
-  _Section('gizlilik', 'Gizlilik ve güvenlik', Icons.shield_outlined, 'Reklamlar, izleyiciler, çerezler ve kilit'),
-  _Section('sifreler', 'Şifreler', Icons.key_outlined, 'Kayıtlı girişler ve içe aktarma'),
-  _Section('siteler', 'Site ayarları', Icons.public, 'Siteye özel izinler ve tercihler'),
-  _Section('indirme', 'İndirilenler', Icons.download_outlined, 'İndirilen dosyalar'),
-  _Section('radyo', 'OA Radyo', Icons.radio_outlined, 'Yerleşik radyo'),
-  _Section('hakkinda', 'Hakkında', Icons.info_outline, 'Sürüm ve güncellemeler'),
+final _sections = <_Section>[
+  _Section('hesap', tx('Hesap ve eşitleme', 'Account and sync'), Icons.person_outline, tx('OA Labs hesabın ve cihazlar arasında eşitlenenler', 'Your OA Labs account and what syncs between devices')),
+  _Section('gorunum', tx('Görünüm', 'Appearance'), Icons.light_mode_outlined, tx('Tema ve sayfaların görünüşü', 'Theme and how pages look')),
+  _Section('baslangic', tx('Başlangıç sayfası', 'Start page'), Icons.home_outlined, tx('Yeni sekmede ne görünsün?', 'What should a new tab show?')),
+  _Section('kenar', tx('Kenar çubuğu', 'Sidebar'), Icons.view_sidebar_outlined, tx('WhatsApp, Gmail, Spotify… soldaki panelde', 'WhatsApp, Gmail, Spotify… in the left panel')),
+  _Section('performans', tx('Performans', 'Performance'), Icons.speed, tx('Sekme uyutma ve bellek', 'Tab sleeping and memory')),
+  _Section('arama', tx('Arama', 'Search'), Icons.search, tx('Adres çubuğu ve arama motoru', 'Address bar and search engine')),
+  _Section('gizlilik', tx('Gizlilik ve güvenlik', 'Privacy and security'), Icons.shield_outlined, tx('Reklamlar, izleyiciler, çerezler ve kilit', 'Ads, trackers, cookies and lock')),
+  _Section('sifreler', tx('Şifreler', 'Passwords'), Icons.key_outlined, tx('Kayıtlı girişler ve içe aktarma', 'Saved logins and import')),
+  _Section('siteler', tx('Site ayarları', 'Site settings'), Icons.public, tx('Siteye özel izinler ve tercihler', 'Per-site permissions and preferences')),
+  _Section('indirme', tx('İndirilenler', 'Downloads'), Icons.download_outlined, tx('İndirilen dosyalar', 'Downloaded files')),
+  _Section('radyo', 'OA Radyo', Icons.radio_outlined, tx('Yerleşik radyo', 'Built-in radio')),
+  _Section('hakkinda', tx('Hakkında', 'About'), Icons.info_outline, tx('Sürüm ve güncellemeler', 'Version and updates')),
 ];
 
 /// Ayarlardaki tek satır (arama için başlığı ve açıklaması tutulur).
@@ -144,9 +144,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           (
             null,
             [
-              _Item('Hesap', u?.email ?? 'giriş yap', () {
-                return _row(Icons.account_circle_outlined, u?.name ?? 'Giriş yap veya üye ol',
-                    sub: u != null ? u.email : 'Şifre yok, e-postana kod gelir. Bilgisayar ve telefon eşitlenir.',
+              _Item(tx('Hesap', 'Account'), u?.email ?? tx('giriş yap', 'sign in'), () {
+                return _row(Icons.account_circle_outlined, u?.name ?? tx('Giriş yap veya üye ol', 'Sign in or sign up'),
+                    sub: u != null ? u.email : tx('Şifre yok, e-postana kod gelir. Bilgisayar ve telefon eşitlenir.', 'No password: a code is sent to your email. Your computer and phone stay in sync.'),
                     trailing: Padding(padding: const EdgeInsets.only(right: 2), child: OAAvatar(name: u?.name, size: 36)),
                     onTap: p._openAccount);
               }),
@@ -154,28 +154,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           if (p._account.signedIn)
             (
-              'Eşitlenenler',
+              tx('Eşitlenenler', 'What syncs'),
               [
-                _Item('Yer imleri ve hızlı erişim', 'her zaman eşitlenir',
-                    () => _row(Icons.sync, 'Yer imleri ve hızlı erişim', sub: 'Her zaman eşitlenir', trailing: Text('Açık', style: TextStyle(color: OAColors.green)))),
-                _Item('Açık sekmeler', 'öbür cihazlar görebilir sekme gönderme', () {
-                  return _switch(Icons.tab_outlined, 'Açık sekmeler', p._syncTabs, (v) {
+                _Item(tx('Yer imleri ve hızlı erişim', 'Bookmarks and quick access'), tx('her zaman eşitlenir', 'always synced'),
+                    () => _row(Icons.sync, tx('Yer imleri ve hızlı erişim', 'Bookmarks and quick access'), sub: tx('Her zaman eşitlenir', 'Always synced'), trailing: Text(tx('Açık', 'On'), style: TextStyle(color: OAColors.green)))),
+                _Item(tx('Açık sekmeler', 'Open tabs'), tx('öbür cihazlar görebilir sekme gönderme', 'other devices can see send tab'), () {
+                  return _switch(Icons.tab_outlined, tx('Açık sekmeler', 'Open tabs'), p._syncTabs, (v) {
                     p.setState(() => p._syncTabs = v);
                     p._prefs?.setBool('sync_tabs', v);
                     p._syncNow();
-                  }, sub: 'Öbür cihazlar görebilir; sekme gönderilebilir');
+                  }, sub: tx('Öbür cihazlar görebilir; sekme gönderilebilir', 'Other devices can see them; tabs can be sent'));
                 }),
-                _Item('Geçmiş eşitleme', 'gizli sekmeler kaydedilmez', () {
-                  return _switch(Icons.history, 'Geçmiş', p._syncHistory, (v) {
+                _Item(tx('Geçmiş eşitleme', 'History sync'), tx('gizli sekmeler kaydedilmez', "private tabs aren't saved"), () {
+                  return _switch(Icons.history, tx('Geçmiş', 'History'), p._syncHistory, (v) {
                     p.setState(() => p._syncHistory = v);
                     p._prefs?.setBool('sync_history', v);
                     p._syncNow();
-                  }, sub: 'Gizli sekmeler hiç kaydedilmez');
+                  }, sub: tx('Gizli sekmeler hiç kaydedilmez', 'Private tabs are never saved'));
                 }),
-                _Item('Şifre eşitleme', 'uçtan uca şifreli parola', () {
-                  return _row(p._vault.enabled ? Icons.lock : Icons.lock_open_outlined, 'Şifreler',
+                _Item(tx('Şifre eşitleme', 'Password sync'), tx('uçtan uca şifreli parola', 'end-to-end encrypted password'), () {
+                  return _row(p._vault.enabled ? Icons.lock : Icons.lock_open_outlined, tx('Şifreler', 'Passwords'),
                       iconColor: p._vault.enabled ? OAColors.green : null,
-                      sub: p._vault.enabled ? 'Açık · uçtan uca şifreli' : 'Kapalı · bir eşitleme parolası belirleyerek aç',
+                      sub: p._vault.enabled ? tx('Açık · uçtan uca şifreli', 'On · end-to-end encrypted') : tx('Kapalı · bir eşitleme parolası belirleyerek aç', 'Off · turn on by setting a sync password'),
                       trailing: TextButton(
                         onPressed: () async {
                           if (p._vault.enabled) {
@@ -186,23 +186,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             p.setState(() {});
                           }
                         },
-                        child: Text(p._vault.enabled ? 'Kapat' : 'Aç'),
+                        child: Text(p._vault.enabled ? tx('Kapat', 'Turn off') : tx('Aç', 'Turn on')),
                       ));
                 }),
               ]
             ),
           if (p._account.signedIn)
             (
-              'Cihazlar',
+              tx('Cihazlar', 'Devices'),
               [
-                _Item('Öbür cihazlardaki sekmeler', 'cihazlar',
-                    () => _row(Icons.devices_outlined, 'Öbür cihazlardaki sekmeler',
-                        sub: p._devices.isEmpty ? 'Bu cihaz: ${p._deviceName}' : '${p._devices.length} cihaz · bu cihaz: ${p._deviceName}',
+                _Item(tx('Öbür cihazlardaki sekmeler', 'Tabs on other devices'), 'cihazlar',
+                    () => _row(Icons.devices_outlined, tx('Öbür cihazlardaki sekmeler', 'Tabs on other devices'),
+                        sub: p._devices.isEmpty ? tx('Bu cihaz: ${p._deviceName}', 'This device: ${p._deviceName}') : tx('${p._devices.length} cihaz · bu cihaz: ${p._deviceName}', '${p._devices.length} devices · this device: ${p._deviceName}'),
                         onTap: p._showDevices)),
-                _Item('Şimdi eşitle', '', () {
-                  return _row(Icons.sync, 'Şimdi eşitle', onTap: () async {
+                _Item(tx('Şimdi eşitle', 'Sync now'), '', () {
+                  return _row(Icons.sync, tx('Şimdi eşitle', 'Sync now'), onTap: () async {
                     await p._syncNow();
-                    p._toast('Eşitlendi');
+                    p._toast(tx('Eşitlendi', 'Synced'));
                   });
                 }),
               ]
@@ -211,17 +211,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
       case 'gorunum':
         return [
           (
-            'Tema',
+            tx('Tema', 'Theme'),
             [
-              _Item('Uygulama teması', 'koyu açık sistem', () {
+              _Item(tx('Uygulama teması', 'App theme'), tx('koyu açık sistem', 'dark light system'), () {
                 final m = themeModeNotifier.value;
-                return _row(Icons.contrast, 'Uygulama teması',
+                return _row(Icons.contrast, tx('Uygulama teması', 'App theme'),
                     trailing: SegmentedButton<ThemeMode>(
                       showSelectedIcon: false,
                       segments: const [
-                        ButtonSegment(value: ThemeMode.system, label: Text('Sistem')),
-                        ButtonSegment(value: ThemeMode.dark, label: Text('Koyu')),
-                        ButtonSegment(value: ThemeMode.light, label: Text('Açık')),
+                        ButtonSegment(value: ThemeMode.system, label: Text(tx('Sistem', 'System'))),
+                        ButtonSegment(value: ThemeMode.dark, label: Text(tx('Koyu', 'Dark'))),
+                        ButtonSegment(value: ThemeMode.light, label: Text(tx('Açık', 'Light'))),
                       ],
                       selected: {m},
                       onSelectionChanged: (s) {
@@ -231,8 +231,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       },
                     ));
               }),
-              _Item('Vurgu rengi', 'renk tema turuncu mor mavi', () {
-                return _row(Icons.palette_outlined, 'Vurgu rengi',
+              _Item(tx('Dil', 'Language'), 'dil language türkçe english ingilizce', () {
+                return _row(Icons.translate, tx('Dil', 'Language'),
+                    sub: L.choice == 'auto'
+                        ? tx('Cihazın diline göre', 'Same as device')
+                        : null,
+                    trailing: SegmentedButton<String>(
+                      showSelectedIcon: false,
+                      segments: [
+                        ButtonSegment(value: 'auto', label: Text(tx('Otomatik', 'Auto'))),
+                        const ButtonSegment(value: 'tr', label: Text('Türkçe')),
+                        const ButtonSegment(value: 'en', label: Text('English')),
+                      ],
+                      selected: {L.choice},
+                      onSelectionChanged: (s) async {
+                        final v = s.first;
+                        L.choice = v;
+                        await p._prefs?.setString('dil', v);
+                        p.setState(() {});
+                        String next = v;
+                        if (v == 'auto') {
+                          final sys = WidgetsBinding.instance.platformDispatcher.locale.languageCode.toLowerCase();
+                          next = sys == 'tr' ? 'tr' : 'en';
+                        }
+                        if (next != L.code) {
+                          p._toast(next == 'en'
+                              ? 'The language will change the next time you open Pusula.'
+                              : 'Dil, Pusula bir sonraki açılışta değişecek.');
+                        }
+                      },
+                    ));
+              }),
+              _Item(tx('Vurgu rengi', 'Accent color'), tx('renk tema turuncu mor mavi', 'color theme orange purple blue'), () {
+                return _row(Icons.palette_outlined, tx('Vurgu rengi', 'Accent color'),
                     sub: accentById(accentNotifier.value).name,
                     trailing: Wrap(spacing: 6, children: [
                       for (final a in kAccents)
@@ -255,13 +286,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                     ]));
               }),
-              _Item('Hazır temalar', 'tema arka plan', () {
+              _Item(tx('Hazır temalar', 'Preset themes'), tx('tema arka plan', 'theme background'), () {
                 return Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Hazır temalar', style: TextStyle(fontWeight: FontWeight.w600, color: OAColors.text, fontSize: 15)),
+                    Text(tx('Hazır temalar', 'Preset themes'), style: TextStyle(fontWeight: FontWeight.w600, color: OAColors.text, fontSize: 15)),
                     const SizedBox(height: 4),
-                    Text('Vurgu rengi ve başlangıç sayfası arka planı birlikte', style: TextStyle(color: OAColors.muted, fontSize: 13)),
+                    Text(tx('Vurgu rengi ve başlangıç sayfası arka planı birlikte', 'Accent color and start page background together'), style: TextStyle(color: OAColors.muted, fontSize: 13)),
                     const SizedBox(height: 10),
                     Wrap(spacing: 8, runSpacing: 8, children: [
                       for (final (name, acc, wall) in kThemePresets)
@@ -275,18 +306,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ]),
                 );
               }),
-              _Item('Bütün siteleri koyu göster', 'karanlık mod',
-                  () => _switch(Icons.dark_mode_outlined, 'Bütün siteleri koyu göster', p._darkAll, p._setDarkAll,
-                      sub: 'Karanlık modu olmayan siteler de koyu görünür')),
+              _Item(tx('Bütün siteleri koyu göster', 'Show all sites dark'), tx('karanlık mod', 'dark mode'),
+                  () => _switch(Icons.dark_mode_outlined, tx('Bütün siteleri koyu göster', 'Show all sites dark'), p._darkAll, p._setDarkAll,
+                      sub: tx('Karanlık modu olmayan siteler de koyu görünür', 'Sites without a dark mode look dark too'))),
             ]
           ),
           if (!mobile)
             (
-              'Fare ve klavye',
+              tx('Fare ve klavye', 'Mouse and keyboard'),
               [
-                _Item('Fare hareketleri', 'gesture sağ tuş', () => _switch(Icons.gesture, 'Fare hareketleri', p._gesturesOn, p._setGestures,
-                    sub: 'Sağ tuşa basılı tutup çek: ← geri, → ileri, ↑ yenile, ↓ sekmeyi kapat')),
-                _Item('Komut kutusu', 'ctrl+k kısayol', () => _row(Icons.bolt, 'Komut kutusu', sub: 'Ctrl+K: komutlara, sekmelere ve ayarlara klavyeden ulaş', onTap: () {
+                _Item(tx('Fare hareketleri', 'Mouse gestures'), tx('gesture sağ tuş', 'gesture right button'), () => _switch(Icons.gesture, tx('Fare hareketleri', 'Mouse gestures'), p._gesturesOn, p._setGestures,
+                    sub: tx('Sağ tuşa basılı tutup çek: ← geri, → ileri, ↑ yenile, ↓ sekmeyi kapat', 'Hold the right button and drag: ← back, → forward, ↑ reload, ↓ close tab'))),
+                _Item(tx('Komut kutusu', 'Command box'), tx('ctrl+k kısayol', 'ctrl+k shortcut'), () => _row(Icons.bolt, tx('Komut kutusu', 'Command box'), sub: tx('Ctrl+K: komutlara, sekmelere ve ayarlara klavyeden ulaş', 'Ctrl+K: reach commands, tabs and settings from the keyboard'), onTap: () {
                       Navigator.pop(context);
                       p._showCommands();
                     })),
@@ -294,11 +325,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           if (!mobile)
             (
-              'Sekmeler',
+              tx('Sekmeler', 'Tabs'),
               [
-                _Item('Dikey sekmeler', 'sekmeler solda panelde',
-                    () => _switch(Icons.view_sidebar_outlined, 'Dikey sekmeler', p._verticalTabs, (_) => p._toggleVerticalTabs(),
-                        sub: 'Sekmeler solda bir panelde dizilir')),
+                _Item(tx('Dikey sekmeler', 'Vertical tabs'), tx('sekmeler solda panelde', 'tabs in a left panel'),
+                    () => _switch(Icons.view_sidebar_outlined, tx('Dikey sekmeler', 'Vertical tabs'), p._verticalTabs, (_) => p._toggleVerticalTabs(),
+                        sub: tx('Sekmeler solda bir panelde dizilir', 'Tabs are listed in a panel on the left'))),
               ]
             ),
         ];
@@ -307,28 +338,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
           (
             null,
             [
-              _Item('Arka plan', 'duvar kağıdı fotoğraf', () => _row(Icons.wallpaper_outlined, 'Arka plan', onTap: p._showWallpaperPicker)),
-              _Item('Saat ve hava durumu', '', () => _switch(Icons.schedule, 'Saat ve hava durumu', p._showClock, (_) => p._toggleClock())),
-              _Item('Hava durumu şehri', 'konum', () {
-                return _row(Icons.location_city_outlined, 'Hava durumu şehri',
-                    trailing: _value(p._wx.city?.name ?? 'Seçilmedi'), onTap: () => pickCity(context, p._wx).then((_) => p.setState(() {})));
+              _Item(tx('Arka plan', 'Background'), tx('duvar kağıdı fotoğraf', 'wallpaper photo'), () => _row(Icons.wallpaper_outlined, tx('Arka plan', 'Background'), onTap: p._showWallpaperPicker)),
+              _Item(tx('Saat ve hava durumu', 'Clock and weather'), '', () => _switch(Icons.schedule, tx('Saat ve hava durumu', 'Clock and weather'), p._showClock, (_) => p._toggleClock())),
+              _Item(tx('Hava durumu şehri', 'Weather city'), 'konum', () {
+                return _row(Icons.location_city_outlined, tx('Hava durumu şehri', 'Weather city'),
+                    trailing: _value(p._wx.city?.name ?? tx('Seçilmedi', 'Not set')), onTap: () => pickCity(context, p._wx).then((_) => p.setState(() {})));
               }),
-              _Item('Döviz ve altın', 'dolar euro gram altın',
-                  () => _switch(Icons.currency_lira, 'Döviz ve altın', p._showMarkets, (_) => p._toggleMarkets(), sub: 'Dolar, euro, gram altın')),
-              _Item('Oyun köşesi', 'epic steam ücretsiz oyun indirim',
-                  () => _switch(Icons.sports_esports_outlined, 'Oyun köşesi', p._showGames, (_) => p._toggleGames(), sub: 'Epic\'te ücretsiz oyunlar, Steam indirimleri')),
-              _Item('Haber akışı', 'haberler', () => _switch(Icons.newspaper_outlined, 'Haber akışı', p._showNews, (_) => p._toggleNews())),
-              _Item('Haber kaynakları', 'rss', () {
+              _Item(tx('Döviz ve altın', 'Currency and gold'), tx('dolar euro gram altın', 'dollar euro gold'),
+                  () => _switch(Icons.currency_lira, tx('Döviz ve altın', 'Currency and gold'), p._showMarkets, (_) => p._toggleMarkets(), sub: tx('Dolar, euro, gram altın', 'Dollar, euro, gold (gram)'))),
+              _Item(tx('Oyun köşesi', 'Game corner'), tx('epic steam ücretsiz oyun indirim', 'epic steam free games deals'),
+                  () => _switch(Icons.sports_esports_outlined, tx('Oyun köşesi', 'Game corner'), p._showGames, (_) => p._toggleGames(), sub: tx('Epic\'te ücretsiz oyunlar, Steam indirimleri', 'Free games on Epic, Steam deals'))),
+              _Item(tx('Haber akışı', 'News feed'), 'haberler', () => _switch(Icons.newspaper_outlined, tx('Haber akışı', 'News feed'), p._showNews, (_) => p._toggleNews())),
+              _Item(tx('Haber kaynakları', 'News sources'), 'rss', () {
                 final on = p._news.sources.where((s) => s.on).toList();
-                return _row(Icons.rss_feed, 'Haber kaynakları',
+                return _row(Icons.rss_feed, tx('Haber kaynakları', 'News sources'),
                     sub: on.map((s) => s.name).take(4).join(', '),
                     trailing: _value('${on.length}'),
                     onTap: () => showNewsSources(context, p._news));
               }),
-              _Item('Hızlı erişime site ekle', 'tablo', () => _row(Icons.add_box_outlined, 'Hızlı erişime site ekle', onTap: () => p._editQuick(null))),
+              _Item(tx('Hızlı erişime site ekle', 'Add a site to quick access'), 'tablo', () => _row(Icons.add_box_outlined, tx('Hızlı erişime site ekle', 'Add a site to quick access'), onTap: () => p._editQuick(null))),
               if (p._hiddenPromos.isNotEmpty)
-                _Item('Gizlenen OA kartlarını geri getir', '', () {
-                  return _row(Icons.view_carousel_outlined, 'Gizlenen OA kartlarını geri getir', onTap: () {
+                _Item(tx('Gizlenen OA kartlarını geri getir', 'Bring back hidden OA cards'), '', () {
+                  return _row(Icons.view_carousel_outlined, tx('Gizlenen OA kartlarını geri getir', 'Bring back hidden OA cards'), onTap: () {
                     p.setState(() => p._hiddenPromos.clear());
                     p._prefs?.setStringList('promo_hidden', []);
                   });
@@ -341,64 +372,64 @@ class _SettingsScreenState extends State<SettingsScreen> {
           (
             null,
             [
-              _Item('Kenar çubuğunu göster', 'dock', () => _switch(Icons.view_sidebar_outlined, 'Kenar çubuğunu göster', p._sidebarOn, (_) => p._toggleSidebar(),
-                  sub: 'Soldaki simgeler; fareyle üzerine gelince büyür')),
+              _Item(tx('Kenar çubuğunu göster', 'Show sidebar'), 'dock', () => _switch(Icons.view_sidebar_outlined, tx('Kenar çubuğunu göster', 'Show sidebar'), p._sidebarOn, (_) => p._toggleSidebar(),
+                  sub: tx('Soldaki simgeler; fareyle üzerine gelince büyür', 'Icons on the left; they grow when you hover'))),
             ]
           ),
           (
-            'Uygulamalar',
+            tx('Uygulamalar', 'Apps'),
             [
               for (final a in p._sideApps)
-                _Item(a.name, 'kenar uygulama', () {
+                _Item(a.name, tx('kenar uygulama', 'sidebar app'), () {
                   final i = p._sideApps.indexOf(a);
                   return ListTile(
                     leading: a.id == kSideRadio
                         ? Icon(Icons.radio_rounded, color: OAColors.amber, size: 28)
                         : SiteIcon(url: a.url, letter: a.name[0], size: 28),
                     title: Text(a.name, style: TextStyle(fontWeight: FontWeight.w600, color: OAColors.text)),
-                    subtitle: Text(a.id == kSideRadio ? 'Uygulamanın kendi radyosu' : (Uri.tryParse(a.url)?.host ?? a.url),
+                    subtitle: Text(a.id == kSideRadio ? tx('Uygulamanın kendi radyosu', "The app's own radio") : (Uri.tryParse(a.url)?.host ?? a.url),
                         style: TextStyle(color: OAColors.muted, fontSize: 13)),
                     trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                      IconButton(tooltip: 'Yukarı', icon: const Icon(Icons.arrow_upward, size: 18), onPressed: i == 0 ? null : () => p._moveSideApp(a, -1)),
+                      IconButton(tooltip: tx('Yukarı', 'Up'), icon: const Icon(Icons.arrow_upward, size: 18), onPressed: i == 0 ? null : () => p._moveSideApp(a, -1)),
                       IconButton(
-                          tooltip: 'Aşağı',
+                          tooltip: tx('Aşağı', 'Down'),
                           icon: const Icon(Icons.arrow_downward, size: 18),
                           onPressed: i == p._sideApps.length - 1 ? null : () => p._moveSideApp(a, 1)),
-                      IconButton(tooltip: 'Kaldır', icon: const Icon(Icons.close, size: 18), onPressed: () => p._removeSideApp(a)),
+                      IconButton(tooltip: tx('Kaldır', 'Remove'), icon: const Icon(Icons.close, size: 18), onPressed: () => p._removeSideApp(a)),
                     ]),
                   );
                 }),
-              _Item('Uygulama ekle', 'telegram discord', () => _row(Icons.add, 'Uygulama ya da site ekle', sub: 'Telegram, Discord, Google Takvim… ya da istediğin site', onTap: p._addSideApp)),
+              _Item(tx('Uygulama ekle', 'Add app'), tx('telegram discord', 'telegram discord'), () => _row(Icons.add, tx('Uygulama ya da site ekle', 'Add an app or site'), sub: tx('Telegram, Discord, Google Takvim… ya da istediğin site', 'Telegram, Discord, Google Calendar… or any site you like'), onTap: p._addSideApp)),
             ]
           ),
         ];
       case 'performans':
         return [
           (
-            'Sekme uyutma',
+            tx('Sekme uyutma', 'Tab sleeping'),
             [
-              _Item('Sekmeleri uyut', 'bellek ram', () {
-                return _row(Icons.bedtime_outlined, 'Kullanılmayan sekmeleri uyut',
-                    sub: 'Uyuyan sekme bellekten çıkar, dokununca yeniden açılır. Ses ya da video çalan sekme uyutulmaz.',
+              _Item(tx('Sekmeleri uyut', 'Put tabs to sleep'), tx('bellek ram', 'memory ram'), () {
+                return _row(Icons.bedtime_outlined, tx('Kullanılmayan sekmeleri uyut', 'Put unused tabs to sleep'),
+                    sub: tx('Uyuyan sekme bellekten çıkar, dokununca yeniden açılır. Ses ya da video çalan sekme uyutulmaz.', "A sleeping tab is removed from memory and reopens when you tap it. Tabs playing audio or video aren't put to sleep."),
                     trailing: DropdownButton<int>(
                       value: p._sleepMinutes,
                       underline: const SizedBox.shrink(),
                       items: const [
-                        DropdownMenuItem(value: 15, child: Text('15 dk sonra')),
-                        DropdownMenuItem(value: 30, child: Text('30 dk sonra')),
-                        DropdownMenuItem(value: 60, child: Text('1 saat sonra')),
-                        DropdownMenuItem(value: 120, child: Text('2 saat sonra')),
-                        DropdownMenuItem(value: 0, child: Text('Hiçbir zaman')),
+                        DropdownMenuItem(value: 15, child: Text(tx('15 dk sonra', 'After 15 min'))),
+                        DropdownMenuItem(value: 30, child: Text(tx('30 dk sonra', 'After 30 min'))),
+                        DropdownMenuItem(value: 60, child: Text(tx('1 saat sonra', 'After 1 hour'))),
+                        DropdownMenuItem(value: 120, child: Text(tx('2 saat sonra', 'After 2 hours'))),
+                        DropdownMenuItem(value: 0, child: Text(tx('Hiçbir zaman', 'Never'))),
                       ],
                       onChanged: (v) {
                         if (v != null) p._setSleepMinutes(v);
                       },
                     ));
               }),
-              _Item('Uyuyan sekmeler', '', () {
-                return _row(Icons.layers_outlined, 'Uyuyan sekmeler',
-                    sub: '${p._tabs.length} sekmeden ${p._sleepingCount} tanesi uykuda',
-                    trailing: TextButton(onPressed: p._sleepOthers, child: const Text('Diğerlerini şimdi uyut')));
+              _Item(tx('Uyuyan sekmeler', 'Sleeping tabs'), '', () {
+                return _row(Icons.layers_outlined, tx('Uyuyan sekmeler', 'Sleeping tabs'),
+                    sub: tx('${p._tabs.length} sekmeden ${p._sleepingCount} tanesi uykuda', '${p._sleepingCount} of ${p._tabs.length} tabs are asleep'),
+                    trailing: TextButton(onPressed: p._sleepOthers, child: Text(tx('Diğerlerini şimdi uyut', 'Put others to sleep now'))));
               }),
             ]
           ),
@@ -408,62 +439,62 @@ class _SettingsScreenState extends State<SettingsScreen> {
           (
             null,
             [
-              _Item('Arama motoru', 'google duckduckgo', () => _row(Icons.travel_explore, 'Arama motoru', trailing: _value(p._engine.name), onTap: p._showSearchSettings)),
-              _Item('Yazarken öneriler', '', () {
-                return _switch(Icons.lightbulb_outline, 'Yazarken öneriler', p._suggestOn, (v) {
+              _Item(tx('Arama motoru', 'Search engine'), 'google duckduckgo', () => _row(Icons.travel_explore, tx('Arama motoru', 'Search engine'), trailing: _value(p._engine.name), onTap: p._showSearchSettings)),
+              _Item(tx('Yazarken öneriler', 'Suggestions while typing'), '', () {
+                return _switch(Icons.lightbulb_outline, tx('Yazarken öneriler', 'Suggestions while typing'), p._suggestOn, (v) {
                   p.setState(() => p._suggestOn = v);
                   p._prefs?.setBool('suggest', v);
-                }, sub: 'Önerileri seçtiğin arama motoru verir');
+                }, sub: tx('Önerileri seçtiğin arama motoru verir', 'Suggestions come from your chosen search engine'));
               }),
               if (mobile)
-                _Item('Sesli arama', 'mikrofon', () => _row(Icons.mic_none, 'Sesli arama', sub: 'Adres çubuğundaki mikrofona dokun', onTap: p._voiceSearch)),
+                _Item(tx('Sesli arama', 'Voice search'), 'mikrofon', () => _row(Icons.mic_none, tx('Sesli arama', 'Voice search'), sub: tx('Adres çubuğundaki mikrofona dokun', 'Tap the microphone in the address bar'), onTap: p._voiceSearch)),
             ]
           ),
         ];
       case 'gizlilik':
         return [
           (
-            'Engelleme',
+            tx('Engelleme', 'Blocking'),
             [
-              _Item('Reklam ve izleyici engelleme', 'reklam', () {
-                return _switch(Icons.shield_outlined, 'Reklam ve izleyici engelleme', p._adblockOn, (v) {
+              _Item(tx('Reklam ve izleyici engelleme', 'Ad and tracker blocking'), 'reklam', () {
+                return _switch(Icons.shield_outlined, tx('Reklam ve izleyici engelleme', 'Ad and tracker blocking'), p._adblockOn, (v) {
                   p._adblockOn = v;
                   p._applyAdblock();
-                }, sub: '${AdBlock.count} alan adı listede');
+                }, sub: tx('${AdBlock.count} alan adı listede', '${AdBlock.count} domains on the list'));
               }),
-              _Item('Çerez pencerelerini reddet', 'çerez', () {
-                return _switch(Icons.cookie_outlined, 'Çerez pencerelerini reddet', p._cookieOn, p._setCookieBlock,
-                    sub: '"Çerezleri kabul et"te reddet / yalnız gerekli');
+              _Item(tx('Çerez pencerelerini reddet', 'Decline cookie pop-ups'), tx('çerez', 'cookie'), () {
+                return _switch(Icons.cookie_outlined, tx('Çerez pencerelerini reddet', 'Decline cookie pop-ups'), p._cookieOn, p._setCookieBlock,
+                    sub: tx('"Çerezleri kabul et"te reddet / yalnız gerekli', 'Picks "Reject" / "Only necessary" on "Accept cookies" pop-ups'));
               }),
               if (p._adblockAllow.isNotEmpty)
-                _Item('Engellemenin kapalı olduğu siteler', '', () {
-                  return _row(Icons.playlist_remove, 'Engellemenin kapalı olduğu siteler',
+                _Item(tx('Engellemenin kapalı olduğu siteler', 'Sites with blocking turned off'), '', () {
+                  return _row(Icons.playlist_remove, tx('Engellemenin kapalı olduğu siteler', 'Sites with blocking turned off'),
                       sub: p._adblockAllow.take(4).join(', '),
                       trailing: TextButton(
                           onPressed: () {
                             p._adblockAllow.clear();
                             p._applyAdblock();
                           },
-                          child: const Text('Hepsini aç')));
+                          child: Text(tx('Hepsini aç', 'Turn all on'))));
                 }),
             ]
           ),
           (
-            'Gizlilik',
+            tx('Gizlilik', 'Privacy'),
             [
-              _Item('Gizli sekme kilidi', 'parmak izi windows hello', () {
-                return _switch(Icons.lock_outline, 'Gizli sekme kilidi', p._incognitoLock, (_) => p._toggleIncognitoLock(),
-                    sub: Platform.isWindows ? 'Windows Hello ile açılır' : 'Parmak izi, yüz ya da ekran kilidiyle açılır');
+              _Item(tx('Gizli sekme kilidi', 'Private tab lock'), tx('parmak izi windows hello', 'fingerprint windows hello'), () {
+                return _switch(Icons.lock_outline, tx('Gizli sekme kilidi', 'Private tab lock'), p._incognitoLock, (_) => p._toggleIncognitoLock(),
+                    sub: Platform.isWindows ? tx('Windows Hello ile açılır', 'Unlocks with Windows Hello') : tx('Parmak izi, yüz ya da ekran kilidiyle açılır', 'Unlocks with fingerprint, face or screen lock'));
               }),
-              _Item('Geçmişi temizle', '', () {
-                return _row(Icons.history, 'Geçmişi temizle',
-                    sub: '${p._history.length} kayıt',
-                    trailing: TextButton(onPressed: p._history.isEmpty ? null : _confirmClearHistory, child: const Text('Temizle')));
+              _Item(tx('Geçmişi temizle', 'Clear history'), '', () {
+                return _row(Icons.history, tx('Geçmişi temizle', 'Clear history'),
+                    sub: tx('${p._history.length} kayıt', '${p._history.length} entries'),
+                    trailing: TextButton(onPressed: p._history.isEmpty ? null : _confirmClearHistory, child: Text(tx('Temizle', 'Clear'))));
               }),
-              _Item('Çerezleri ve site verilerini sil', 'oturumlar', () {
-                return _row(Icons.delete_sweep_outlined, 'Çerezleri ve site verilerini sil',
-                    sub: 'Sitelerdeki oturumların kapanır',
-                    trailing: TextButton(onPressed: _confirmClearCookies, child: const Text('Sil')));
+              _Item(tx('Çerezleri ve site verilerini sil', 'Delete cookies and site data'), 'oturumlar', () {
+                return _row(Icons.delete_sweep_outlined, tx('Çerezleri ve site verilerini sil', 'Delete cookies and site data'),
+                    sub: tx('Sitelerdeki oturumların kapanır', "You'll be signed out of sites"),
+                    trailing: TextButton(onPressed: _confirmClearCookies, child: Text(tx('Sil', 'Delete'))));
               }),
             ]
           ),
@@ -473,23 +504,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
           (
             null,
             [
-              _Item('Kayıtlı şifreler', 'liste', () {
-                return _row(Icons.key_outlined, 'Kayıtlı şifreler',
-                    sub: 'Görmek için kimlik doğrulanır', trailing: _value('${p._passwords.items.length}'), onTap: p._showPasswords);
+              _Item(tx('Kayıtlı şifreler', 'Saved passwords'), 'liste', () {
+                return _row(Icons.key_outlined, tx('Kayıtlı şifreler', 'Saved passwords'),
+                    sub: tx('Görmek için kimlik doğrulanır', "You'll be asked to verify it's you"), trailing: _value('${p._passwords.items.length}'), onTap: p._showPasswords);
               }),
               if (p._passwords.never.isNotEmpty)
-                _Item('"Asla kaydetme" denen siteler', '', () {
-                  return _row(Icons.block, '"Asla kaydetme" denen siteler',
+                _Item(tx('"Asla kaydetme" denen siteler', 'Sites marked "Never save"'), '', () {
+                  return _row(Icons.block, tx('"Asla kaydetme" denen siteler', 'Sites marked "Never save"'),
                       sub: p._passwords.never.map((o) => Uri.tryParse(o)?.host ?? o).take(3).join(', '),
                       trailing: TextButton(
                           onPressed: () async {
                             await p._passwords.clearNever();
                             p.setState(() {});
                           },
-                          child: const Text('Sıfırla')));
+                          child: Text(tx('Sıfırla', 'Reset'))));
                 }),
-              _Item('Chrome / Edge / Firefox\'tan içe aktar', 'yer imleri şifreler',
-                  () => _row(Icons.file_download_outlined, 'Chrome / Edge / Firefox\'tan içe aktar', sub: 'Yer imleri (.html) ve şifreler (.csv)', onTap: p._showImport)),
+              _Item(tx('Chrome / Edge / Firefox\'tan içe aktar', 'Import from Chrome / Edge / Firefox'), tx('yer imleri şifreler', 'bookmarks passwords'),
+                  () => _row(Icons.file_download_outlined, tx('Chrome / Edge / Firefox\'tan içe aktar', 'Import from Chrome / Edge / Firefox'), sub: tx('Yer imleri (.html) ve şifreler (.csv)', 'Bookmarks (.html) and passwords (.csv)'), onTap: p._showImport)),
             ]
           ),
         ];
@@ -497,18 +528,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
         final perms = p._sitePerms();
         return [
           (
-            'İzinler',
+            tx('İzinler', 'Permissions'),
             [
               if (perms.isEmpty)
-                _Item('Site izinleri', '', () => _row(Icons.public, 'Henüz izin verilen ya da engellenen site yok', sub: 'Siteler konum, kamera, bildirim isteyince sorulur')),
+                _Item(tx('Site izinleri', 'Site permissions'), '', () => _row(Icons.public, tx('Henüz izin verilen ya da engellenen site yok', 'No sites allowed or blocked yet'), sub: tx('Siteler konum, kamera, bildirim isteyince sorulur', "You're asked when a site wants location, camera or notifications"))),
               for (final e in perms.entries)
                 _Item(e.key, 'izin', () {
                   final parts = e.key.split('|');
                   return _row(e.value == true ? Icons.check_circle_outline : Icons.block, parts.first,
                       iconColor: e.value == true ? OAColors.green : OAColors.danger,
-                      sub: '${e.value == true ? 'İzin verildi' : 'Engellendi'}: ${parts.length > 1 ? parts[1].toLowerCase().replaceAll('_', ' ') : ''}',
+                      sub: tx('${e.value == true ? 'İzin verildi' : 'Engellendi'}: ${parts.length > 1 ? parts[1].toLowerCase().replaceAll('_', ' ') : ''}', "${e.value == true ? 'Allowed' : 'Blocked'}: ${parts.length > 1 ? parts[1].toLowerCase().replaceAll('_', ' ') : ''}"),
                       trailing: IconButton(
-                        tooltip: 'Kaldır (bir dahaki sefere sorulur)',
+                        tooltip: tx('Kaldır (bir dahaki sefere sorulur)', "Remove (you'll be asked next time)"),
                         icon: const Icon(Icons.close),
                         onPressed: () {
                           final m = p._sitePerms()..remove(e.key);
@@ -520,11 +551,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ]
           ),
           (
-            'Yakınlaştırma',
+            tx('Yakınlaştırma', 'Zoom'),
             [
-              if (p._siteZoom.isEmpty) _Item('Yakınlaştırma', '', () => _row(Icons.zoom_in, 'Bütün siteler %100', sub: 'Bir sitede yakınlaştırınca burada görünür')),
+              if (p._siteZoom.isEmpty) _Item(tx('Yakınlaştırma', 'Zoom'), '', () => _row(Icons.zoom_in, tx('Bütün siteler %100', 'All sites at 100%'), sub: tx('Bir sitede yakınlaştırınca burada görünür', 'Shows up here when you zoom on a site'))),
               for (final e in p._siteZoom.entries)
-                _Item(e.key, 'yakınlaştırma', () {
+                _Item(e.key, tx('yakınlaştırma', 'zoom'), () {
                   return _row(Icons.zoom_in, e.key,
                       trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                         Text('%${e.value}', style: TextStyle(color: OAColors.text2)),
@@ -540,9 +571,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ]
           ),
           (
-            'Koyu gösterilen siteler',
+            tx('Koyu gösterilen siteler', 'Sites shown dark'),
             [
-              if (p._darkSites.isEmpty) _Item('Koyu', '', () => _row(Icons.dark_mode_outlined, 'Yok', sub: 'Menüden "Bu siteyi koyu göster" ile eklenir')),
+              if (p._darkSites.isEmpty) _Item(tx('Koyu', 'Dark'), '', () => _row(Icons.dark_mode_outlined, tx('Yok', 'None'), sub: tx('Menüden "Bu siteyi koyu göster" ile eklenir', 'Added from the menu with "Show this site dark"'))),
               for (final h in p._darkSites.toList())
                 _Item(h, 'koyu', () {
                   return _row(Icons.dark_mode_outlined, h,
@@ -562,9 +593,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           (
             null,
             [
-              _Item('İndirilenler', '', () {
-                return _row(Icons.download_outlined, 'İndirilenleri göster',
-                    sub: mobile ? 'Telefonun İndirilenler klasörüne kaydedilir' : 'Bilgisayarın İndirilenler klasörüne kaydedilir · Ctrl+J',
+              _Item(tx('İndirilenler', 'Downloads'), '', () {
+                return _row(Icons.download_outlined, tx('İndirilenleri göster', 'Show downloads'),
+                    sub: mobile ? tx('Telefonun İndirilenler klasörüne kaydedilir', "Saved to your phone's Downloads folder") : tx('Bilgisayarın İndirilenler klasörüne kaydedilir · Ctrl+J', "Saved to your computer's Downloads folder · Ctrl+J"),
                     onTap: p._showDownloads);
               }),
             ]
@@ -575,11 +606,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           (
             null,
             [
-              _Item('OA Radyo', 'istasyonlar', () => _row(Icons.radio_outlined, 'Radyoyu aç', sub: 'İstasyonlar, arama, favoriler', onTap: p._showRadio)),
-              _Item('Favoriler', '', () => _row(Icons.favorite_border, 'Favori istasyonlar', trailing: Text('${p._radio.favorites.length}', style: TextStyle(color: OAColors.text2)))),
-              _Item('Arka planda', '', () {
-                return _row(Icons.music_note_outlined, mobile ? 'Arka planda çalar' : 'Medya tuşları',
-                    sub: mobile ? 'Uygulamadan çıkınca da çalar; bildirimde kontrol' : 'Klavyedeki oynat/durdur tuşlarıyla kontrol');
+              _Item('OA Radyo', 'istasyonlar', () => _row(Icons.radio_outlined, tx('Radyoyu aç', 'Open radio'), sub: tx('İstasyonlar, arama, favoriler', 'Stations, search, favorites'), onTap: p._showRadio)),
+              _Item(tx('Favoriler', 'Favorites'), '', () => _row(Icons.favorite_border, tx('Favori istasyonlar', 'Favorite stations'), trailing: Text('${p._radio.favorites.length}', style: TextStyle(color: OAColors.text2)))),
+              _Item(tx('Arka planda', 'In the background'), '', () {
+                return _row(Icons.music_note_outlined, mobile ? tx('Arka planda çalar', 'Plays in the background') : tx('Medya tuşları', 'Media keys'),
+                    sub: mobile ? tx('Uygulamadan çıkınca da çalar; bildirimde kontrol', 'Keeps playing after you leave the app; control it from the notification') : tx('Klavyedeki oynat/durdur tuşlarıyla kontrol', "Control with your keyboard's play/pause keys"));
               }),
             ]
           ),
@@ -589,16 +620,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
           (
             null,
             [
-              _Item('Pusula Browser', 'sürüm hakkında oa tarayıcı', () => _row(Icons.info_outline, 'Pusula Browser', sub: 'Sürüm $appVersion · OA Labs')),
-              _Item('Güncellemeleri denetle', '', () => _row(Icons.system_update_outlined, 'Güncellemeleri denetle', onTap: () => p._checkUpdate(manual: true))),
+              _Item('Pusula Browser', tx('sürüm hakkında oa tarayıcı', 'version about oa browser'), () => _row(Icons.info_outline, 'Pusula Browser', sub: tx('Sürüm $appVersion · OA Labs', 'Version $appVersion · OA Labs'))),
+              _Item(tx('Güncellemeleri denetle', 'Check for updates'), '', () => _row(Icons.system_update_outlined, tx('Güncellemeleri denetle', 'Check for updates'), onTap: () => p._checkUpdate(manual: true))),
               _Item('oalabs.dev/tarayici', 'site', () {
                 return _row(Icons.public, 'oalabs.dev/tarayici', onTap: () {
                   Navigator.pop(context);
                   p._addTab(url: 'https://oalabs.dev/tarayici/');
                 });
               }),
-              _Item('Gizlilik politikası', '', () {
-                return _row(Icons.privacy_tip_outlined, 'Gizlilik politikası', onTap: () {
+              _Item(tx('Gizlilik politikası', 'Privacy policy'), '', () {
+                return _row(Icons.privacy_tip_outlined, tx('Gizlilik politikası', 'Privacy policy'), onTap: () {
                   Navigator.pop(context);
                   p._addTab(url: 'https://oalabs.dev/gizlilik/');
                 });
@@ -614,11 +645,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text('Geçmiş temizlensin mi?'),
-        content: Text(p._syncHistory && p._account.signedIn ? 'Geçmiş eşitleniyor: öbür cihazlarından da silinir.' : 'Bu cihazdaki geçmiş silinir.'),
+        title: Text(tx('Geçmiş temizlensin mi?', 'Clear history?')),
+        content: Text(p._syncHistory && p._account.signedIn ? tx('Geçmiş eşitleniyor: öbür cihazlarından da silinir.', 'History is syncing: it will also be deleted from your other devices.') : tx('Bu cihazdaki geçmiş silinir.', 'History on this device will be deleted.')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Vazgeç')),
-          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Temizle')),
+          TextButton(onPressed: () => Navigator.pop(c, false), child: Text(tx('Vazgeç', 'Cancel'))),
+          FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(tx('Temizle', 'Clear'))),
         ],
       ),
     );
@@ -629,11 +660,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text('Çerezler ve site verileri silinsin mi?'),
-        content: const Text('Sitelerdeki oturumların kapanır, site tercihleri silinir. OA Labs hesabın uygulamada açık kalır.'),
+        title: Text(tx('Çerezler ve site verileri silinsin mi?', 'Delete cookies and site data?')),
+        content: Text(tx('Sitelerdeki oturumların kapanır, site tercihleri silinir. OA Labs hesabın uygulamada açık kalır.', "You'll be signed out of sites and site preferences will be deleted. Your OA Labs account stays signed in in the app.")),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Vazgeç')),
-          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Sil')),
+          TextButton(onPressed: () => Navigator.pop(c, false), child: Text(tx('Vazgeç', 'Cancel'))),
+          FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(tx('Sil', 'Delete'))),
         ],
       ),
     );
@@ -642,7 +673,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await oaCookies().deleteAllCookies();
     } catch (_) {}
     await p._account.syncToWebView();
-    p._toast('Çerezler ve site verileri silindi');
+    p._toast(tx('Çerezler ve site verileri silindi', 'Cookies and site data deleted'));
   }
 
   // ------------------------------------------------------------- Ekran
@@ -665,7 +696,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (out.isEmpty) {
       out.add(Padding(
         padding: const EdgeInsets.all(24),
-        child: Text('"$_q" için ayar bulunamadı', textAlign: TextAlign.center, style: TextStyle(color: OAColors.muted)),
+        child: Text(tx('"$_q" için ayar bulunamadı', 'No settings found for "$_q"'), textAlign: TextAlign.center, style: TextStyle(color: OAColors.muted)),
       ));
     }
     return out;
@@ -679,7 +710,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           onChanged: (v) => setState(() => _q = v.trim()),
           style: TextStyle(color: OAColors.text, fontSize: 14),
           decoration: InputDecoration(
-            hintText: 'Ayarlarda ara',
+            hintText: tx('Ayarlarda ara', 'Search settings'),
             prefixIcon: Icon(Icons.search, size: 18, color: OAColors.muted),
             suffixIcon: _q.isEmpty
                 ? null
@@ -731,11 +762,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   decoration: BoxDecoration(color: OAColors.bg2, border: Border(bottom: BorderSide(color: OAColors.line))),
                   child: Row(children: [
-                    IconButton(tooltip: 'Geri', icon: const Icon(Icons.arrow_back), onPressed: _back),
+                    IconButton(tooltip: tx('Geri', 'Back'), icon: const Icon(Icons.arrow_back), onPressed: _back),
                     const SizedBox(width: 4),
                     Expanded(
                       child: Text(
-                        !wide && section != null && _q.isEmpty ? section.name : 'Ayarlar',
+                        !wide && section != null && _q.isEmpty ? section.name : tx('Ayarlar', 'Settings'),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: oaDisplay(22),
@@ -743,7 +774,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     if (wide) _searchField(width: 280),
                     if (wide) const SizedBox(width: 8),
-                    IconButton(tooltip: 'Kapat (Esc)', icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
+                    IconButton(tooltip: tx('Kapat (Esc)', 'Close (Esc)'), icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
                   ]),
                 ),
                 Expanded(child: wide ? _wideBody(section!) : _narrowBody(section)),

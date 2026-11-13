@@ -10,6 +10,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
+import 'i18n.dart';
 /// OA Labs üyeliği (oalabs.dev ile aynı hesap).
 ///
 /// Sunucu: api.oalabs.dev (radyo-app deposu, server/src/auth.js). Giriş şifresiz:
@@ -39,24 +40,24 @@ class OAUser {
 
 /// Sunucunun hata kodları için sitedeki metinlerin aynısı.
 const _errors = <String, String>{
-  'eposta': 'Bu e-posta adresi geçerli görünmüyor.',
-  'ad': 'Adını ve soyadını yaz.',
-  'onay': 'Üye olmak için aydınlatma metnini onaylaman gerekiyor.',
-  'uye-yok': 'Bu e-postayla bir üyelik bulamadık. Üye olmak ister misin?',
-  'uye-var': 'Bu e-postayla zaten bir üyelik var.',
-  'bekle': 'Az önce bir kod gönderdik. Bir dakika sonra yeniden isteyebilirsin.',
-  'cok': 'Çok fazla deneme oldu, biraz sonra tekrar dene.',
-  'kod': 'Kod yanlış. E-postadaki 6 haneli kodu kontrol et.',
-  'sure': 'Kodun süresi doldu. Yeni bir kod iste.',
-  'deneme': 'Çok fazla yanlış deneme oldu. Yeni bir kod iste.',
-  'kapali': 'Üyelik çok yakında açılıyor. Biraz sonra tekrar dene.',
-  'gonderilemedi': 'E-posta gönderilemedi, biraz sonra tekrar dene.',
-  'giris': 'Oturumun kapanmış. Yeniden giriş yap.',
-  'ag': 'Sunucuya ulaşılamadı. İnternet bağlantını kontrol et.',
+  'eposta': tx('Bu e-posta adresi geçerli görünmüyor.', "This email address doesn't look valid."),
+  'ad': tx('Adını ve soyadını yaz.', 'Enter your first and last name.'),
+  'onay': tx('Üye olmak için aydınlatma metnini onaylaman gerekiyor.', 'To sign up, you need to accept the privacy notice.'),
+  'uye-yok': tx('Bu e-postayla bir üyelik bulamadık. Üye olmak ister misin?', "We couldn't find an account with this email. Would you like to sign up?"),
+  'uye-var': tx('Bu e-postayla zaten bir üyelik var.', 'An account with this email already exists.'),
+  'bekle': tx('Az önce bir kod gönderdik. Bir dakika sonra yeniden isteyebilirsin.', 'We just sent a code. You can request a new one in a minute.'),
+  'cok': tx('Çok fazla deneme oldu, biraz sonra tekrar dene.', 'Too many attempts. Try again in a little while.'),
+  'kod': tx('Kod yanlış. E-postadaki 6 haneli kodu kontrol et.', 'Wrong code. Check the 6-digit code in the email.'),
+  'sure': tx('Kodun süresi doldu. Yeni bir kod iste.', 'The code has expired. Request a new one.'),
+  'deneme': tx('Çok fazla yanlış deneme oldu. Yeni bir kod iste.', 'Too many wrong attempts. Request a new code.'),
+  'kapali': tx('Üyelik çok yakında açılıyor. Biraz sonra tekrar dene.', 'Sign-up opens very soon. Try again in a little while.'),
+  'gonderilemedi': tx('E-posta gönderilemedi, biraz sonra tekrar dene.', "The email couldn't be sent. Try again in a little while."),
+  'giris': tx('Oturumun kapanmış. Yeniden giriş yap.', "You've been signed out. Sign in again."),
+  'ag': tx('Sunucuya ulaşılamadı. İnternet bağlantını kontrol et.', "Couldn't reach the server. Check your internet connection."),
 };
 
 String accountError(String? code) =>
-    _errors[code] ?? 'Bir sorun çıktı, biraz sonra tekrar dene.';
+    _errors[code] ?? tx('Bir sorun çıktı, biraz sonra tekrar dene.', 'Something went wrong. Try again in a little while.');
 
 class AccountResult {
   const AccountResult(this.ok, {this.error, this.created = false});
@@ -170,7 +171,7 @@ class OAAccount extends ChangeNotifier {
           : await http
               .post(uri,
                   headers: _headers(json: true, as: as),
-                  body: jsonEncode({'lang': 'tr', ...body}))
+                  body: jsonEncode({'lang': L.code, ...body}))
               .timeout(const Duration(seconds: 12));
       if (as == null) _readCookie(res.headers['set-cookie']);
       final data = jsonDecode(utf8.decode(res.bodyBytes));

@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'oa_theme.dart';
 
+import 'i18n.dart';
 // Başlangıç sayfasındaki döviz ve altın kartı: dolar, euro, gram altın (TL).
 // Kaynak: Truncgil Finans (anlık, ücretsiz); ulaşılamazsa dolar ve euro için Avrupa Merkez Bankası
 // kurları (frankfurter.dev).
@@ -76,7 +77,7 @@ class MarketService extends ChangeNotifier {
       final r = await http.get(Uri.parse('https://finans.truncgil.com/today.json')).timeout(const Duration(seconds: 8));
       if (r.statusCode == 200) {
         final j = jsonDecode(utf8.decode(r.bodyBytes)) as Map;
-        for (final (key, label) in [('USD', 'Dolar'), ('EUR', 'Euro'), ('gram-altin', 'Gram altın')]) {
+        for (final (key, label) in [('USD', tx('Dolar', 'Dollar')), ('EUR', 'Euro'), ('gram-altin', tx('Gram altın', 'Gold (gram)'))]) {
           final m = j[key] ?? j[key.toUpperCase()];
           if (m is! Map) continue;
           final v = _num(_field(m, ['Satış', 'Satis', 'satis', 'Selling', 'selling']));
@@ -92,9 +93,9 @@ class MarketService extends ChangeNotifier {
             .timeout(const Duration(seconds: 8));
         if (r.statusCode == 200) {
           final rates = (jsonDecode(r.body) as Map)['rates'] as Map;
-          final gold = q.where((e) => e.label == 'Gram altın').toList();
+          final gold = q.where((e) => e.label == tx('Gram altın', 'Gold (gram)')).toList();
           q = [
-            if (rates['USD'] != null) Quote('Dolar', 1 / (rates['USD'] as num).toDouble(), null),
+            if (rates['USD'] != null) Quote(tx('Dolar', 'Dollar'), 1 / (rates['USD'] as num).toDouble(), null),
             if (rates['EUR'] != null) Quote('Euro', 1 / (rates['EUR'] as num).toDouble(), null),
             ...gold,
           ];

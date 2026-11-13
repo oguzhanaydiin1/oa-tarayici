@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'oa_theme.dart';
 
+import 'i18n.dart';
 // Oyun köşesi (başlangıç sayfası): Epic Games Store'da şu an ücretsiz olan ve yakında ücretsiz
 // olacak oyunlar ile Steam'deki öne çıkan indirimler. Mağazaların herkese açık verileri kullanılır.
 
@@ -50,7 +51,7 @@ class GameDeal {
       );
 }
 
-const _months = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+final _months = [tx('Oca', 'Jan'), tx('Şub', 'Feb'), tx('Mar', 'Mar'), tx('Nis', 'Apr'), tx('May', 'May'), tx('Haz', 'Jun'), tx('Tem', 'Jul'), tx('Ağu', 'Aug'), tx('Eyl', 'Sep'), tx('Eki', 'Oct'), tx('Kas', 'Nov'), tx('Ara', 'Dec')];
 String _day(DateTime d) => '${d.toLocal().day} ${_months[d.toLocal().month - 1]}';
 
 class GameService extends ChangeNotifier {
@@ -137,14 +138,14 @@ class GameService extends ChangeNotifier {
         final end = DateTime.tryParse(cur['endDate']?.toString() ?? '');
         now.add(GameDeal(
           title: title, url: url, image: image, store: 'epic',
-          price: 'Ücretsiz', oldPrice: old?['originalPrice']?.toString() ?? '', discount: 100,
-          note: end != null ? '${_day(end)} tarihine kadar' : '',
+          price: tx('Ücretsiz', 'Free'), oldPrice: old?['originalPrice']?.toString() ?? '', discount: 100,
+          note: end != null ? tx('${_day(end)} tarihine kadar', 'until ${_day(end)}') : '',
         ));
       } else if (next != null) {
         final start = DateTime.tryParse(next['startDate']?.toString() ?? '');
         soon.add(GameDeal(
           title: title, url: url, image: image, store: 'epic', upcoming: true,
-          price: 'Yakında ücretsiz', note: start != null ? '${_day(start)} tarihinde' : '',
+          price: tx('Yakında ücretsiz', 'Free soon'), note: start != null ? tx('${_day(start)} tarihinde', '${_day(start)}') : '',
         ));
       }
     }
@@ -189,7 +190,7 @@ class GameService extends ChangeNotifier {
         discount: pct,
         price: _money((e['final_price'] as num?) ?? 0, cur),
         oldPrice: _money((e['original_price'] as num?) ?? 0, cur),
-        note: end != null ? '${_day(DateTime.fromMillisecondsSinceEpoch(end * 1000))} tarihine kadar' : '',
+        note: end != null ? tx('${_day(DateTime.fromMillisecondsSinceEpoch(end * 1000))} tarihine kadar', 'until ${_day(DateTime.fromMillisecondsSinceEpoch(end * 1000))}') : '',
       ));
       if (out.length >= 12) break;
     }
@@ -275,7 +276,7 @@ class _GameCornerState extends State<GameCorner> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        g.upcoming ? 'Yakında' : (free ? 'ÜCRETSİZ' : '-%${g.discount}'),
+                        g.upcoming ? tx('Yakında', 'Coming soon') : (free ? tx('ÜCRETSİZ', 'FREE') : '-%${g.discount}'),
                         style: TextStyle(
                           color: g.upcoming ? OAColors.text : (free ? OAColors.amberInk : Colors.white),
                           fontWeight: FontWeight.w800,
@@ -340,9 +341,9 @@ class _GameCornerState extends State<GameCorner> {
           Row(children: [
             Icon(Icons.sports_esports_outlined, size: 20, color: OAColors.amber),
             const SizedBox(width: 8),
-            Expanded(child: Text('Oyun köşesi', style: oaDisplay(widget.compact ? 18 : 20))),
-            seg('epic', 'Epic ücretsiz', epic.length),
-            seg('steam', 'Steam indirim', steam.length),
+            Expanded(child: Text(tx('Oyun köşesi', 'Game corner'), style: oaDisplay(widget.compact ? 18 : 20))),
+            seg('epic', tx('Epic ücretsiz', 'Epic free'), epic.length),
+            seg('steam', tx('Steam indirim', 'Steam deals'), steam.length),
           ]),
           const SizedBox(height: 10),
           SizedBox(

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'account.dart';
 import 'oa_theme.dart';
 
+import 'i18n.dart';
 /// Giriş / üye ol penceresini açar: telefonda alttan, bilgisayarda ortada.
 Future<void> showSignIn(
   BuildContext context,
@@ -84,7 +85,7 @@ class _SignInFormState extends State<_SignInForm> {
     if (!mounted) return;
     setState(() => _busy = false);
     if (r.ok) {
-      _show('Giriş yapıldı!', ok: true);
+      _show(tx('Giriş yapıldı!', 'Signed in!'), ok: true);
       await Future.delayed(const Duration(milliseconds: 700));
       if (mounted) Navigator.of(context).pop();
     } else if (r.error != null) {
@@ -117,7 +118,7 @@ class _SignInFormState extends State<_SignInForm> {
       if (_register && !_consent) return _show(accountError('onay'));
     }
     setState(() => _busy = true);
-    _show('Gönderiliyor…');
+    _show(tx('Gönderiliyor…', 'Sending…'));
     final r = await widget.account.start(
       register: _register,
       email: email,
@@ -132,7 +133,7 @@ class _SignInFormState extends State<_SignInForm> {
         _codeStep = true;
         _code.clear();
       });
-      _show(resend ? 'Yeni kod gönderildi.' : null, ok: true);
+      _show(resend ? tx('Yeni kod gönderildi.', 'New code sent.') : null, ok: true);
     } else {
       _show(r.message, code: r.error);
     }
@@ -142,12 +143,12 @@ class _SignInFormState extends State<_SignInForm> {
     final code = _code.text.trim();
     if (code.length != 6) return _show(accountError('kod'));
     setState(() => _busy = true);
-    _show('Kontrol ediliyor…');
+    _show(tx('Kontrol ediliyor…', 'Checking…'));
     final r = await widget.account.verify(_email.text, code);
     if (!mounted) return;
     setState(() => _busy = false);
     if (r.ok) {
-      _show(r.created ? 'Üyeliğin açıldı!' : 'Giriş yapıldı!', ok: true);
+      _show(r.created ? tx('Üyeliğin açıldı!', 'Your account is ready!') : tx('Giriş yapıldı!', 'Signed in!'), ok: true);
       await Future.delayed(const Duration(milliseconds: 700));
       if (mounted) Navigator.of(context).pop();
     } else {
@@ -169,7 +170,7 @@ class _SignInFormState extends State<_SignInForm> {
             Text('OA Labs', style: oaDisplay(20)),
             const Spacer(),
             IconButton(
-              tooltip: 'Kapat',
+              tooltip: tx('Kapat', 'Close'),
               icon: const Icon(Icons.close),
               onPressed: () => Navigator.of(context).pop(),
             ),
@@ -177,14 +178,14 @@ class _SignInFormState extends State<_SignInForm> {
         ),
         const SizedBox(height: 16),
         Text(
-          _codeStep ? 'Kodu yaz' : (_register ? 'OA Labs\'e üye ol' : 'Giriş yap'),
+          _codeStep ? tx('Kodu yaz', 'Enter the code') : (_register ? tx('OA Labs\'e üye ol', 'Join OA Labs') : tx('Giriş yap', 'Sign in')),
           style: oaDisplay(30),
         ),
         const SizedBox(height: 8),
         Text(
           _codeStep
-              ? 'Gelmediyse gereksiz (spam) klasörüne bak.'
-              : 'Ücretsiz ve şifresiz: e-postana gelen kodla giriş yaparsın. Sitedeki hesabınla aynı.',
+              ? tx('Gelmediyse gereksiz (spam) klasörüne bak.', "If it didn't arrive, check your spam folder.")
+              : tx('Ücretsiz ve şifresiz: e-postana gelen kodla giriş yaparsın. Sitedeki hesabınla aynı.', 'Free and password-free: you sign in with a code sent to your email. Same as your account on the website.'),
           style: TextStyle(color: OAColors.text2, fontSize: 15, height: 1.5),
         ),
         const SizedBox(height: 20),
@@ -201,17 +202,17 @@ class _SignInFormState extends State<_SignInForm> {
         if (_center && !_register) ...[
           FilledButton(
             onPressed: _busy ? null : _withCenter,
-            child: const Text('OA Labs Center ile giriş yap'),
+            child: Text(tx('OA Labs Center ile giriş yap', 'Sign in with OA Labs Center')),
           ),
           const SizedBox(height: 8),
-          Text('Telefonundaki OA Labs Center hesabınla, kod beklemeden.',
+          Text(tx('Telefonundaki OA Labs Center hesabınla, kod beklemeden.', 'With your OA Labs Center account on your phone, no code needed.'),
               textAlign: TextAlign.center, style: TextStyle(color: OAColors.muted, fontSize: 13)),
           const SizedBox(height: 18),
           Row(children: [
             Expanded(child: Divider(color: OAColors.line)),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Text('ya da e-postayla', style: TextStyle(color: OAColors.muted, fontSize: 13)),
+              child: Text(tx('ya da e-postayla', 'or with email'), style: TextStyle(color: OAColors.muted, fontSize: 13)),
             ),
             Expanded(child: Divider(color: OAColors.line)),
           ]),
@@ -220,7 +221,7 @@ class _SignInFormState extends State<_SignInForm> {
         _tabs(),
         const SizedBox(height: 20),
         if (_register) ...[
-          _label('Ad soyad'),
+          _label(tx('Ad soyad', 'Full name')),
           TextField(
             controller: _name,
             textCapitalization: TextCapitalization.words,
@@ -247,7 +248,7 @@ class _SignInFormState extends State<_SignInForm> {
             (v) => setState(() => _consent = v),
             TextSpan(children: [
               TextSpan(
-                text: 'Üyelik aydınlatma metnini',
+                text: tx('Üyelik aydınlatma metnini', 'I have read the membership privacy notice'),
                 style: TextStyle(
                     color: OAColors.accent,
                     decoration: TextDecoration.underline,
@@ -258,23 +259,23 @@ class _SignInFormState extends State<_SignInForm> {
                     widget.openUrl('${OAAccount.site}/gizlilik/#uyelik');
                   },
               ),
-              const TextSpan(
+               TextSpan(
                   text:
-                      ' okudum; adımın ve e-posta adresimin üyelik için işlenmesini kabul ediyorum.'),
+                      tx(' okudum; adımın ve e-posta adresimin üyelik için işlenmesini kabul ediyorum.', ' and agree to my name and email address being processed for my membership.')),
             ]),
           ),
           _check(
             _announce,
             (v) => setState(() => _announce = v),
-            const TextSpan(
+             TextSpan(
                 text:
-                    'Yeni uygulamalar ve önemli güncellemeler için e-posta almak istiyorum. (İsteğe bağlı, istediğin zaman kapatabilirsin.)'),
+                    tx('Yeni uygulamalar ve önemli güncellemeler için e-posta almak istiyorum. (İsteğe bağlı, istediğin zaman kapatabilirsin.)', "I'd like to get emails about new apps and important updates. (Optional; you can turn this off any time.)")),
           ),
         ],
         const SizedBox(height: 18),
         FilledButton(
           onPressed: _busy ? null : _send,
-          child: const Text('Kod gönder'),
+          child: Text(tx('Kod gönder', 'Send code')),
         ),
       ];
 
@@ -284,12 +285,12 @@ class _SignInFormState extends State<_SignInForm> {
             TextSpan(
                 text: _email.text.trim(),
                 style: TextStyle(color: OAColors.text, fontWeight: FontWeight.w600)),
-            const TextSpan(text: ' adresine 6 haneli bir kod gönderdik.'),
+             TextSpan(text: tx(' adresine 6 haneli bir kod gönderdik.', ' — we sent a 6-digit code to this address.')),
           ]),
           style: TextStyle(color: OAColors.text2, fontSize: 15),
         ),
         const SizedBox(height: 16),
-        _label('Kod'),
+        _label(tx('Kod', 'Code')),
         TextField(
           controller: _code,
           autofocus: true,
@@ -308,11 +309,11 @@ class _SignInFormState extends State<_SignInForm> {
           decoration: _box(radius: OARadius.md),
         ),
         const SizedBox(height: 6),
-        Text('Kod 10 dakika geçerli.', style: TextStyle(color: OAColors.faint, fontSize: 13)),
+        Text(tx('Kod 10 dakika geçerli.', 'The code is valid for 10 minutes.'), style: TextStyle(color: OAColors.faint, fontSize: 13)),
         const SizedBox(height: 18),
         FilledButton(
           onPressed: _busy ? null : _verify,
-          child: const Text('Onayla'),
+          child: Text(tx('Onayla', 'Confirm')),
         ),
         const SizedBox(height: 10),
         Wrap(
@@ -320,7 +321,7 @@ class _SignInFormState extends State<_SignInForm> {
           children: [
             TextButton(
                 onPressed: _busy ? null : () => _send(resend: true),
-                child: const Text('Kodu yeniden gönder')),
+                child: Text(tx('Kodu yeniden gönder', 'Resend code'))),
             TextButton(
                 onPressed: _busy
                     ? null
@@ -328,7 +329,7 @@ class _SignInFormState extends State<_SignInForm> {
                           _codeStep = false;
                           _msg = null;
                         }),
-                child: const Text('E-postayı değiştir')),
+                child: Text(tx('E-postayı değiştir', 'Change email'))),
           ],
         ),
       ];
@@ -363,12 +364,12 @@ class _SignInFormState extends State<_SignInForm> {
       ),
       child: Row(
         children: [
-          tab('Giriş yap', !_register, () => setState(() {
+          tab(tx('Giriş yap', 'Sign in'), !_register, () => setState(() {
                 _register = false;
                 _msg = null;
               })),
           const SizedBox(width: 4),
-          tab('Üye ol', _register, () => setState(() {
+          tab(tx('Üye ol', 'Sign up'), _register, () => setState(() {
                 _register = true;
                 _msg = null;
               })),
@@ -421,11 +422,11 @@ class _SignInFormState extends State<_SignInForm> {
   }
 
   Widget _message() {
-    final err = !_msgOk && _msg != 'Gönderiliyor…' && _msg != 'Kontrol ediliyor…';
+    final err = !_msgOk && _msg != tx('Gönderiliyor…', 'Sending…') && _msg != tx('Kontrol ediliyor…', 'Checking…');
     final switchTo = _errorCode == 'uye-yok'
-        ? 'Üye ol'
+        ? tx('Üye ol', 'Sign up')
         : _errorCode == 'uye-var'
-            ? 'Giriş yap'
+            ? tx('Giriş yap', 'Sign in')
             : null;
     return Wrap(
       crossAxisAlignment: WrapCrossAlignment.center,
@@ -494,14 +495,14 @@ class AccountSummary extends StatelessWidget {
         OutlinedButton.icon(
           onPressed: onManage,
           icon: const Icon(Icons.manage_accounts_outlined, size: 20),
-          label: const Text('Hesabımı yönet'),
+          label: Text(tx('Hesabımı yönet', 'Manage my account')),
           style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48)),
         ),
         const SizedBox(height: 8),
         TextButton.icon(
           onPressed: onLogout,
           icon: Icon(Icons.logout, size: 20, color: OAColors.danger),
-          label: Text('Çıkış yap', style: TextStyle(color: OAColors.danger)),
+          label: Text(tx('Çıkış yap', 'Sign out'), style: TextStyle(color: OAColors.danger)),
         ),
       ],
     );

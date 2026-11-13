@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 
 import 'oa_theme.dart';
 
+import 'i18n.dart';
 // OA Akış: aynı hesapla giriş yapılmış cihazlar arasında not, bağlantı, fotoğraf ve küçük
 // dosya gönderme. Gönderilenler alıcının "inbox:<cihaz>" kaydına yazılır; alıcı açılınca alır,
 // dosyaları İndirilenler'e kaydeder ve kaydı boşaltır. Bu cihazdaki akış geçmişi yalnız burada tutulur.
@@ -34,7 +35,7 @@ String flowMime(String name) {
 String flowSize(num b) {
   if (b < 1024) return '$b B';
   if (b < 1024 * 1024) return '${(b / 1024).toStringAsFixed(0)} KB';
-  return '${(b / 1024 / 1024).toStringAsFixed(1).replaceAll('.', ',')} MB';
+  return tx('${(b / 1024 / 1024).toStringAsFixed(1).replaceAll('.', ',')} MB', '${(b / 1024 / 1024).toStringAsFixed(1)} MB');
 }
 
 /// Yazılan metin tek bir bağlantıysa onu döndürür.
@@ -110,7 +111,7 @@ class _FlowSheetState extends State<FlowSheet> {
     final ok = await widget.onSend(d, item);
     if (!mounted) return;
     setState(() => _busy = false);
-    if (!ok) _say('Gönderilemedi, internet bağlantını kontrol et');
+    if (!ok) _say(tx('Gönderilemedi, internet bağlantını kontrol et', "Couldn't send. Check your internet connection"));
   }
 
   Future<void> _sendText() async {
@@ -129,7 +130,7 @@ class _FlowSheetState extends State<FlowSheet> {
     final bytes = f.bytes ?? (f.path != null ? await File(f.path!).readAsBytes() : null);
     if (bytes == null) return;
     if (bytes.length > kFlowFileMax) {
-      _say('Dosya çok büyük: en çok ${flowSize(kFlowFileMax)} gönderilebilir (bu dosya ${flowSize(bytes.length)})');
+      _say(tx('Dosya çok büyük: en çok ${flowSize(kFlowFileMax)} gönderilebilir (bu dosya ${flowSize(bytes.length)})', 'File too large: up to ${flowSize(kFlowFileMax)} can be sent (this file is ${flowSize(bytes.length)})'));
       return;
     }
     await _send({'k': 'file', 'n': f.name, 'm': flowMime(f.name), 's': bytes.length, 'd': base64Encode(bytes), 'p': f.path});
@@ -141,7 +142,7 @@ class _FlowSheetState extends State<FlowSheet> {
     final at = DateTime.fromMillisecondsSinceEpoch((m['at'] as num?)?.toInt() ?? 0);
     String two(int v) => v.toString().padLeft(2, '0');
     final when = '${two(at.day)}.${two(at.month)} ${two(at.hour)}:${two(at.minute)}';
-    final who = out ? '→ ${m['to'] ?? ''}' : '${m['from'] ?? 'Öbür cihaz'}';
+    final who = out ? '→ ${m['to'] ?? ''}' : '${m['from'] ?? tx('Öbür cihaz', 'Other device')}';
     Widget body;
     VoidCallback? tap;
     if (kind == 'note') {
@@ -154,10 +155,10 @@ class _FlowSheetState extends State<FlowSheet> {
             style: TextButton.styleFrom(visualDensity: VisualDensity.compact, padding: const EdgeInsets.symmetric(horizontal: 6)),
             onPressed: () {
               Clipboard.setData(ClipboardData(text: x));
-              _say('Kopyalandı');
+              _say(tx('Kopyalandı', 'Copied'));
             },
             icon: const Icon(Icons.copy, size: 15),
-            label: const Text('Kopyala'),
+            label: Text(tx('Kopyala', 'Copy')),
           ),
         ),
       ]);
@@ -183,10 +184,10 @@ class _FlowSheetState extends State<FlowSheet> {
           const SizedBox(width: 8),
           Flexible(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(m['n']?.toString() ?? 'dosya',
+              Text(m['n']?.toString() ?? tx('dosya', 'file'),
                   maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: OAColors.text, fontWeight: FontWeight.w600)),
               Text(
-                  '${flowSize((m['s'] as num?) ?? 0)}${exists ? (out ? '' : ' · İndirilenler') : ' · dosya artık burada değil'}',
+                  tx('${flowSize((m['s'] as num?) ?? 0)}${exists ? (out ? '' : ' · İndirilenler') : ' · dosya artık burada değil'}', "${flowSize((m['s'] as num?) ?? 0)}${exists ? (out ? '' : ' · Downloads') : ' · file is no longer here'}"),
                   style: TextStyle(color: OAColors.muted, fontSize: 12)),
             ]),
           ),
@@ -248,15 +249,15 @@ class _FlowSheetState extends State<FlowSheet> {
           child: Row(children: [
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('OA Akış', style: oaDisplay(24)),
-                Text('Cihazların arasında not, bağlantı, fotoğraf ve dosya', style: TextStyle(color: OAColors.muted, fontSize: 13)),
+                Text(tx('OA Akış', 'OA Flow'), style: oaDisplay(24)),
+                Text(tx('Cihazların arasında not, bağlantı, fotoğraf ve dosya', 'Notes, links, photos and files between your devices'), style: TextStyle(color: OAColors.muted, fontSize: 13)),
               ]),
             ),
             PopupMenuButton<String>(
               onSelected: (v) {
                 if (v == 'clear') widget.onClear();
               },
-              itemBuilder: (_) => const [PopupMenuItem(value: 'clear', child: Text('Bu cihazdaki akış geçmişini temizle'))],
+              itemBuilder: (_) => const [PopupMenuItem(value: 'clear', child: Text(tx('Bu cihazdaki akış geçmişini temizle', 'Clear flow history on this device')))],
             ),
             IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
           ]),
@@ -264,7 +265,7 @@ class _FlowSheetState extends State<FlowSheet> {
         if (widget.devices.isEmpty)
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 6, 20, 6),
-            child: Text('Başka cihaz bulunamadı. Öbür cihazda Pusula\'yı açıp aynı hesapla giriş yap.',
+            child: Text(tx('Başka cihaz bulunamadı. Öbür cihazda Pusula\'yı açıp aynı hesapla giriş yap.', 'No other device found. Open Pusula on your other device and sign in with the same account.'),
                 style: TextStyle(color: OAColors.muted)),
           )
         else
@@ -299,7 +300,7 @@ class _FlowSheetState extends State<FlowSheet> {
                     child: Column(mainAxisSize: MainAxisSize.min, children: [
                       Icon(Icons.swap_horiz_rounded, size: 44, color: OAColors.faint),
                       const SizedBox(height: 10),
-                      Text('Henüz bir şey gönderilmedi.\nAşağıya bir not ya da bağlantı yaz, ya da dosya ekle.',
+                      Text(tx('Henüz bir şey gönderilmedi.\nAşağıya bir not ya da bağlantı yaz, ya da dosya ekle.', 'Nothing sent yet.\nType a note or link below, or attach a file.'),
                           textAlign: TextAlign.center, style: TextStyle(color: OAColors.muted)),
                     ]),
                   ),
@@ -321,12 +322,12 @@ class _FlowSheetState extends State<FlowSheet> {
             top: false,
             child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
               IconButton(
-                tooltip: 'Fotoğraf gönder',
+                tooltip: tx('Fotoğraf gönder', 'Send photo'),
                 onPressed: _to == null || _busy ? null : () => _pick(image: true),
                 icon: const Icon(Icons.image_outlined),
               ),
               IconButton(
-                tooltip: 'Dosya gönder (en çok ${flowSize(kFlowFileMax)})',
+                tooltip: tx('Dosya gönder (en çok ${flowSize(kFlowFileMax)})', 'Send file (up to ${flowSize(kFlowFileMax)})'),
                 onPressed: _to == null || _busy ? null : () => _pick(image: false),
                 icon: const Icon(Icons.attach_file),
               ),
@@ -338,7 +339,7 @@ class _FlowSheetState extends State<FlowSheet> {
                   enabled: _to != null,
                   textInputAction: TextInputAction.newline,
                   decoration: InputDecoration(
-                    hintText: _to == null ? 'Gönderilecek cihaz yok' : '${_to!.name} cihazına not ya da bağlantı',
+                    hintText: _to == null ? tx('Gönderilecek cihaz yok', 'No device to send to') : tx('${_to!.name} cihazına not ya da bağlantı', 'Note or link to ${_to!.name}'),
                     isDense: true,
                     filled: true,
                     fillColor: OAColors.bg2,
@@ -352,7 +353,7 @@ class _FlowSheetState extends State<FlowSheet> {
               _busy
                   ? const Padding(padding: EdgeInsets.all(12), child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4)))
                   : IconButton.filled(
-                      tooltip: 'Gönder',
+                      tooltip: tx('Gönder', 'Send'),
                       onPressed: _to == null ? null : _sendText,
                       icon: const Icon(Icons.send_rounded),
                     ),

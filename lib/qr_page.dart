@@ -3,6 +3,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 
 import 'oa_theme.dart';
 
+import 'i18n.dart';
 /// Kamerayla QR kod ya da barkod okur; bulunan metni geri döndürür.
 class QrPage extends StatefulWidget {
   const QrPage({super.key});
@@ -39,9 +40,9 @@ class _QrPageState extends State<QrPage> {
   Widget _error(MobileScannerException e) {
     final text = switch (e.errorCode) {
       MobileScannerErrorCode.permissionDenied =>
-        'Kamera izni verilmedi. Telefonun Ayarlar → Uygulamalar → Pusula → İzinler bölümünden kamerayı aç.',
-      MobileScannerErrorCode.unsupported => 'Bu telefonda kamerayla kod okuma desteklenmiyor.',
-      _ => 'Kamera açıldı ama kod okuyucu başlatılamadı.',
+        tx('Kamera izni verilmedi. Telefonun Ayarlar → Uygulamalar → Pusula → İzinler bölümünden kamerayı aç.', "Camera permission wasn't granted. Turn on the camera in your phone's Settings → Apps → Pusula → Permissions."),
+      MobileScannerErrorCode.unsupported => tx('Bu telefonda kamerayla kod okuma desteklenmiyor.', "Scanning codes with the camera isn't supported on this phone."),
+      _ => tx('Kamera açıldı ama kod okuyucu başlatılamadı.', "The camera opened but the code scanner couldn't start."),
     };
     final detail = [e.errorCode.name, e.errorDetails?.code, e.errorDetails?.message]
         .whereType<String>()
@@ -104,13 +105,13 @@ class _QrPageState extends State<QrPage> {
                   Row(
                     children: [
                       IconButton(
-                        tooltip: 'Kapat',
+                        tooltip: tx('Kapat', 'Close'),
                         icon: const Icon(Icons.close, color: Colors.white),
                         onPressed: () => Navigator.of(context).pop(),
                       ),
                       const Spacer(),
                       IconButton(
-                        tooltip: 'Fener',
+                        tooltip: tx('Fener', 'Flashlight'),
                         icon: const Icon(Icons.flashlight_on_outlined, color: Colors.white),
                         onPressed: () => _controller.toggleTorch(),
                       ),
@@ -123,7 +124,7 @@ class _QrPageState extends State<QrPage> {
                       color: Colors.black.withValues(alpha: 0.55),
                       borderRadius: BorderRadius.circular(999),
                     ),
-                    child: const Text('QR kodu ya da barkodu çerçeveye getir.\nKamera açılmazsa Ayarlar\'dan kamera iznini ver.',
+                    child: Text(tx('QR kodu ya da barkodu çerçeveye getir.\nKamera açılmazsa Ayarlar\'dan kamera iznini ver.', "Point the camera at a QR code or barcode.\nIf the camera doesn't open, allow camera access in Settings."),
                         textAlign: TextAlign.center,
                         style: TextStyle(color: Colors.white, fontSize: 15)),
                   ),

@@ -51,6 +51,7 @@ import 'smart.dart';
 import 'start_mobile.dart';
 import 'start_page.dart';
 import 'wallpaper.dart';
+import 'i18n.dart';
 import 'weather.dart';
 
 part 'settings_screen.dart';
@@ -67,6 +68,7 @@ Future<void> main(List<String> args) async {
   // Tema seçimini açılışta oku; yanlış temada bir an görünmesin.
   try {
     final prefs = await SharedPreferences.getInstance();
+    L.init(prefs.getString('dil'));
     themeModeNotifier.value = themeModeFromString(prefs.getString('theme'));
     accentNotifier.value = prefs.getString('accent') ?? 'turuncu';
   } catch (_) {}
@@ -179,7 +181,7 @@ class RemoteDevice {
 
   static RemoteDevice fromJson(String id, Map m, DateTime at) => RemoteDevice(
         id,
-        m['name']?.toString() ?? 'Cihaz',
+        m['name']?.toString() ?? tx('Cihaz', 'Device'),
         m['platform']?.toString() ?? '',
         at,
         [
@@ -268,10 +270,10 @@ class TabData {
   static bool lockedIncognito = false;
 
   String get displayTitle {
-    if (incognito && lockedIncognito) return 'Gizli sekme (kilitli)';
-    if (showStart) return incognito ? 'Gizli sekme' : 'Yeni sekme';
+    if (incognito && lockedIncognito) return tx('Gizli sekme (kilitli)', 'Private tab (locked)');
+    if (showStart) return incognito ? tx('Gizli sekme', 'Private tab') : tx('Yeni sekme', 'New tab');
     if (title.isNotEmpty) return title;
-    return host.isEmpty ? 'Yükleniyor…' : host;
+    return host.isEmpty ? tx('Yükleniyor…', 'Loading…') : host;
   }
 
   String get host {
@@ -395,8 +397,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   int _historyCleared = 0;
 
   String get _deviceName => Platform.isAndroid
-      ? 'Android telefon'
-      : (Platform.localHostname.trim().isEmpty ? 'Windows bilgisayar' : Platform.localHostname.trim());
+      ? tx('Android telefon', 'Android phone')
+      : (Platform.localHostname.trim().isEmpty ? tx('Windows bilgisayar', 'Windows computer') : Platform.localHostname.trim());
 
   // Şifreler
   final PasswordStore _passwords = PasswordStore();
@@ -775,9 +777,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
           ..showSnackBar(SnackBar(
-            content: Text('"${removed.name}" kaldırıldı'),
+            content: Text(tx('"${removed.name}" kaldırıldı', '"${removed.name}" removed')),
             action: SnackBarAction(
-              label: 'Geri al',
+              label: tx('Geri al', 'Undo'),
               textColor: OAColors.accent,
               onPressed: () {
                 setState(() => _quick.insert(i.clamp(0, _quick.length), removed));
@@ -801,7 +803,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setD) => AlertDialog(
-          title: Text(old == null ? 'Hızlı erişime ekle' : 'Hızlı erişimi düzenle',
+          title: Text(old == null ? tx('Hızlı erişime ekle', 'Add to quick access') : tx('Hızlı erişimi düzenle', 'Edit quick access'),
               style: oaDisplay(22)),
           content: SizedBox(
             width: 420,
@@ -813,14 +815,14 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                   controller: name,
                   autofocus: true,
                   textInputAction: TextInputAction.next,
-                  decoration: InputDecoration(hintText: 'Ad (ör. Haberler)'),
+                  decoration: InputDecoration(hintText: tx('Ad (ör. Haberler)', 'Name (e.g. News)')),
                 ),
                 SizedBox(height: 12),
                 TextField(
                   controller: url,
                   keyboardType: TextInputType.url,
                   autocorrect: false,
-                  decoration: InputDecoration(hintText: 'Adres (ör. ornek.com)'),
+                  decoration: InputDecoration(hintText: tx('Adres (ör. ornek.com)', 'Address (e.g. example.com)')),
                   onSubmitted: (_) => Navigator.pop(ctx, true),
                 ),
                 if (error != null) ...[
@@ -831,17 +833,17 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Vazgeç')),
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tx('Vazgeç', 'Cancel'))),
             FilledButton(
               onPressed: () {
                 if (!looksLikeUrl(url.text)) {
-                  setD(() => error = 'Geçerli bir adres yaz, ör. ornek.com');
+                  setD(() => error = tx('Geçerli bir adres yaz, ör. ornek.com', 'Enter a valid address, e.g. example.com'));
                   return;
                 }
                 Navigator.pop(ctx, true);
               },
               style: FilledButton.styleFrom(minimumSize: Size(0, 44)),
-              child: Text('Kaydet'),
+              child: Text(tx('Kaydet', 'Save')),
             ),
           ],
         ),
@@ -941,13 +943,13 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               children: [
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-                  child: Text('Reklam engelleme', style: oaDisplay(22)),
+                  child: Text(tx('Reklam engelleme', 'Ad blocking'), style: oaDisplay(22)),
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                   child: Text(
-                    'Reklam ağlarına ve izleyicilere giden istekleri engeller, sayfadaki reklam kutularını gizler. '
-                    '${AdBlock.count} reklam ve izleme alan adı listede.',
+                    tx('Reklam ağlarına ve izleyicilere giden istekleri engeller, sayfadaki reklam kutularını gizler. '
+                    '${AdBlock.count} reklam ve izleme alan adı listede.', 'Blocks requests to ad networks and trackers and hides ad boxes on the page. ${AdBlock.count} ad and tracking domains are on the list.'),
                     style: TextStyle(color: OAColors.muted, height: 1.5),
                   ),
                 ),
@@ -955,7 +957,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                   value: _adblockOn,
                   activeThumbColor: OAColors.amberInk,
                   activeTrackColor: OAColors.amber,
-                  title: const Text('Reklamları ve izleyicileri engelle',
+                  title: Text(tx('Reklamları ve izleyicileri engelle', 'Block ads and trackers'),
                       style: TextStyle(fontWeight: FontWeight.w600)),
                   onChanged: (v) {
                     _adblockOn = v;
@@ -968,9 +970,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                     value: !siteAllowed,
                     activeThumbColor: OAColors.amberInk,
                     activeTrackColor: OAColors.amber,
-                    title: Text('$host sitesinde engelle',
+                    title: Text(tx('$host sitesinde engelle', 'Block on $host'),
                         style: const TextStyle(fontWeight: FontWeight.w600)),
-                    subtitle: const Text('Site düzgün çalışmıyorsa bu sitede kapatabilirsin'),
+                    subtitle: Text(tx('Site düzgün çalışmıyorsa bu sitede kapatabilirsin', "If the site doesn't work properly, you can turn it off for this site")),
                     onChanged: (v) {
                       if (v) {
                         _adblockAllow.removeWhere(
@@ -986,9 +988,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                   value: _cookieOn,
                   activeThumbColor: OAColors.amberInk,
                   activeTrackColor: OAColors.amber,
-                  title: const Text('Çerez pencerelerini kendiliğinden reddet',
+                  title: Text(tx('Çerez pencerelerini kendiliğinden reddet', 'Automatically decline cookie pop-ups'),
                       style: TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: const Text('"Çerezleri kabul et" pencerelerinde reddet / yalnız gerekli seçilir'),
+                  subtitle: Text(tx('"Çerezleri kabul et" pencerelerinde reddet / yalnız gerekli seçilir', 'Picks "Reject" / "Only necessary" on "Accept cookies" pop-ups')),
                   onChanged: (v) {
                     _setCookieBlock(v);
                     setSheet(() {});
@@ -997,7 +999,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                 if (_adblockAllow.isNotEmpty)
                   ListTile(
                     leading: const Icon(Icons.playlist_remove),
-                    title: Text('Engellemenin kapalı olduğu siteler: ${_adblockAllow.length}'),
+                    title: Text(tx('Engellemenin kapalı olduğu siteler: ${_adblockAllow.length}', 'Sites with blocking turned off: ${_adblockAllow.length}')),
                     subtitle: Text(_adblockAllow.take(4).join(', ') +
                         (_adblockAllow.length > 4 ? '…' : '')),
                     trailing: TextButton(
@@ -1006,7 +1008,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                         setSheet(() {});
                         _applyAdblock();
                       },
-                      child: const Text('Hepsini aç'),
+                      child: Text(tx('Hepsini aç', 'Turn all on')),
                     ),
                   ),
               ],
@@ -1024,9 +1026,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     if (_tab.showStart || c == null) return;
     final r = await Reader.toggle(c, fontSize: _readerSize);
     if (r == ReaderResult.notAvailable) {
-      _toast('Bu sayfada okuma modu için yeterli yazı bulunamadı');
+      _toast(tx('Bu sayfada okuma modu için yeterli yazı bulunamadı', 'Not enough text on this page for reader mode'));
     } else if (r == ReaderResult.failed) {
-      _toast('Okuma modu açılamadı');
+      _toast(tx('Okuma modu açılamadı', "Reader mode couldn't open"));
     }
   }
 
@@ -1034,11 +1036,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     if (_tab.showStart) return;
     final u = _tab.url;
     if (u.contains('translate.goog') || u.contains('translate.google.')) {
-      _toast('Bu sayfa zaten çeviri sayfası');
+      _toast(tx('Bu sayfa zaten çeviri sayfası', 'This page is already a translation page'));
       return;
     }
-    _toast('Sayfa Google Çeviri ile açılıyor; sayfanın adresi Google\'a gönderilir');
-    _go('https://translate.google.com/translate?sl=auto&tl=tr&u=${Uri.encodeComponent(u)}');
+    _toast(tx('Sayfa Google Çeviri ile açılıyor; sayfanın adresi Google\'a gönderilir', 'Opening the page with Google Translate; the page address is sent to Google'));
+    _go('https://translate.google.com/translate?sl=auto&tl=${L.code}&u=${Uri.encodeComponent(u)}');
   }
 
   Future<void> _scanQr() async {
@@ -1052,7 +1054,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       _go(v);
     } else {
       Clipboard.setData(ClipboardData(text: v));
-      _toast('Okunan: $v (panoya kopyalandı)');
+      _toast(tx('Okunan: $v (panoya kopyalandı)', 'Scanned: $v (copied to clipboard)'));
       _go(v, forceSearch: true);
     }
   }
@@ -1086,7 +1088,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         } catch (_) {}
       }
     } catch (e) {
-      _toast('Fotoğraf seçilemedi');
+      _toast(tx('Fotoğraf seçilemedi', "Couldn't pick a photo"));
     }
   }
 
@@ -1101,7 +1103,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Başlangıç sayfası arka planı', style: oaDisplay(22)),
+              Text(tx('Başlangıç sayfası arka planı', 'Start page background'), style: oaDisplay(22)),
               const SizedBox(height: 16),
               Wrap(
                 spacing: 14,
@@ -1119,7 +1121,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                     ),
                   WallpaperSwatch(
                     id: 'photo',
-                    label: 'Fotoğrafın',
+                    label: tx('Fotoğrafın', 'Your photo'),
                     photoPath: _wallpaperPath,
                     icon: _wallpaperPath == null ? Icons.add_photo_alternate_outlined : null,
                     selected: _wallpaperId == 'photo',
@@ -1138,7 +1140,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                     setSheet(() {});
                   },
                   icon: const Icon(Icons.photo_library_outlined),
-                  label: const Text('Başka fotoğraf seç'),
+                  label: Text(tx('Başka fotoğraf seç', 'Choose another photo')),
                 ),
               ],
             ],
@@ -1178,12 +1180,12 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               children: [
                 Padding(
                   padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
-                  child: Text('Görünüm', style: oaDisplay(22)),
+                  child: Text(tx('Görünüm', 'Appearance'), style: oaDisplay(22)),
                 ),
-                option(ThemeMode.system, Icons.brightness_auto_outlined, 'Sistem',
-                    'Cihazın ayarına göre koyu ya da açık'),
-                option(ThemeMode.dark, Icons.dark_mode_outlined, 'Koyu', 'OA Labs sitesi gibi'),
-                option(ThemeMode.light, Icons.light_mode_outlined, 'Açık', 'Aydınlık ortamlar için'),
+                option(ThemeMode.system, Icons.brightness_auto_outlined, tx('Sistem', 'System'),
+                    tx('Cihazın ayarına göre koyu ya da açık', 'Dark or light based on your device setting')),
+                option(ThemeMode.dark, Icons.dark_mode_outlined, tx('Koyu', 'Dark'), tx('OA Labs sitesi gibi', 'Like the OA Labs website')),
+                option(ThemeMode.light, Icons.light_mode_outlined, tx('Açık', 'Light'), tx('Aydınlık ortamlar için', 'For bright surroundings')),
                 const Divider(height: 20),
                 StatefulBuilder(
                   builder: (ctx, setD) => SwitchListTile(
@@ -1191,8 +1193,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                     activeThumbColor: OAColors.amberInk,
                     activeTrackColor: OAColors.amber,
                     secondary: const Icon(Icons.contrast),
-                    title: const Text('Bütün siteleri koyu göster', style: TextStyle(fontWeight: FontWeight.w600)),
-                    subtitle: const Text('Karanlık modu olmayan siteler de koyu görünür'),
+                    title: Text(tx('Bütün siteleri koyu göster', 'Show all sites dark'), style: TextStyle(fontWeight: FontWeight.w600)),
+                    subtitle: Text(tx('Karanlık modu olmayan siteler de koyu görünür', 'Sites without a dark mode look dark too')),
                     onChanged: (v) {
                       _setDarkAll(v);
                       setD(() {});
@@ -1222,7 +1224,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       },
       onLogout: () {
         Navigator.of(context).pop();
-        _account.logout().then((_) => _toast('Çıkış yapıldı'));
+        _account.logout().then((_) => _toast(tx('Çıkış yapıldı', 'Signed out')));
       },
     );
     if (mobile) {
@@ -1273,7 +1275,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       }
     });
     _save('bookmarks', _bookmarks);
-    _toast(added ? 'Yer imlerine eklendi' : 'Yer imlerinden çıkarıldı');
+    _toast(added ? tx('Yer imlerine eklendi', 'Added to bookmarks') : tx('Yer imlerinden çıkarıldı', 'Removed from bookmarks'));
   }
 
   void _pushHistory(Map<String, String> entry) {
@@ -1399,12 +1401,12 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     if (steps[i] != cur && d < 0) i++;
     final next = steps[(i + d).clamp(0, steps.length - 1)];
     _setZoom(next);
-    _toast('Yakınlaştırma: %$next');
+    _toast(tx('Yakınlaştırma: %$next', 'Zoom: $next%'));
   }
 
   void _showZoom() {
     if (_tab.showStart) {
-      _toast('Önce bir sayfa aç');
+      _toast(tx('Önce bir sayfa aç', 'Open a page first'));
       return;
     }
     final host = _tab.host;
@@ -1425,9 +1427,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Yakınlaştırma', style: oaDisplay(22)),
+                Text(tx('Yakınlaştırma', 'Zoom'), style: oaDisplay(22)),
                 const SizedBox(height: 4),
-                Text('$host için hatırlanır', style: TextStyle(color: OAColors.muted)),
+                Text(tx('$host için hatırlanır', 'Remembered for $host'), style: TextStyle(color: OAColors.muted)),
                 const SizedBox(height: 14),
                 Row(children: [
                   IconButton.filledTonal(onPressed: () => set(z - 10), icon: const Icon(Icons.remove)),
@@ -1446,10 +1448,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                 Row(children: [
                   Text('%$z', style: oaDisplay(26)),
                   const Spacer(),
-                  TextButton(onPressed: z == 100 ? null : () => set(100), child: const Text('Sıfırla (%100)')),
+                  TextButton(onPressed: z == 100 ? null : () => set(100), child: Text(tx('Sıfırla (%100)', 'Reset (100%)'))),
                 ]),
                 if (!Platform.isAndroid)
-                  Text('Kısayol: Ctrl + / Ctrl − / Ctrl 0', style: TextStyle(color: OAColors.faint, fontSize: 13)),
+                  Text(tx('Kısayol: Ctrl + / Ctrl − / Ctrl 0', 'Shortcut: Ctrl + / Ctrl − / Ctrl 0'), style: TextStyle(color: OAColors.faint, fontSize: 13)),
               ],
             ),
           );
@@ -1462,7 +1464,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     final t = _tab;
     final host = t.host;
     if (t.showStart || host.isEmpty) {
-      _toast('Önce bir sayfa aç');
+      _toast(tx('Önce bir sayfa aç', 'Open a page first'));
       return;
     }
     final on = !_isDarkSite(host);
@@ -1475,11 +1477,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     });
     _prefs?.setStringList('dark_sites', _darkSites.toList());
     if (!on && _darkAll) {
-      _toast('"Bütün siteleri koyu göster" açık; Görünüm ayarından kapatabilirsin');
+      _toast(tx('"Bütün siteleri koyu göster" açık; Görünüm ayarından kapatabilirsin', '"Show all sites dark" is on; you can turn it off in Appearance settings'));
       return;
     }
     final r = await t.controller?.evaluateJavascript(source: darkModeJs(on));
-    if (on && r == 'zaten') _toast('Bu site zaten koyu');
+    if (on && r == 'zaten') _toast(tx('Bu site zaten koyu', 'This site is already dark'));
   }
 
   Future<void> _setDarkAll(bool v) async {
@@ -1520,9 +1522,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         _go(t.trim());
       }
     } on PlatformException catch (e) {
-      _toast(e.message ?? 'Sesli arama açılamadı');
+      _toast(e.message ?? tx('Sesli arama açılamadı', "Voice search couldn't start"));
     } catch (_) {
-      _toast('Sesli arama açılamadı');
+      _toast(tx('Sesli arama açılamadı', "Voice search couldn't start"));
     }
   }
 
@@ -1532,10 +1534,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     final t = _tab;
     final c = t.controller;
     if (t.showStart || c == null) {
-      _toast('Önce bir sayfa aç');
+      _toast(tx('Önce bir sayfa aç', 'Open a page first'));
       return;
     }
-    _toast('Ekran görüntüsü alınıyor…');
+    _toast(tx('Ekran görüntüsü alınıyor…', 'Taking screenshot…'));
     try {
       final m = await c.callDevToolsProtocolMethod(methodName: 'Page.getLayoutMetrics');
       final size = (m is Map ? (m['cssContentSize'] ?? m['contentSize']) : null) as Map?;
@@ -1551,7 +1553,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       final dir = await getDownloadsDirectory() ?? await getApplicationDocumentsDirectory();
       final now = DateTime.now();
       String two(int v) => v.toString().padLeft(2, '0');
-      final name = 'Ekran görüntüsü ${t.host} ${now.year}-${two(now.month)}-${two(now.day)} ${two(now.hour)}.${two(now.minute)}.${two(now.second)}.png'
+      final name = tx('Ekran görüntüsü ${t.host} ${now.year}-${two(now.month)}-${two(now.day)} ${two(now.hour)}.${two(now.minute)}.${two(now.second)}.png', 'Screenshot ${t.host} ${now.year}-${two(now.month)}-${two(now.day)} ${two(now.hour)}.${two(now.minute)}.${two(now.second)}.png')
           .replaceAll(RegExp(r'[\\/:*?"<>|]'), '-');
       final f = File('${dir.path}${Platform.pathSeparator}$name');
       await f.writeAsBytes(base64Decode(data));
@@ -1559,12 +1561,12 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(SnackBar(
-          content: Text(h >= 16000 ? 'Kaydedildi (çok uzun sayfa: ilk 16000 piksel): İndirilenler' : 'Tam sayfa ekran görüntüsü İndirilenler klasörüne kaydedildi'),
+          content: Text(h >= 16000 ? tx('Kaydedildi (çok uzun sayfa: ilk 16000 piksel): İndirilenler', 'Saved (very long page: first 16000 pixels): Downloads') : tx('Tam sayfa ekran görüntüsü İndirilenler klasörüne kaydedildi', 'Full-page screenshot saved to your Downloads folder')),
           duration: const Duration(seconds: 5),
-          action: SnackBarAction(label: 'Aç', onPressed: () => Process.run('explorer.exe', [f.path])),
+          action: SnackBarAction(label: tx('Aç', 'Open'), onPressed: () => Process.run('explorer.exe', [f.path])),
         ));
     } catch (_) {
-      _toast('Ekran görüntüsü alınamadı');
+      _toast(tx('Ekran görüntüsü alınamadı', "Couldn't take a screenshot"));
     }
   }
 
@@ -1581,16 +1583,16 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Başka tarayıcıdan içe aktar', style: oaDisplay(22)),
+            Text(tx('Başka tarayıcıdan içe aktar', 'Import from another browser'), style: oaDisplay(22)),
             const SizedBox(height: 6),
-            Text('Chrome, Edge ya da Firefox\'tan yer imlerini ve şifreleri tek seferde al.',
+            Text(tx('Chrome, Edge ya da Firefox\'tan yer imlerini ve şifreleri tek seferde al.', 'Bring over your bookmarks and passwords from Chrome, Edge or Firefox in one go.'),
                 style: TextStyle(color: OAColors.muted)),
             const SizedBox(height: 16),
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.star_border),
-              title: const Text('Yer imleri (.html dosyası)', style: TextStyle(fontWeight: FontWeight.w600)),
-              subtitle: const Text('Chrome: Yer imleri → Yer imi yöneticisi → ⋮ → Yer imlerini dışa aktar'),
+              title: Text(tx('Yer imleri (.html dosyası)', 'Bookmarks (.html file)'), style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: Text(tx('Chrome: Yer imleri → Yer imi yöneticisi → ⋮ → Yer imlerini dışa aktar', 'Chrome: Bookmarks → Bookmark manager → ⋮ → Export bookmarks')),
               trailing: const Icon(Icons.chevron_right),
               onTap: () {
                 Navigator.pop(ctx);
@@ -1600,8 +1602,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.key_outlined),
-              title: const Text('Şifreler (.csv dosyası)', style: TextStyle(fontWeight: FontWeight.w600)),
-              subtitle: const Text('Chrome: Google Şifre Yöneticisi → Ayarlar → Şifreleri dışa aktar'),
+              title: Text(tx('Şifreler (.csv dosyası)', 'Passwords (.csv file)'), style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: Text(tx('Chrome: Google Şifre Yöneticisi → Ayarlar → Şifreleri dışa aktar', 'Chrome: Google Password Manager → Settings → Export passwords')),
               trailing: const Icon(Icons.chevron_right),
               onTap: () {
                 Navigator.pop(ctx);
@@ -1610,7 +1612,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             ),
             const SizedBox(height: 8),
             Text(
-              'Şifre dosyası şifreleri açık metin olarak içerir: içe aktardıktan sonra dosyayı silmeni öneririz.',
+              tx('Şifre dosyası şifreleri açık metin olarak içerir: içe aktardıktan sonra dosyayı silmeni öneririz.', 'The password file contains your passwords as plain text: we recommend deleting it after importing.'),
               style: TextStyle(color: OAColors.faint, fontSize: 13),
             ),
           ],
@@ -1628,7 +1630,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       if (bytes == null) return null;
       return utf8.decode(bytes, allowMalformed: true);
     } catch (_) {
-      _toast('Dosya açılamadı');
+      _toast(tx('Dosya açılamadı', "Couldn't open the file"));
       return null;
     }
   }
@@ -1638,14 +1640,14 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     if (text == null) return;
     final list = parseBookmarksHtml(text);
     if (list.isEmpty) {
-      _toast('Dosyada yer imi bulunamadı');
+      _toast(tx('Dosyada yer imi bulunamadı', 'No bookmarks found in the file'));
       return;
     }
     final have = _bookmarks.map((b) => b['url']).toSet();
     final add = [for (final b in list) if (have.add(b['url'])) b];
     setState(() => _bookmarks.addAll(add));
     _save('bookmarks', _bookmarks);
-    _toast(add.isEmpty ? 'Yer imlerinin hepsi zaten vardı' : '${add.length} yer imi içe aktarıldı');
+    _toast(add.isEmpty ? tx('Yer imlerinin hepsi zaten vardı', 'All the bookmarks were already there') : tx('${add.length} yer imi içe aktarıldı', '${add.length} bookmarks imported'));
   }
 
   Future<void> _importPasswords() async {
@@ -1653,13 +1655,13 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     if (text == null) return;
     final list = parsePasswordsCsv(text);
     if (list.isEmpty) {
-      _toast('Dosyada şifre bulunamadı (Chrome, Edge ya da Firefox şifre dosyası olmalı)');
+      _toast(tx('Dosyada şifre bulunamadı (Chrome, Edge ya da Firefox şifre dosyası olmalı)', 'No passwords found in the file (it should be a Chrome, Edge or Firefox password file)'));
       return;
     }
     final n = await _passwords.importMany([
       for (final l in list) (PasswordStore.originOf(l.url), l.user, l.pass),
     ]);
-    _toast(n == 0 ? 'Şifrelerin hepsi zaten kayıtlıydı' : '$n şifre içe aktarıldı');
+    _toast(n == 0 ? tx('Şifrelerin hepsi zaten kayıtlıydı', 'All the passwords were already saved') : tx('$n şifre içe aktarıldı', '$n passwords imported'));
   }
 
   // ----------------------------------------------------------------- Haber, döviz, okuma listesi
@@ -1683,16 +1685,16 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     final t = _tab;
     final c = t.controller;
     if (t.showStart || c == null) {
-      _toast('Önce bir yazı aç');
+      _toast(tx('Önce bir yazı aç', 'Open an article first'));
       return;
     }
-    _toast('Kaydediliyor…');
+    _toast(tx('Kaydediliyor…', 'Saving…'));
     final r = await _reading.save(c, t.url);
     _toast(switch (r) {
-      SaveResult.saved => 'Okuma listesine eklendi; internetsiz de okunur',
-      SaveResult.already => 'Bu yazı zaten okuma listende',
-      SaveResult.notArticle => 'Bu sayfada kaydedilecek bir yazı bulunamadı',
-      SaveResult.failed => 'Kaydedilemedi',
+      SaveResult.saved => tx('Okuma listesine eklendi; internetsiz de okunur', 'Added to your reading list; readable offline'),
+      SaveResult.already => tx('Bu yazı zaten okuma listende', 'This article is already in your reading list'),
+      SaveResult.notArticle => tx('Bu sayfada kaydedilecek bir yazı bulunamadı', 'No article to save was found on this page'),
+      SaveResult.failed => tx('Kaydedilemedi', "Couldn't save"),
     });
   }
 
@@ -1708,7 +1710,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   Future<void> _openArticle(SavedArticle a) async {
     final html = await _reading.html(a);
     if (html == null) {
-      _toast('Kayıtlı yazı bulunamadı; çevrimiçi sürümü açılıyor');
+      _toast(tx('Kayıtlı yazı bulunamadı; çevrimiçi sürümü açılıyor', 'Saved article not found; opening the online version'));
       _addTab(url: a.url);
       return;
     }
@@ -1825,8 +1827,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       context: context,
       position: RelativeRect.fromLTRB(pos.dx, pos.dy, pos.dx + 1, pos.dy + 1),
       items: [
-        PopupMenuItem(value: 'pin', child: Text(t.pinned ? 'Sabitlemeyi kaldır' : 'Sekmeyi sabitle')),
-        if (!t.pinned) const PopupMenuItem(value: 'new', child: Text('Yeni gruba ekle…')),
+        PopupMenuItem(value: 'pin', child: Text(t.pinned ? tx('Sabitlemeyi kaldır', 'Unpin tab') : tx('Sekmeyi sabitle', 'Pin tab'))),
+        if (!t.pinned) PopupMenuItem(value: 'new', child: Text(tx('Yeni gruba ekle…', 'Add to new group…'))),
         for (final x in _groups)
           if (x.id != t.groupId)
             PopupMenuItem(
@@ -1834,26 +1836,26 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               child: Row(children: [
                 CircleAvatar(radius: 6, backgroundColor: x.c),
                 const SizedBox(width: 10),
-                Text('"${x.name.isEmpty ? 'Adsız grup' : x.name}" grubuna ekle'),
+                Text(tx('"${x.name.isEmpty ? 'Adsız grup' : x.name}" grubuna ekle', 'Add to "${x.name.isEmpty ? 'Unnamed group' : x.name}"')),
               ]),
             ),
-        if (g != null) const PopupMenuItem(value: 'out', child: Text('Gruptan çıkar')),
+        if (g != null) PopupMenuItem(value: 'out', child: Text(tx('Gruptan çıkar', 'Remove from group'))),
         const PopupMenuDivider(),
-        if (!t.showStart) const PopupMenuItem(value: 'later', child: Text('Sonra oku listesine ekle')),
-        if (i != _current && !t.sleeping && !t.showStart) const PopupMenuItem(value: 'sleep', child: Text('Bu sekmeyi uyut')),
-        if (i != _current && Platform.isWindows) const PopupMenuItem(value: 'split', child: Text('Açık sekmeyle yan yana göster')),
-        if (_split != null && Platform.isWindows) const PopupMenuItem(value: 'unsplit', child: Text('Yan yana görünümü kapat')),
-        const PopupMenuItem(value: 'sleepall', child: Text('Diğer sekmeleri uyut')),
+        if (!t.showStart) PopupMenuItem(value: 'later', child: Text(tx('Sonra oku listesine ekle', 'Add to reading list'))),
+        if (i != _current && !t.sleeping && !t.showStart) PopupMenuItem(value: 'sleep', child: Text(tx('Bu sekmeyi uyut', 'Put this tab to sleep'))),
+        if (i != _current && Platform.isWindows) PopupMenuItem(value: 'split', child: Text(tx('Açık sekmeyle yan yana göster', 'Show side by side with the open tab'))),
+        if (_split != null && Platform.isWindows) PopupMenuItem(value: 'unsplit', child: Text(tx('Yan yana görünümü kapat', 'Close side-by-side view'))),
+         PopupMenuItem(value: 'sleepall', child: Text(tx('Diğer sekmeleri uyut', 'Put other tabs to sleep'))),
         const PopupMenuDivider(),
-        if (!t.showStart) const PopupMenuItem(value: 'reload', child: Text('Yeniden yükle')),
-        if (!t.showStart) PopupMenuItem(value: 'mute', child: Text(t.muted ? 'Sekmenin sesini aç' : 'Sekmenin sesini kapat')),
-        if (!t.showStart) const PopupMenuItem(value: 'dup', child: Text('Sekmeyi çoğalt')),
-        const PopupMenuItem(value: 'close', child: Text('Sekmeyi kapat')),
-        if (_tabs.length > 1) const PopupMenuItem(value: 'others', child: Text('Diğer sekmeleri kapat')),
-        if (i < _tabs.length - 1) const PopupMenuItem(value: 'right', child: Text('Sağdaki sekmeleri kapat')),
+        if (!t.showStart) PopupMenuItem(value: 'reload', child: Text(tx('Yeniden yükle', 'Reload'))),
+        if (!t.showStart) PopupMenuItem(value: 'mute', child: Text(t.muted ? tx('Sekmenin sesini aç', 'Unmute tab') : tx('Sekmenin sesini kapat', 'Mute tab'))),
+        if (!t.showStart) PopupMenuItem(value: 'dup', child: Text(tx('Sekmeyi çoğalt', 'Duplicate tab'))),
+         PopupMenuItem(value: 'close', child: Text(tx('Sekmeyi kapat', 'Close tab'))),
+        if (_tabs.length > 1) PopupMenuItem(value: 'others', child: Text(tx('Diğer sekmeleri kapat', 'Close other tabs'))),
+        if (i < _tabs.length - 1) PopupMenuItem(value: 'right', child: Text(tx('Sağdaki sekmeleri kapat', 'Close tabs to the right'))),
         PopupMenuItem(
             value: 'closeall',
-            child: Text(_tabs.any((x) => x.pinned) ? 'Bütün sekmeleri kapat (sabitler kalır)' : 'Bütün sekmeleri kapat')),
+            child: Text(_tabs.any((x) => x.pinned) ? tx('Bütün sekmeleri kapat (sabitler kalır)', 'Close all tabs (pinned ones stay)') : tx('Bütün sekmeleri kapat', 'Close all tabs'))),
       ],
     );
     if (v == null || !mounted) return;
@@ -1876,7 +1878,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     } else if (v == 'unsplit') {
       _closeSplit();
     } else if (v == 'sleep') {
-      if (!await _sleepTab(t)) _toast('Bu sekme şu an uyutulamıyor (ses ya da video çalıyor olabilir)');
+      if (!await _sleepTab(t)) _toast(tx('Bu sekme şu an uyutulamıyor (ses ya da video çalıyor olabilir)', "This tab can't be put to sleep right now (it may be playing audio or video)"));
     } else if (v == 'sleepall') {
       _sleepOthers();
     } else if (v == 'close') {
@@ -1926,7 +1928,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       _urlCtl.text = _addressText(_tab);
     });
     _saveSessionSoon();
-    _toast('${closing.length} sekme kapatıldı · Ctrl+Shift+T ile geri açılır');
+    _toast(tx('${closing.length} sekme kapatıldı · Ctrl+Shift+T ile geri açılır', '${closing.length} tabs closed · reopen with Ctrl+Shift+T'));
   }
 
   Future<void> _groupMenu(TabGroup g, Offset pos) async {
@@ -1934,11 +1936,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       context: context,
       position: RelativeRect.fromLTRB(pos.dx, pos.dy, pos.dx + 1, pos.dy + 1),
       items: [
-        PopupMenuItem(value: 'fold', child: Text(g.collapsed ? 'Grubu genişlet' : 'Grubu daralt')),
-        const PopupMenuItem(value: 'edit', child: Text('Adını ve rengini değiştir')),
-        const PopupMenuItem(value: 'add', child: Text('Gruba yeni sekme ekle')),
-        const PopupMenuItem(value: 'ungroup', child: Text('Grubu dağıt')),
-        const PopupMenuItem(value: 'close', child: Text('Gruptaki sekmeleri kapat')),
+        PopupMenuItem(value: 'fold', child: Text(g.collapsed ? tx('Grubu genişlet', 'Expand group') : tx('Grubu daralt', 'Collapse group'))),
+         PopupMenuItem(value: 'edit', child: Text(tx('Adını ve rengini değiştir', 'Change name and color'))),
+         PopupMenuItem(value: 'add', child: Text(tx('Gruba yeni sekme ekle', 'Add new tab to group'))),
+         PopupMenuItem(value: 'ungroup', child: Text(tx('Grubu dağıt', 'Ungroup'))),
+         PopupMenuItem(value: 'close', child: Text(tx('Gruptaki sekmeleri kapat', 'Close tabs in group'))),
       ],
     );
     if (v == null || !mounted) return;
@@ -1999,7 +2001,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       onSecondaryTapUp: (d) => _groupMenu(g, d.globalPosition),
       onLongPressStart: (d) => _groupMenu(g, d.globalPosition),
       child: Tooltip(
-        message: 'Tıkla: daralt / genişlet · sağ tıkla: grup seçenekleri',
+        message: tx('Tıkla: daralt / genişlet · sağ tıkla: grup seçenekleri', 'Click: collapse / expand · right-click: group options'),
         child: Container(
           margin: vertical ? const EdgeInsets.fromLTRB(8, 10, 8, 4) : const EdgeInsets.fromLTRB(6, 12, 2, 6),
           padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -2026,12 +2028,12 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         if (t.sleeping)
           Padding(
             padding: const EdgeInsets.only(right: 6),
-            child: Tooltip(message: 'Uykuda: tıklayınca yeniden açılır', child: Icon(Icons.bedtime_outlined, size: 14, color: OAColors.faint)),
+            child: Tooltip(message: tx('Uykuda: tıklayınca yeniden açılır', 'Asleep: click to reopen'), child: Icon(Icons.bedtime_outlined, size: 14, color: OAColors.faint)),
           ),
         // Hoparlör başlığın solunda: çıkıp kaybolunca kapatma düğmesi yer değiştirmesin
         if (t.mediaPlaying || t.muted)
           IconButton(
-            tooltip: t.muted ? 'Sekmenin sesini aç' : 'Sekmenin sesini kapat',
+            tooltip: t.muted ? tx('Sekmenin sesini aç', 'Unmute tab') : tx('Sekmenin sesini kapat', 'Mute tab'),
             iconSize: 14,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 22, minHeight: 28),
@@ -2190,9 +2192,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             height: 50,
             child: Row(children: [
               const Padding(padding: EdgeInsets.fromLTRB(12, 0, 8, 0), child: OAMark()),
-              Expanded(child: Text('Sekmeler · ${_tabs.length}', style: TextStyle(color: OAColors.muted, fontSize: 13))),
+              Expanded(child: Text(tx('Sekmeler · ${_tabs.length}', 'Tabs · ${_tabs.length}'), style: TextStyle(color: OAColors.muted, fontSize: 13))),
               IconButton(
-                tooltip: 'Yatay sekmeler',
+                tooltip: tx('Yatay sekmeler', 'Horizontal tabs'),
                 icon: const Icon(Icons.view_week_outlined, size: 20),
                 onPressed: _toggleVerticalTabs,
               ),
@@ -2207,7 +2209,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               width: double.infinity,
               child: OutlinedButton.icon(
                 icon: const Icon(Icons.add, size: 18),
-                label: const Text('Yeni sekme'),
+                label: Text(tx('Yeni sekme', 'New tab')),
                 onPressed: () => _addTab(),
               ),
             ),
@@ -2348,7 +2350,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       }
       if (problem) {
         await _vault.disable();
-        _toast('Şifre eşitlemesi başka bir parolayla kurulmuş. Eşitleme ayarlarından parolayı yeniden gir.');
+        _toast(tx('Şifre eşitlemesi başka bir parolayla kurulmuş. Eşitleme ayarlarından parolayı yeniden gir.', 'Password sync was set up with a different password. Re-enter the password in sync settings.'));
       } else {
         if (remote != null) await _passwords.mergeRemote(remote);
         final local = _passwords.exportData();
@@ -2365,7 +2367,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(got.length == 1 ? 'Sana bir sekme gönderildi' : 'Sana ${got.length} sekme gönderildi'),
+        title: Text(got.length == 1 ? tx('Sana bir sekme gönderildi', 'A tab was sent to you') : tx('Sana ${got.length} sekme gönderildi', '${got.length} tabs were sent to you')),
         content: SizedBox(
           width: 420,
           child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -2375,7 +2377,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                 leading: const Icon(Icons.send_to_mobile_outlined),
                 title: Text(m['t']?.toString().isNotEmpty == true ? m['t'].toString() : m['u'].toString(),
                     maxLines: 2, overflow: TextOverflow.ellipsis),
-                subtitle: Text('${m['from'] ?? 'Öbür cihaz'} · ${Uri.tryParse(m['u'].toString())?.host ?? ''}'),
+                subtitle: Text(tx('${m['from'] ?? 'Öbür cihaz'} · ${Uri.tryParse(m['u'].toString())?.host ?? ''}', "${m['from'] ?? 'Other device'} · ${Uri.tryParse(m['u'].toString())?.host ?? ''}")),
                 onTap: () {
                   Navigator.pop(ctx);
                   _addTab(url: m['u'].toString());
@@ -2384,7 +2386,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           ]),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Kapat')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tx('Kapat', 'Close'))),
           if (got.length > 1)
             FilledButton(
               onPressed: () {
@@ -2393,7 +2395,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                   _addTab(url: m['u'].toString());
                 }
               },
-              child: const Text('Hepsini aç'),
+              child: Text(tx('Hepsini aç', 'Open all')),
             ),
         ],
       ),
@@ -2402,21 +2404,21 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   String _agoText(DateTime d) {
     final m = DateTime.now().toUtc().difference(d.toUtc()).inMinutes;
-    if (m < 2) return 'şimdi';
-    if (m < 60) return '$m dk önce';
-    if (m < 60 * 24) return '${m ~/ 60} sa önce';
-    return '${m ~/ (60 * 24)} gün önce';
+    if (m < 2) return tx('şimdi', 'now');
+    if (m < 60) return tx('$m dk önce', '$m min ago');
+    if (m < 60 * 24) return tx('${m ~/ 60} sa önce', '${m ~/ 60} h ago');
+    return tx('${m ~/ (60 * 24)} gün önce', '${m ~/ (60 * 24)} d ago');
   }
 
   bool _needSignIn(String what) {
     if (_account.signedIn) return false;
-    _toast('$what için OA Labs hesabınla giriş yap (bilgisayarda ve telefonda aynı hesap)');
+    _toast(tx('$what için OA Labs hesabınla giriş yap (bilgisayarda ve telefonda aynı hesap)', 'Sign in with your OA Labs account for $what (same account on computer and phone)'));
     _openAccount();
     return true;
   }
 
   Future<void> _showDevices() async {
-    if (_needSignIn('Öbür cihazlardaki sekmeleri görmek')) return;
+    if (_needSignIn(tx('Öbür cihazlardaki sekmeleri görmek', 'seeing tabs on other devices'))) return;
     await _syncNow();
     if (!mounted) return;
     showModalBottomSheet(
@@ -2433,18 +2435,18 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-              child: Text('Öbür cihazlardaki sekmeler', style: oaDisplay(22)),
+              child: Text(tx('Öbür cihazlardaki sekmeler', 'Tabs on other devices'), style: oaDisplay(22)),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Text('OA hesabınla giriş yaptığın öbür cihazlarda açık olan sekmeler.',
+              child: Text(tx('OA hesabınla giriş yaptığın öbür cihazlarda açık olan sekmeler.', "Tabs open on your other devices where you're signed in with your OA account."),
                   style: TextStyle(color: OAColors.muted)),
             ),
             if (_devices.isEmpty)
               Padding(
                 padding: const EdgeInsets.all(24),
                 child: Text(
-                  'Henüz başka cihaz yok. Telefonunda ya da bilgisayarında Pusula\'yı açıp aynı hesapla giriş yap.',
+                  tx('Henüz başka cihaz yok. Telefonunda ya da bilgisayarında Pusula\'yı açıp aynı hesapla giriş yap.', 'No other devices yet. Open Pusula on your phone or computer and sign in with the same account.'),
                   textAlign: TextAlign.center,
                   style: TextStyle(color: OAColors.muted),
                 ),
@@ -2453,7 +2455,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               ListTile(
                 leading: Icon(d.platform == 'android' ? Icons.smartphone : Icons.computer, color: OAColors.amber),
                 title: Text(d.name, style: const TextStyle(fontWeight: FontWeight.w700)),
-                subtitle: Text('${d.tabs.length} sekme · ${_agoText(d.at)}'),
+                subtitle: Text(tx('${d.tabs.length} sekme · ${_agoText(d.at)}', '${d.tabs.length} tabs · ${_agoText(d.at)}')),
               ),
               for (final t in d.tabs)
                 ListTile(
@@ -2478,12 +2480,12 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   Future<void> _sendKopru() async {
     final t = _tab;
     if (t.showStart || !t.url.startsWith('http')) {
-      _toast('Önce göndermek istediğin sayfayı aç');
+      _toast(tx('Önce göndermek istediğin sayfayı aç', 'Open the page you want to send first'));
       return;
     }
     final (ok, msg) = await KopruLink.send(t.url);
     if (!mounted) return;
-    if (ok || !msg.contains('açık değil') && !msg.contains('kurulu değil')) {
+    if (ok || !msg.contains(tx('açık değil', "isn't open")) && !msg.contains(tx('kurulu değil', "isn't installed"))) {
       _toast(msg);
       return;
     }
@@ -2493,12 +2495,12 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       builder: (ctx) => AlertDialog(
         title: Text('Pusula Köprü', style: oaDisplay(22)),
         content: Text(
-          '$msg. Pusula Köprü, bilgisayarın ile telefonun arasında sekme, dosya ve pano paylaşır; '
-          'hesap gerekmez, aynı Wi-Fi yeter. İki cihaza da kurup bir kez QR kodla eşleştirmen yeterli.',
+          tx('$msg. Pusula Köprü, bilgisayarın ile telefonun arasında sekme, dosya ve pano paylaşır; '
+          'hesap gerekmez, aynı Wi-Fi yeter. İki cihaza da kurup bir kez QR kodla eşleştirmen yeterli.', '$msg. Pusula Köprü shares tabs, files and the clipboard between your computer and phone; no account needed, just the same Wi-Fi. Install it on both devices and pair them once with a QR code.'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Kapat')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('İndir')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tx('Kapat', 'Close'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tx('İndir', 'Download'))),
         ],
       ),
     );
@@ -2508,14 +2510,14 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   Future<void> _sendTab() async {
     final t = _tab;
     if (t.showStart || !t.url.startsWith('http')) {
-      _toast('Önce göndermek istediğin sayfayı aç');
+      _toast(tx('Önce göndermek istediğin sayfayı aç', 'Open the page you want to send first'));
       return;
     }
-    if (_needSignIn('Sekme göndermek')) return;
+    if (_needSignIn(tx('Sekme göndermek', 'sending tabs'))) return;
     if (_devices.isEmpty) await _syncNow();
     if (!mounted) return;
     if (_devices.isEmpty) {
-      _toast('Başka cihaz bulunamadı: öbür cihazda Pusula\'da aynı hesapla giriş yap');
+      _toast(tx('Başka cihaz bulunamadı: öbür cihazda Pusula\'da aynı hesapla giriş yap', 'No other device found: sign in to Pusula on the other device with the same account'));
       return;
     }
     final d = await showModalBottomSheet<RemoteDevice>(
@@ -2526,13 +2528,13 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Text('Sekmeyi gönder', style: oaDisplay(22)),
+            child: Text(tx('Sekmeyi gönder', 'Send tab'), style: oaDisplay(22)),
           ),
           for (final d in _devices)
             ListTile(
               leading: Icon(d.platform == 'android' ? Icons.smartphone : Icons.computer),
               title: Text(d.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-              subtitle: Text('Son görülme: ${_agoText(d.at)}'),
+              subtitle: Text(tx('Son görülme: ${_agoText(d.at)}', 'Last seen: ${_agoText(d.at)}')),
               onTap: () => Navigator.pop(ctx, d),
             ),
         ]),
@@ -2540,11 +2542,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     );
     if (d == null) return;
     final ok = await _flowPush(FlowDevice(d.id, d.name, d.platform == 'android'), {'u': t.url, 't': t.displayTitle});
-    _toast(ok ? '${d.name} cihazına gönderildi; orada Pusula açılınca gelir' : 'Gönderilemedi, internet bağlantını kontrol et');
+    _toast(ok ? tx('${d.name} cihazına gönderildi; orada Pusula açılınca gelir', 'Sent to ${d.name}; it arrives when Pusula opens there') : tx('Gönderilemedi, internet bağlantını kontrol et', "Couldn't send. Check your internet connection"));
   }
 
   void _showSyncSettings() {
-    if (_needSignIn('Eşitleme')) return;
+    if (_needSignIn(tx('Eşitleme', 'sync'))) return;
     showModalBottomSheet(
       context: context,
       useSafeArea: true,
@@ -2555,25 +2557,25 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-              child: Text('Eşitleme', style: oaDisplay(22)),
+              child: Text(tx('Eşitleme', 'Sync'), style: oaDisplay(22)),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Text('${_account.user?.email ?? ''} hesabıyla giriş yapılan bütün cihazlar eşitlenir. Bu cihaz: $_deviceName',
+              child: Text(tx('${_account.user?.email ?? ''} hesabıyla giriş yapılan bütün cihazlar eşitlenir. Bu cihaz: $_deviceName', "All devices signed in with ${_account.user?.email ?? ''} stay in sync. This device: $_deviceName"),
                   style: TextStyle(color: OAColors.muted)),
             ),
-            const ListTile(
+             ListTile(
               leading: Icon(Icons.check_circle, color: Color(0xFF5BC48C)),
-              title: Text('Yer imleri ve hızlı erişim', style: TextStyle(fontWeight: FontWeight.w600)),
-              subtitle: Text('Her zaman eşitlenir'),
+              title: Text(tx('Yer imleri ve hızlı erişim', 'Bookmarks and quick access'), style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: Text(tx('Her zaman eşitlenir', 'Always synced')),
             ),
             SwitchListTile(
               value: _syncTabs,
               activeThumbColor: OAColors.amberInk,
               activeTrackColor: OAColors.amber,
               secondary: const Icon(Icons.tab_outlined),
-              title: const Text('Açık sekmeler', style: TextStyle(fontWeight: FontWeight.w600)),
-              subtitle: const Text('Öbür cihazların bu cihazdaki sekmeleri görebilsin; sekme gönderme'),
+              title: Text(tx('Açık sekmeler', 'Open tabs'), style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: Text(tx('Öbür cihazların bu cihazdaki sekmeleri görebilsin; sekme gönderme', "Let your other devices see this device's tabs; tab sending")),
               onChanged: (v) {
                 setState(() => _syncTabs = v);
                 _prefs?.setBool('sync_tabs', v);
@@ -2586,8 +2588,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               activeThumbColor: OAColors.amberInk,
               activeTrackColor: OAColors.amber,
               secondary: const Icon(Icons.history),
-              title: const Text('Geçmiş', style: TextStyle(fontWeight: FontWeight.w600)),
-              subtitle: const Text('Gizli sekmeler hiçbir zaman kaydedilmez'),
+              title: Text(tx('Geçmiş', 'History'), style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: Text(tx('Gizli sekmeler hiçbir zaman kaydedilmez', 'Private tabs are never saved')),
               onChanged: (v) {
                 setState(() => _syncHistory = v);
                 _prefs?.setBool('sync_history', v);
@@ -2598,10 +2600,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             ListTile(
               leading: Icon(_vault.enabled ? Icons.lock : Icons.lock_open_outlined,
                   color: _vault.enabled ? OAColors.green : null),
-              title: const Text('Şifreler', style: TextStyle(fontWeight: FontWeight.w600)),
+              title: Text(tx('Şifreler', 'Passwords'), style: TextStyle(fontWeight: FontWeight.w600)),
               subtitle: Text(_vault.enabled
-                  ? 'Açık · uçtan uca şifreli (eşitleme parolanla)'
-                  : 'Kapalı · açmak için bir eşitleme parolası belirle'),
+                  ? tx('Açık · uçtan uca şifreli (eşitleme parolanla)', 'On · end-to-end encrypted (with your sync password)')
+                  : tx('Kapalı · açmak için bir eşitleme parolası belirle', 'Off · set a sync password to turn it on')),
               trailing: TextButton(
                 onPressed: () async {
                   if (_vault.enabled) {
@@ -2613,17 +2615,17 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                   }
                   setS(() {});
                 },
-                child: Text(_vault.enabled ? 'Kapat' : 'Aç'),
+                child: Text(_vault.enabled ? tx('Kapat', 'Turn off') : tx('Aç', 'Turn on')),
               ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               child: FilledButton.icon(
                 icon: const Icon(Icons.sync),
-                label: const Text('Şimdi eşitle'),
+                label: Text(tx('Şimdi eşitle', 'Sync now')),
                 onPressed: () async {
                   await _syncNow();
-                  _toast('Eşitlendi');
+                  _toast(tx('Eşitlendi', 'Synced'));
                 },
               ),
             ),
@@ -2643,50 +2645,50 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     final pass = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Şifre eşitleme parolası'),
+        title: Text(tx('Şifre eşitleme parolası', 'Password sync password')),
         content: SizedBox(
           width: 420,
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(
               box == null
-                  ? 'Şifrelerin cihazdan bu parolayla şifrelenmiş olarak çıkar; OA Labs dahil kimse içini göremez. '
+                  ? tx('Şifrelerin cihazdan bu parolayla şifrelenmiş olarak çıkar; OA Labs dahil kimse içini göremez. '
                       'Öbür cihazında da aynı parolayı yazacaksın. Parolayı unutursan eşitlenen şifreler açılamaz '
-                      '(cihazdaki şifrelerin silinmez).'
-                  : 'Öbür cihazında şifre eşitlemesi açık. Orada belirlediğin eşitleme parolasını yaz.',
+                      '(cihazdaki şifrelerin silinmez).', "Your passwords leave the device encrypted with this password; no one, including OA Labs, can see them. You'll enter the same password on your other device. If you forget it, synced passwords can't be opened (passwords on your device aren't deleted).")
+                  : tx('Öbür cihazında şifre eşitlemesi açık. Orada belirlediğin eşitleme parolasını yaz.', 'Password sync is on on your other device. Enter the sync password you set there.'),
               style: TextStyle(color: OAColors.muted, height: 1.4),
             ),
             const SizedBox(height: 14),
-            TextField(controller: p1, obscureText: true, autofocus: true, decoration: const InputDecoration(labelText: 'Eşitleme parolası')),
+            TextField(controller: p1, obscureText: true, autofocus: true, decoration: InputDecoration(labelText: tx('Eşitleme parolası', 'Sync password'))),
             if (box == null) ...[
               const SizedBox(height: 10),
-              TextField(controller: p2, obscureText: true, decoration: const InputDecoration(labelText: 'Parolayı tekrar yaz')),
+              TextField(controller: p2, obscureText: true, decoration: InputDecoration(labelText: tx('Parolayı tekrar yaz', 'Re-enter password'))),
             ],
           ]),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Vazgeç')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tx('Vazgeç', 'Cancel'))),
           FilledButton(
             onPressed: () {
               if (box == null && p1.text != p2.text) {
-                ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Parolalar aynı değil')));
+                ScaffoldMessenger.of(ctx).showSnackBar( SnackBar(content: Text(tx('Parolalar aynı değil', "Passwords don't match"))));
                 return;
               }
               Navigator.pop(ctx, p1.text);
             },
-            child: const Text('Şifre eşitlemeyi aç'),
+            child: Text(tx('Şifre eşitlemeyi aç', 'Turn on password sync')),
           ),
         ],
       ),
     );
     if (pass == null || !mounted) return;
-    _toast('Anahtar hazırlanıyor…');
+    _toast(tx('Anahtar hazırlanıyor…', 'Preparing key…'));
     final err = await _vault.enable(pass, box);
     if (err != null) {
       _toast(err);
       return;
     }
     await _syncNow();
-    _toast('Şifre eşitlemesi açık');
+    _toast(tx('Şifre eşitlemesi açık', 'Password sync is on'));
   }
 
   // ----------------------------------------------------------------- Sekme uyutma
@@ -2731,7 +2733,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     for (final t in List.of(_tabs)) {
       if (await _sleepTab(t)) n++;
     }
-    _toast(n == 0 ? 'Uyutulacak sekme yok' : '$n sekme uyutuldu; dokununca yeniden açılır');
+    _toast(n == 0 ? tx('Uyutulacak sekme yok', 'No tabs to put to sleep') : tx('$n sekme uyutuldu; dokununca yeniden açılır', '$n tabs put to sleep; tap to reopen'));
   }
 
   void _setSleepMinutes(int m) {
@@ -2795,11 +2797,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       context: context,
       position: RelativeRect.fromLTRB(pos.dx, pos.dy, pos.dx + 1, pos.dy + 1),
       items: [
-        _mi('tab', Icons.open_in_new, 'Sekmede aç'),
-        if (_sideLoaded.contains(a.id) && a.id != kSideRadio) _mi('reload', Icons.refresh, 'Yeniden yükle'),
-        if (_sideLoaded.contains(a.id) && a.id != kSideRadio) _mi('unload', Icons.power_settings_new, 'Kapat (bellekten çıkar)'),
+        _mi('tab', Icons.open_in_new, tx('Sekmede aç', 'Open in tab')),
+        if (_sideLoaded.contains(a.id) && a.id != kSideRadio) _mi('reload', Icons.refresh, tx('Yeniden yükle', 'Reload')),
+        if (_sideLoaded.contains(a.id) && a.id != kSideRadio) _mi('unload', Icons.power_settings_new, tx('Kapat (bellekten çıkar)', 'Close (remove from memory)')),
         const PopupMenuDivider(),
-        _mi('remove', Icons.remove_circle_outline, 'Kenar çubuğundan kaldır'),
+        _mi('remove', Icons.remove_circle_outline, tx('Kenar çubuğundan kaldır', 'Remove from sidebar')),
       ],
     );
     switch (v) {
@@ -2822,13 +2824,13 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     final r = await showDialog<SideApp>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Kenar çubuğuna ekle'),
+        title: Text(tx('Kenar çubuğuna ekle', 'Add to sidebar')),
         content: SizedBox(
           width: 440,
           child: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               if (options.isNotEmpty) ...[
-                Text('Öneriler', style: TextStyle(color: OAColors.muted, fontSize: 13)),
+                Text(tx('Öneriler', 'Suggestions'), style: TextStyle(color: OAColors.muted, fontSize: 13)),
                 const SizedBox(height: 8),
                 Wrap(spacing: 8, runSpacing: 8, children: [
                   for (final o in options)
@@ -2840,20 +2842,20 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                 ]),
                 const SizedBox(height: 18),
               ],
-              Text('Ya da istediğin bir site', style: TextStyle(color: OAColors.muted, fontSize: 13)),
+              Text(tx('Ya da istediğin bir site', 'Or any site you like'), style: TextStyle(color: OAColors.muted, fontSize: 13)),
               const SizedBox(height: 8),
-              TextField(controller: name, decoration: const InputDecoration(labelText: 'Adı')),
+              TextField(controller: name, decoration: InputDecoration(labelText: tx('Adı', 'Name'))),
               const SizedBox(height: 8),
               TextField(
                 controller: url,
                 keyboardType: TextInputType.url,
-                decoration: const InputDecoration(labelText: 'Adres', hintText: 'https://…'),
+                decoration: InputDecoration(labelText: tx('Adres', 'Address'), hintText: 'https://…'),
               ),
             ]),
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Vazgeç')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tx('Vazgeç', 'Cancel'))),
           FilledButton(
             onPressed: () {
               var u = url.text.trim();
@@ -2862,7 +2864,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               final n = name.text.trim().isEmpty ? (Uri.tryParse(u)?.host ?? u) : name.text.trim();
               Navigator.pop(ctx, SideApp('ozel-${DateTime.now().millisecondsSinceEpoch}', n, u));
             },
-            child: const Text('Ekle'),
+            child: Text(tx('Ekle', 'Add')),
           ),
         ],
       ),
@@ -2931,19 +2933,19 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                     child: Text(app?.name ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
                   ),
                   IconButton(
-                    tooltip: 'Yeniden yükle',
+                    tooltip: tx('Yeniden yükle', 'Reload'),
                     iconSize: 18,
                     icon: const Icon(Icons.refresh),
                     onPressed: app == null || app.id == kSideRadio ? null : () => _sideCtl[app.id]?.reload(),
                   ),
                   IconButton(
-                    tooltip: 'Sekmede aç',
+                    tooltip: tx('Sekmede aç', 'Open in tab'),
                     iconSize: 18,
                     icon: const Icon(Icons.open_in_new),
                     onPressed: app == null || app.id == kSideRadio ? null : () => _addTab(url: app.url),
                   ),
                   IconButton(
-                    tooltip: 'Paneli kapat',
+                    tooltip: tx('Paneli kapat', 'Close panel'),
                     iconSize: 18,
                     icon: const Icon(Icons.chevron_left),
                     onPressed: () => setState(() => _sideOpen = null),
@@ -3011,7 +3013,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       _current = _tabs.indexOf(selected);
     });
     _saveSessionSoon();
-    if (t.sleeping) _toast(t.pinned ? 'Sekme sabitlendi' : 'Sabitleme kaldırıldı');
+    if (t.sleeping) _toast(t.pinned ? tx('Sekme sabitlendi', 'Tab pinned') : tx('Sabitleme kaldırıldı', 'Tab unpinned'));
   }
 
   // ----------------------------------------------------------------- QR ile paylaş
@@ -3019,13 +3021,13 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   void _showQrShare() {
     final t = _tab;
     if (t.showStart || !t.url.startsWith('http')) {
-      _toast('Önce paylaşmak istediğin sayfayı aç');
+      _toast(tx('Önce paylaşmak istediğin sayfayı aç', 'Open the page you want to share first'));
       return;
     }
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Telefonla okut'),
+        title: Text(tx('Telefonla okut', 'Scan with your phone')),
         content: SizedBox(
           width: 300,
           child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -3045,11 +3047,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           TextButton(
             onPressed: () {
               Clipboard.setData(ClipboardData(text: t.url));
-              _toast('Bağlantı kopyalandı');
+              _toast(tx('Bağlantı kopyalandı', 'Link copied'));
             },
-            child: const Text('Bağlantıyı kopyala'),
+            child: Text(tx('Bağlantıyı kopyala', 'Copy link')),
           ),
-          FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('Tamam')),
+          FilledButton(onPressed: () => Navigator.pop(ctx), child: Text(tx('Tamam', 'OK'))),
         ],
       ),
     );
@@ -3095,65 +3097,65 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     void menu(String v) => _onMenu(v);
     final page = !_tab.showStart;
     return [
-      (Icons.add, 'Yeni sekme', 'ac', () => _addTab()),
-      (Icons.visibility_off_outlined, 'Yeni gizli sekme', 'incognito', () => _addTab(incognito: true)),
-      (Icons.star_border, 'Yer imleri', 'bookmark', () => menu('bookmarks')),
-      (Icons.history, 'Geçmiş', 'history', () => menu('history')),
-      (Icons.hourglass_bottom_rounded, 'Ekran süresi', 'kullanım süre sınır hedef istatistik', () => menu('screentime')),
-      (Icons.download_outlined, 'İndirilenler', 'download', () => menu('downloads')),
-      (Icons.bookmark_added_outlined, 'Okuma listesi', 'sonra oku', () => menu('readlist')),
-      (Icons.devices_outlined, 'Öbür cihazlardaki sekmeler', 'telefon bilgisayar eşitleme', () => menu('devices')),
+      (Icons.add, tx('Yeni sekme', 'New tab'), 'ac', () => _addTab()),
+      (Icons.visibility_off_outlined, tx('Yeni gizli sekme', 'New private tab'), 'incognito', () => _addTab(incognito: true)),
+      (Icons.star_border, tx('Yer imleri', 'Bookmarks'), 'bookmark', () => menu('bookmarks')),
+      (Icons.history, tx('Geçmiş', 'History'), 'history', () => menu('history')),
+      (Icons.hourglass_bottom_rounded, tx('Ekran süresi', 'Screen time'), tx('kullanım süre sınır hedef istatistik', 'usage time limit goal stats'), () => menu('screentime')),
+      (Icons.download_outlined, tx('İndirilenler', 'Downloads'), 'download', () => menu('downloads')),
+      (Icons.bookmark_added_outlined, tx('Okuma listesi', 'Reading list'), tx('sonra oku', 'read later'), () => menu('readlist')),
+      (Icons.devices_outlined, tx('Öbür cihazlardaki sekmeler', 'Tabs on other devices'), tx('telefon bilgisayar eşitleme', 'phone computer sync'), () => menu('devices')),
       (Icons.radio_outlined, 'OA Radyo', 'muzik', () => menu('radio')),
-      if (_closedTabs.isNotEmpty) (Icons.restore, 'Kapatılan sekmeyi geri aç', 'geri getir', () => menu('reopen')),
-      (Icons.clear_all, 'Bütün sekmeleri kapat', 'hepsini kapat temizle', () => menu('closeall')),
-      (Icons.settings_outlined, 'Ayarlar', 'tercihler', () => _openSettings()),
-      for (final sec in _visibleSections) (sec.icon, 'Ayarlar: ${sec.name}', sec.sub, () => _openSettings(sec.id)),
-      (Icons.contrast, 'Tema: ${themeModeNotifier.value == ThemeMode.dark ? 'açık temaya geç' : 'koyu temaya geç'}', 'koyu acik gece', () {
+      if (_closedTabs.isNotEmpty) (Icons.restore, tx('Kapatılan sekmeyi geri aç', 'Reopen closed tab'), tx('geri getir', 'restore'), () => menu('reopen')),
+      (Icons.clear_all, tx('Bütün sekmeleri kapat', 'Close all tabs'), tx('hepsini kapat temizle', 'close all clear'), () => menu('closeall')),
+      (Icons.settings_outlined, tx('Ayarlar', 'Settings'), 'tercihler', () => _openSettings()),
+      for (final sec in _visibleSections) (sec.icon, tx('Ayarlar: ${sec.name}', 'Settings: ${sec.name}'), sec.sub, () => _openSettings(sec.id)),
+      (Icons.contrast, tx('Tema: ${themeModeNotifier.value == ThemeMode.dark ? 'açık temaya geç' : 'koyu temaya geç'}', "Theme: ${themeModeNotifier.value == ThemeMode.dark ? 'switch to light' : 'switch to dark'}"), tx('koyu acik gece', 'dark light night'), () {
         final m = themeModeNotifier.value == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
         themeModeNotifier.value = m;
         _prefs?.setString('theme', themeModeToString(m));
       }),
-      for (final a in kAccents) (Icons.palette_outlined, 'Vurgu rengi: ${a.name}', 'renk tema', () => _setAccent(a.id)),
-      (Icons.dark_mode_outlined, 'Bütün siteleri koyu göster: ${_darkAll ? 'kapat' : 'aç'}', 'karanlik', () => _setDarkAll(!_darkAll)),
-      (Icons.shield_outlined, 'Reklam engelleme: ${_adblockOn ? 'kapat' : 'aç'}', 'reklam', () {
+      for (final a in kAccents) (Icons.palette_outlined, tx('Vurgu rengi: ${a.name}', 'Accent color: ${a.name}'), tx('renk tema', 'color theme'), () => _setAccent(a.id)),
+      (Icons.dark_mode_outlined, tx('Bütün siteleri koyu göster: ${_darkAll ? 'kapat' : 'aç'}', "Show all sites dark: ${_darkAll ? 'off' : 'on'}"), 'karanlik', () => _setDarkAll(!_darkAll)),
+      (Icons.shield_outlined, tx('Reklam engelleme: ${_adblockOn ? 'kapat' : 'aç'}', "Ad blocking: ${_adblockOn ? 'off' : 'on'}"), 'reklam', () {
         _adblockOn = !_adblockOn;
         _applyAdblock();
       }),
-      if (Platform.isWindows) (Icons.view_sidebar_outlined, 'Kenar çubuğu: ${_sidebarOn ? 'gizle' : 'göster'}', 'whatsapp dock', _toggleSidebar),
-      if (Platform.isWindows) (Icons.view_week_outlined, 'Dikey sekmeler: ${_verticalTabs ? 'kapat' : 'aç'}', 'sekme', _toggleVerticalTabs),
-      (Icons.bedtime_outlined, 'Diğer sekmeleri uyut', 'bellek performans', _sleepOthers),
-      (Icons.delete_sweep_outlined, 'Geçmişi temizle', 'sil', _clearHistory),
-      (Icons.file_download_outlined, 'Chrome / Firefox\'tan içe aktar', 'import', _showImport),
-      (Icons.key_outlined, 'Şifreler', 'parola', _showPasswords),
-      (Icons.system_update_outlined, 'Güncellemeleri denetle', 'surum', () => _checkUpdate(manual: true)),
+      if (Platform.isWindows) (Icons.view_sidebar_outlined, tx('Kenar çubuğu: ${_sidebarOn ? 'gizle' : 'göster'}', "Sidebar: ${_sidebarOn ? 'hide' : 'show'}"), 'whatsapp dock', _toggleSidebar),
+      if (Platform.isWindows) (Icons.view_week_outlined, tx('Dikey sekmeler: ${_verticalTabs ? 'kapat' : 'aç'}', "Vertical tabs: ${_verticalTabs ? 'off' : 'on'}"), 'sekme', _toggleVerticalTabs),
+      (Icons.bedtime_outlined, tx('Diğer sekmeleri uyut', 'Put other tabs to sleep'), tx('bellek performans', 'memory performance'), _sleepOthers),
+      (Icons.delete_sweep_outlined, tx('Geçmişi temizle', 'Clear history'), 'sil', _clearHistory),
+      (Icons.file_download_outlined, tx('Chrome / Firefox\'tan içe aktar', 'Import from Chrome / Firefox'), 'import', _showImport),
+      (Icons.key_outlined, tx('Şifreler', 'Passwords'), 'parola', _showPasswords),
+      (Icons.system_update_outlined, tx('Güncellemeleri denetle', 'Check for updates'), 'surum', () => _checkUpdate(manual: true)),
       if (page) ...[
-        (Icons.push_pin_outlined, _tab.pinned ? 'Sekmenin sabitlemesini kaldır' : 'Sekmeyi sabitle', 'pin', () => _togglePin(_tab)),
-        (Icons.find_in_page_outlined, 'Sayfada bul', 'ara', () => menu('find')),
-        (Icons.qr_code_2, 'QR kod ile telefona aktar', 'paylas', _showQrShare),
-        (Icons.send_to_mobile_outlined, 'Bu sekmeyi öbür cihaza gönder', 'paylas', () => menu('send')),
-        (Icons.cast_connected_outlined, Platform.isAndroid ? 'Bilgisayara gönder (Pusula Köprü)' : 'Telefona gönder (Pusula Köprü)', 'kopru paylas telefon bilgisayar', () => menu('kopru')),
-        (Icons.swap_horiz_rounded, 'OA Akış: öbür cihaza not, fotoğraf, dosya gönder', 'akis flow not dosya foto', () => menu('flow')),
-        (Icons.bookmark_add_outlined, 'Sonra oku listesine ekle', 'kaydet', () => menu('later')),
-        (Icons.chrome_reader_mode_outlined, 'Okuma modu', 'reader', () => menu('reader')),
-        (Icons.record_voice_over_outlined, 'Sesli oku', 'tts seslendir dinle oku', () => menu('tts')),
-        if (Platform.isWindows) (Icons.videocam_outlined, 'Video görünmüyorsa düzelt', 'video siyah görüntü yok drm tv', () => menu('drmembed')),
-        if (Platform.isWindows) (Icons.open_in_new, 'Videoyu ayrı pencerede aç', 'video siyah drm pencere', () => menu('drmwin')),
+        (Icons.push_pin_outlined, _tab.pinned ? tx('Sekmenin sabitlemesini kaldır', 'Unpin tab') : tx('Sekmeyi sabitle', 'Pin tab'), 'pin', () => _togglePin(_tab)),
+        (Icons.find_in_page_outlined, tx('Sayfada bul', 'Find on page'), 'ara', () => menu('find')),
+        (Icons.qr_code_2, tx('QR kod ile telefona aktar', 'Send to phone with a QR code'), 'paylas', _showQrShare),
+        (Icons.send_to_mobile_outlined, tx('Bu sekmeyi öbür cihaza gönder', 'Send this tab to another device'), 'paylas', () => menu('send')),
+        (Icons.cast_connected_outlined, Platform.isAndroid ? tx('Bilgisayara gönder (Pusula Köprü)', 'Send to computer (Pusula Köprü)') : tx('Telefona gönder (Pusula Köprü)', 'Send to phone (Pusula Köprü)'), tx('kopru paylas telefon bilgisayar', 'bridge share phone computer'), () => menu('kopru')),
+        (Icons.swap_horiz_rounded, tx('OA Akış: öbür cihaza not, fotoğraf, dosya gönder', 'OA Flow: send a note, photo or file to another device'), tx('akis flow not dosya foto', 'flow note file photo'), () => menu('flow')),
+        (Icons.bookmark_add_outlined, tx('Sonra oku listesine ekle', 'Add to reading list'), 'kaydet', () => menu('later')),
+        (Icons.chrome_reader_mode_outlined, tx('Okuma modu', 'Reader mode'), 'reader', () => menu('reader')),
+        (Icons.record_voice_over_outlined, tx('Sesli oku', 'Read aloud'), tx('tts seslendir dinle oku', 'tts speak listen read'), () => menu('tts')),
+        if (Platform.isWindows) (Icons.videocam_outlined, tx('Video görünmüyorsa düzelt', 'Fix video not showing'), tx('video siyah görüntü yok drm tv', 'video black no picture drm tv'), () => menu('drmembed')),
+        if (Platform.isWindows) (Icons.open_in_new, tx('Videoyu ayrı pencerede aç', 'Open video in a separate window'), tx('video siyah drm pencere', 'video black drm window'), () => menu('drmwin')),
         if (Platform.isWindows)
-          (Icons.vertical_split_outlined, _split == null ? 'Yan yana yeni sekme' : 'Yan yana görünümü kapat', 'split bolunmus ekran',
+          (Icons.vertical_split_outlined, _split == null ? tx('Yan yana yeni sekme', 'New tab side by side') : tx('Yan yana görünümü kapat', 'Close side-by-side view'), tx('split bolunmus ekran', 'split screen'),
               () => menu(_split == null ? 'splitnew' : 'unsplit')),
-        (Icons.translate, 'Türkçeye çevir', 'translate', () => menu('translate')),
-        (Icons.picture_as_pdf_outlined, 'PDF olarak kaydet', 'yazdir', () => menu('pdf')),
-        if (Platform.isWindows) (Icons.screenshot_monitor_outlined, 'Tam sayfa ekran görüntüsü', 'resim', () => menu('shot')),
-        (Icons.zoom_in, 'Yakınlaştırma', 'zoom', () => menu('zoom')),
+        (Icons.translate, tx('Türkçeye çevir', 'Translate to English'), 'translate', () => menu('translate')),
+        (Icons.picture_as_pdf_outlined, tx('PDF olarak kaydet', 'Save as PDF'), 'yazdir', () => menu('pdf')),
+        if (Platform.isWindows) (Icons.screenshot_monitor_outlined, tx('Tam sayfa ekran görüntüsü', 'Full-page screenshot'), 'resim', () => menu('shot')),
+        (Icons.zoom_in, tx('Yakınlaştırma', 'Zoom'), 'zoom', () => menu('zoom')),
       ],
       for (var i = 0; i < _tabs.length; i++)
-        if (i != _current) (Icons.tab_outlined, 'Sekmeye git: ${_tabs[i].displayTitle}', _tabs[i].host, () => _selectTab(i)),
+        if (i != _current) (Icons.tab_outlined, tx('Sekmeye git: ${_tabs[i].displayTitle}', 'Go to tab: ${_tabs[i].displayTitle}'), _tabs[i].host, () => _selectTab(i)),
       if (Platform.isWindows)
-        for (final a in _sideApps) (Icons.view_sidebar_outlined, 'Kenar çubuğu: ${a.name}', 'uygulama', () {
+        for (final a in _sideApps) (Icons.view_sidebar_outlined, tx('Kenar çubuğu: ${a.name}', 'Sidebar: ${a.name}'), 'uygulama', () {
           if (!_sidebarOn) _toggleSidebar();
           if (_sideOpen != a.id) _toggleSide(a);
         }),
-      for (final b in _bookmarks.take(50)) (Icons.star_border, 'Yer imi: ${b['title'] ?? ''}', b['url'] ?? '', () => _go(b['url'] ?? '')),
+      for (final b in _bookmarks.take(50)) (Icons.star_border, tx('Yer imi: ${b['title'] ?? ''}', "Bookmark: ${b['title'] ?? ''}"), b['url'] ?? '', () => _go(b['url'] ?? '')),
     ];
   }
 
@@ -3164,7 +3166,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     await showGeneralDialog(
       context: context,
       barrierDismissible: true,
-      barrierLabel: 'Kapat',
+      barrierLabel: tx('Kapat', 'Close'),
       barrierColor: Colors.black45,
       pageBuilder: (ctx, _, __) => StatefulBuilder(builder: (ctx, setD) {
         final q = _norm(ctl.text.trim());
@@ -3188,7 +3190,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         }
         final raw = ctl.text.trim();
         final extra = <(IconData, String, String, VoidCallback)>[
-          if (raw.isNotEmpty) (looksLikeUrl(raw) ? Icons.public : Icons.search, looksLikeUrl(raw) ? 'Git: $raw' : '"$raw" için ${_engine.name} ile ara', '', () => _go(raw)),
+          if (raw.isNotEmpty) (looksLikeUrl(raw) ? Icons.public : Icons.search, looksLikeUrl(raw) ? tx('Git: $raw', 'Go: $raw') : tx('"$raw" için ${_engine.name} ile ara', 'Search for "$raw" with ${_engine.name}'), '', () => _go(raw)),
         ];
         final list = [...(hits.length > 9 ? hits.sublist(0, 9) : hits), ...extra];
         if (sel >= list.length) sel = list.isEmpty ? 0 : list.length - 1;
@@ -3235,7 +3237,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                       autofocus: true,
                       style: TextStyle(color: OAColors.text, fontSize: 16),
                       decoration: InputDecoration(
-                        hintText: 'Bir komut, sekme, ayar ya da arama yaz…',
+                        hintText: tx('Bir komut, sekme, ayar ya da arama yaz…', 'Type a command, tab, setting or search…'),
                         prefixIcon: Icon(Icons.bolt, color: OAColors.amber),
                         fillColor: OAColors.bg2,
                       ),
@@ -3264,7 +3266,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
-                  child: Text('↑ ↓ seç · Enter çalıştır · Esc kapat', style: TextStyle(color: OAColors.faint, fontSize: 12)),
+                  child: Text(tx('↑ ↓ seç · Enter çalıştır · Esc kapat', '↑ ↓ select · Enter run · Esc close'), style: TextStyle(color: OAColors.faint, fontSize: 12)),
                 ),
               ]),
             ),
@@ -3315,8 +3317,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     try {
       final bytes = base64Decode(m['d'].toString());
       final dir = await getDownloadsDirectory() ?? await getApplicationDocumentsDirectory();
-      var name = (m['n']?.toString() ?? 'dosya').replaceAll(RegExp(r'[\\/:*?"<>|\r\n\t]'), '-').trim();
-      if (name.isEmpty) name = 'dosya';
+      var name = (m['n']?.toString() ?? tx('dosya', 'file')).replaceAll(RegExp(r'[\\/:*?"<>|\r\n\t]'), '-').trim();
+      if (name.isEmpty) name = tx('dosya', 'file');
       final dot = name.lastIndexOf('.');
       final base = dot > 0 ? name.substring(0, dot) : name;
       final ext = dot > 0 ? name.substring(dot) : '';
@@ -3368,15 +3370,15 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(SnackBar(
-          content: Text(extra == 1 ? 'OA Akış: öbür cihazdan yeni bir şey geldi' : 'OA Akış: öbür cihazdan $extra yeni şey geldi'),
+          content: Text(extra == 1 ? tx('OA Akış: öbür cihazdan yeni bir şey geldi', 'OA Flow: something new arrived from another device') : tx('OA Akış: öbür cihazdan $extra yeni şey geldi', 'OA Flow: $extra new items arrived from another device')),
           duration: const Duration(seconds: 6),
-          action: SnackBarAction(label: 'Göster', onPressed: () => _showFlow()),
+          action: SnackBarAction(label: tx('Göster', 'Show'), onPressed: () => _showFlow()),
         ));
     }
   }
 
   Future<void> _showFlow({String? text}) async {
-    if (_needSignIn('OA Akış')) return;
+    if (_needSignIn(tx('OA Akış', 'OA Flow'))) return;
     if (_devices.isEmpty) await _syncNow();
     if (!mounted || _flowOpen) return;
     _flowOpen = true;
@@ -3450,7 +3452,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         Text(t.displayTitle,
             maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: OAColors.text, fontWeight: FontWeight.w600, fontSize: 13)),
         const SizedBox(height: 2),
-        Text(t.sleeping ? '${t.host} · uykuda' : t.host, style: TextStyle(color: OAColors.muted, fontSize: 12)),
+        Text(t.sleeping ? tx('${t.host} · uykuda', '${t.host} · asleep') : t.host, style: TextStyle(color: OAColors.muted, fontSize: 12)),
         if (t.thumb != null && !t.incognito) ...[
           const SizedBox(height: 8),
           ClipRRect(
@@ -3527,9 +3529,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     m.showMaterialBanner(MaterialBanner(
       backgroundColor: OAColors.surface,
       leading: Icon(Icons.videocam_off_outlined, color: OAColors.amber),
-      content: Text('$key kopya korumalı video kullanıyor. Ses gelip görüntü siyah kalıyorsa "Düzgün göster"e bas.'),
+      content: Text(tx('$key kopya korumalı video kullanıyor. Ses gelip görüntü siyah kalıyorsa "Düzgün göster"e bas.', '$key uses copy-protected video. If you hear sound but the picture stays black, press "Show properly".')),
       actions: [
-        TextButton(onPressed: m.hideCurrentMaterialBanner, child: const Text('Kapat')),
+        TextButton(onPressed: m.hideCurrentMaterialBanner, child: Text(tx('Kapat', 'Close'))),
         TextButton(
           onPressed: () {
             m.hideCurrentMaterialBanner();
@@ -3537,14 +3539,14 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             _prefs?.setStringList('drm_sites', _drmSites.toList());
             _embedProtected(t);
           },
-          child: const Text('Bu sitede hep'),
+          child: Text(tx('Bu sitede hep', 'Always on this site')),
         ),
         FilledButton(
           onPressed: () {
             m.hideCurrentMaterialBanner();
             _embedProtected(t);
           },
-          child: const Text('Düzgün göster'),
+          child: Text(tx('Düzgün göster', 'Show properly')),
         ),
       ],
     ));
@@ -3575,10 +3577,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           ),
         ),
       );
-      if (auto) _toast('$host kopya korumalı video kullanıyor; ayrı pencerede açıldı');
+      if (auto) _toast(tx('$host kopya korumalı video kullanıyor; ayrı pencerede açıldı', '$host uses copy-protected video; opened in a separate window'));
     } catch (_) {
       _drmWindows.remove(w);
-      _toast('Ayrı pencere açılamadı');
+      _toast(tx('Ayrı pencere açılamadı', "Couldn't open a separate window"));
     }
   }
 
@@ -3797,16 +3799,16 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     m.showMaterialBanner(MaterialBanner(
       backgroundColor: OAColors.surface,
       leading: Icon(Icons.timer_outlined, color: OAColors.amber),
-      content: Text('$site için bugünkü ${fmtDuration(l.minutes * 60)} sınırın doldu.'),
+      content: Text(tx('$site için bugünkü ${fmtDuration(l.minutes * 60)} sınırın doldu.', "You've reached today's ${fmtDuration(l.minutes * 60)} limit for $site.")),
       actions: [
         TextButton(
           onPressed: () {
             m.hideCurrentMaterialBanner();
             _openScreenTime();
           },
-          child: const Text('Ekran süresi'),
+          child: Text(tx('Ekran süresi', 'Screen time')),
         ),
-        FilledButton(onPressed: m.hideCurrentMaterialBanner, child: const Text('Tamam')),
+        FilledButton(onPressed: m.hideCurrentMaterialBanner, child: Text(tx('Tamam', 'OK'))),
       ],
     ));
   }
@@ -3817,9 +3819,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     final today = _st.totalOn(DateTime.now());
     String? msg;
     if (today >= g && _stOnce('goal100')) {
-      msg = 'Bugünkü ${fmtDuration(g)} hedefini doldurdun.';
+      msg = tx('Bugünkü ${fmtDuration(g)} hedefini doldurdun.', "You've reached today's ${fmtDuration(g)} goal.");
     } else if (today >= g * 0.9 && today < g && _stOnce('goal90')) {
-      msg = 'Bugünkü hedefine ${fmtDuration(g - today)} kaldı.';
+      msg = tx('Bugünkü hedefine ${fmtDuration(g - today)} kaldı.', "${fmtDuration(g - today)} left until today's goal.");
     }
     if (msg == null) return;
     ScaffoldMessenger.of(context)
@@ -3827,7 +3829,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       ..showSnackBar(SnackBar(
         content: Text(msg),
         duration: const Duration(seconds: 6),
-        action: SnackBarAction(label: 'Ekran süresi', onPressed: _openScreenTime),
+        action: SnackBarAction(label: tx('Ekran süresi', 'Screen time'), onPressed: _openScreenTime),
       ));
   }
 
@@ -3878,11 +3880,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     final w = _st.week().fold<int>(0, (a, b) => a + b);
     final top = _st.topSites().take(2).toList();
     final body = w == 0
-        ? 'Bu haftaki ekran süreni görmek için dokun.'
-        : 'Bu hafta Pusula\'da ${fmtDuration(w)} geçirdin'
+        ? tx('Bu haftaki ekran süreni görmek için dokun.', "Tap to see this week's screen time.")
+        : tx('Bu hafta Pusula\'da ${fmtDuration(w)} geçirdin'
             '${top.isEmpty ? '' : ', en çok ${top.first.key} (${fmtDuration(top.first.value)})'}'
-            '${top.length > 1 ? ' ve ${top[1].key}' : ''}. Ayrıntılar için dokun.';
-    await OaNotify.schedule(OaNotify.weeklyId, 'Haftalık ekran süren', body, when, payload: 'screentime');
+            '${top.length > 1 ? ' ve ${top[1].key}' : ''}. Ayrıntılar için dokun.', "This week you spent ${fmtDuration(w)} in Pusula${top.isEmpty ? '' : ', most on ${top.first.key} (${fmtDuration(top.first.value)})'}${top.length > 1 ? ' and ${top[1].key}' : ''}. Tap for details.");
+    await OaNotify.schedule(OaNotify.weeklyId, tx('Haftalık ekran süren', 'Your weekly screen time'), body, when, payload: 'screentime');
   }
 
   // ----------------------------------------------------------------- Sesli okuma
@@ -3891,7 +3893,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     final t = _tab;
     final c = t.controller;
     if (t.showStart || c == null) {
-      _toast('Önce okunacak bir sayfa aç');
+      _toast(tx('Önce okunacak bir sayfa aç', 'Open a page to read first'));
       return;
     }
     try {
@@ -3911,14 +3913,14 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       final j = jsonDecode(r.toString()) as Map;
       final text = j['text']?.toString() ?? '';
       if (text.trim().length < 20) {
-        _toast('Bu sayfada okunacak yazı bulunamadı');
+        _toast(tx('Bu sayfada okunacak yazı bulunamadı', 'No text to read was found on this page'));
         return;
       }
       final title = (j['title']?.toString() ?? '').trim();
       if (_radio.playing) await _radio.toggle(); // radyo susar
       await _tts.start(title.isEmpty ? text : '$title. $text', title.isEmpty ? t.displayTitle : title);
     } catch (_) {
-      _toast('Sesli okuma başlatılamadı');
+      _toast(tx('Sesli okuma başlatılamadı', "Read aloud couldn't start"));
     }
   }
 
@@ -3945,7 +3947,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Pusula geçen sefer beklenmedik şekilde kapandı'),
+        title: Text(tx('Pusula geçen sefer beklenmedik şekilde kapandı', 'Pusula closed unexpectedly last time')),
         content: SizedBox(
           width: 620,
           child: SingleChildScrollView(
@@ -3953,7 +3955,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Kapanmanın nedeni aşağıda. Bu bilgiyi geliştiriciye iletirsen sorun düzeltilebilir.',
+                Text(tx('Kapanmanın nedeni aşağıda. Bu bilgiyi geliştiriciye iletirsen sorun düzeltilebilir.', 'The reason is below. If you send it to the developer, the problem can be fixed.'),
                     style: TextStyle(color: OAColors.muted)),
                 const SizedBox(height: 12),
                 SelectableText(text, style: const TextStyle(fontFamily: 'Consolas', fontSize: 12)),
@@ -3965,11 +3967,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           TextButton(
             onPressed: () {
               Clipboard.setData(ClipboardData(text: text));
-              _toast('Kopyalandı');
+              _toast(tx('Kopyalandı', 'Copied'));
             },
-            child: const Text('Kopyala'),
+            child: Text(tx('Kopyala', 'Copy')),
           ),
-          FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('Tamam')),
+          FilledButton(onPressed: () => Navigator.pop(ctx), child: Text(tx('Tamam', 'OK'))),
         ],
       ),
     );
@@ -4009,7 +4011,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   Future<void> _unlock() async {
     if (_unlocking) return;
     _unlocking = true;
-    final ok = await DeviceLock.verify('Gizli sekmeleri açmak için kimliğini doğrula');
+    final ok = await DeviceLock.verify(tx('Gizli sekmeleri açmak için kimliğini doğrula', "Verify it's you to open private tabs"));
     _unlocking = false;
     if (ok && mounted) setState(() => _setLocked(false));
   }
@@ -4018,17 +4020,17 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     if (!_incognitoLock) {
       if (!await DeviceLock.supported()) {
         _toast(Platform.isWindows
-            ? 'Bunun için Windows Hello (PIN, parmak izi ya da yüz) açık olmalı'
-            : 'Bunun için telefonda ekran kilidi (PIN, desen, parmak izi) açık olmalı');
+            ? tx('Bunun için Windows Hello (PIN, parmak izi ya da yüz) açık olmalı', 'This requires Windows Hello (PIN, fingerprint or face) to be set up')
+            : tx('Bunun için telefonda ekran kilidi (PIN, desen, parmak izi) açık olmalı', 'This requires a screen lock (PIN, pattern, fingerprint) on your phone'));
         return;
       }
-      if (!await DeviceLock.verify('Gizli sekme kilidini açmak için kimliğini doğrula')) return;
+      if (!await DeviceLock.verify(tx('Gizli sekme kilidini açmak için kimliğini doğrula', "Verify it's you to turn on the private tab lock"))) return;
     }
     setState(() => _incognitoLock = !_incognitoLock);
     _prefs?.setBool('incognito_lock', _incognitoLock);
     _toast(_incognitoLock
-        ? 'Gizli sekme kilidi açık: uygulamadan çıkınca gizli sekmeler kilitlenir'
-        : 'Gizli sekme kilidi kapalı');
+        ? tx('Gizli sekme kilidi açık: uygulamadan çıkınca gizli sekmeler kilitlenir', 'Private tab lock is on: private tabs lock when you leave the app')
+        : tx('Gizli sekme kilidi kapalı', 'Private tab lock is off'));
   }
 
   Widget _lockCover() {
@@ -4042,18 +4044,18 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             children: [
               Icon(Icons.lock_outline, size: 56, color: OAColors.amber),
               const SizedBox(height: 16),
-              Text('Gizli sekmeler kilitli',
+              Text(tx('Gizli sekmeler kilitli', 'Private tabs are locked'),
                   style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: OAColors.text)),
               const SizedBox(height: 8),
               Text(
-                Platform.isWindows ? 'Açmak için Windows Hello ile doğrula.' : 'Açmak için parmak izi, yüz ya da ekran kilidiyle doğrula.',
+                Platform.isWindows ? tx('Açmak için Windows Hello ile doğrula.', 'Verify with Windows Hello to open.') : tx('Açmak için parmak izi, yüz ya da ekran kilidiyle doğrula.', 'Verify with fingerprint, face or screen lock to open.'),
                 textAlign: TextAlign.center,
                 style: TextStyle(color: OAColors.muted),
               ),
               const SizedBox(height: 20),
               FilledButton.icon(
                 icon: const Icon(Icons.fingerprint),
-                label: const Text('Kilidi aç'),
+                label: Text(tx('Kilidi aç', 'Unlock')),
                 onPressed: _unlock,
               ),
             ],
@@ -4067,7 +4069,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   void _openFind() {
     if (_tab.showStart || _tab.controller == null) {
-      _toast('Önce bir sayfa aç');
+      _toast(tx('Önce bir sayfa aç', 'Open a page first'));
       return;
     }
     setState(() => _findOpen = true);
@@ -4128,7 +4130,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               focusNode: _findFocus,
               textInputAction: TextInputAction.search,
               style: TextStyle(color: OAColors.text, fontSize: 15),
-              decoration: const InputDecoration.collapsed(hintText: 'Sayfada bul'),
+              decoration: InputDecoration.collapsed(hintText: tx('Sayfada bul', 'Find on page')),
               onChanged: (v) => _runFind(v),
               onSubmitted: (_) {
                 _findStep(1);
@@ -4139,20 +4141,20 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           if (_findCtl.text.isNotEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 6),
-              child: Text(_findCount == 0 ? 'Bulunamadı' : '$_findIndex / $_findCount',
+              child: Text(_findCount == 0 ? tx('Bulunamadı', 'Not found') : '$_findIndex / $_findCount',
                   style: TextStyle(color: _findCount == 0 ? OAColors.danger : OAColors.muted, fontSize: 13)),
             ),
           IconButton(
-            tooltip: 'Önceki',
+            tooltip: tx('Önceki', 'Previous'),
             icon: const Icon(Icons.keyboard_arrow_up),
             onPressed: _findCount > 0 ? () => _findStep(-1) : null,
           ),
           IconButton(
-            tooltip: 'Sonraki',
+            tooltip: tx('Sonraki', 'Next'),
             icon: const Icon(Icons.keyboard_arrow_down),
             onPressed: _findCount > 0 ? () => _findStep(1) : null,
           ),
-          IconButton(tooltip: 'Kapat', icon: const Icon(Icons.close), onPressed: _closeFind),
+          IconButton(tooltip: tx('Kapat', 'Close'), icon: const Icon(Icons.close), onPressed: _closeFind),
         ],
       ),
     );
@@ -4164,7 +4166,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     final t = _tab;
     final c = t.controller;
     if (t.showStart || c == null) {
-      _toast('Önce bir sayfa aç');
+      _toast(tx('Önce bir sayfa aç', 'Open a page first'));
       return;
     }
     if (Platform.isAndroid) {
@@ -4172,7 +4174,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       try {
         await c.printCurrentPage();
       } catch (_) {
-        _toast('Yazdırma ekranı açılamadı');
+        _toast(tx('Yazdırma ekranı açılamadı', "Couldn't open the print screen"));
       }
       return;
     }
@@ -4186,7 +4188,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       final dir = await getDownloadsDirectory() ?? await getApplicationDocumentsDirectory();
       var name = (t.title.isEmpty ? t.host : t.title).replaceAll(RegExp(r'[\\/:*?"<>|\r\n\t]'), ' ').trim();
       if (name.length > 80) name = name.substring(0, 80).trim();
-      if (name.isEmpty) name = 'sayfa';
+      if (name.isEmpty) name = tx('sayfa', 'page');
       final sep = Platform.pathSeparator;
       var f = File('${dir.path}$sep$name.pdf');
       for (var n = 2; await f.exists(); n++) {
@@ -4197,12 +4199,12 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(SnackBar(
-          content: Text('PDF kaydedildi: İndirilenler/${f.uri.pathSegments.last}'),
+          content: Text(tx('PDF kaydedildi: İndirilenler/${f.uri.pathSegments.last}', 'PDF saved: Downloads/${f.uri.pathSegments.last}')),
           duration: const Duration(seconds: 5),
-          action: SnackBarAction(label: 'Aç', onPressed: () => Process.run('explorer.exe', [f.path])),
+          action: SnackBarAction(label: tx('Aç', 'Open'), onPressed: () => Process.run('explorer.exe', [f.path])),
         ));
     } catch (_) {
-      _toast('PDF kaydedilemedi');
+      _toast(tx('PDF kaydedilemedi', "Couldn't save PDF"));
     }
   }
 
@@ -4212,7 +4214,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     final t = _tab;
     final c = t.controller;
     if (t.showStart || c == null) {
-      _toast('Önce video olan bir sayfa aç');
+      _toast(tx('Önce video olan bir sayfa aç', 'Open a page with a video first'));
       return;
     }
     if (_findOpen) _closeFind();
@@ -4221,7 +4223,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       r = await c.evaluateJavascript(source: kVideoMiniJs);
     } catch (_) {}
     if (r is! List || r.length < 2) {
-      _toast('Bu sayfada video bulunamadı');
+      _toast(tx('Bu sayfada video bulunamadı', 'No video found on this page'));
       return;
     }
     final w = (r[0] is num ? (r[0] as num).toInt() : 16).clamp(1, 10000);
@@ -4234,7 +4236,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       } catch (_) {}
       if (!ok) {
         await _exitMiniVideo();
-        _toast('Bu telefon küçük pencereyi desteklemiyor');
+        _toast(tx('Bu telefon küçük pencereyi desteklemiyor', "This phone doesn't support picture-in-picture"));
       }
     } else if (Platform.isWindows) {
       try {
@@ -4255,7 +4257,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             height));
       } catch (_) {
         await _exitMiniVideo();
-        _toast('Küçük pencere açılamadı');
+        _toast(tx('Küçük pencere açılamadı', "Couldn't open the small window"));
       }
     }
   }
@@ -4281,7 +4283,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         color: Colors.black54,
         shape: const StadiumBorder(),
         child: IconButton(
-          tooltip: 'Küçük pencereden çık',
+          tooltip: tx('Küçük pencereden çık', 'Exit small window'),
           icon: const Icon(Icons.open_in_full, color: Colors.white),
           onPressed: _exitMiniVideo,
         ),
@@ -4325,16 +4327,16 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                 Icon(Icons.key_outlined, color: OAColors.amber),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Text(update ? 'Şifre güncellensin mi?' : 'Şifre kaydedilsin mi?',
+                  child: Text(update ? tx('Şifre güncellensin mi?', 'Update password?') : tx('Şifre kaydedilsin mi?', 'Save password?'),
                       style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: OAColors.text)),
                 ),
               ],
             ),
             const SizedBox(height: 10),
-            Text('$host · ${user.isEmpty ? 'kullanıcı adı yok' : user}',
+            Text(tx('$host · ${user.isEmpty ? 'kullanıcı adı yok' : user}', "$host · ${user.isEmpty ? 'no username' : user}"),
                 style: TextStyle(color: OAColors.text2, fontSize: 15)),
             const SizedBox(height: 6),
-            Text('Şifre yalnız bu cihazın güvenli deposunda saklanır; bir dahaki girişte kendiliğinden doldurulur.',
+            Text(tx('Şifre yalnız bu cihazın güvenli deposunda saklanır; bir dahaki girişte kendiliğinden doldurulur.', "The password is stored only in this device's secure storage and filled in automatically next time."),
                 style: TextStyle(color: OAColors.muted, fontSize: 13)),
             const SizedBox(height: 16),
             Row(
@@ -4345,18 +4347,18 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                       Navigator.pop(ctx);
                       _passwords.neverFor(origin);
                     },
-                    child: const Text('Bu sitede asla'),
+                    child: Text(tx('Bu sitede asla', 'Never on this site')),
                   ),
                 const Spacer(),
-                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Şimdi değil')),
+                TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tx('Şimdi değil', 'Not now'))),
                 const SizedBox(width: 6),
                 FilledButton(
                   onPressed: () {
                     Navigator.pop(ctx);
                     _passwords.upsert(origin, user, pass);
-                    _toast(update ? 'Şifre güncellendi' : 'Şifre kaydedildi');
+                    _toast(update ? tx('Şifre güncellendi', 'Password updated') : tx('Şifre kaydedildi', 'Password saved'));
                   },
-                  child: Text(update ? 'Güncelle' : 'Kaydet'),
+                  child: Text(update ? tx('Güncelle', 'Update') : tx('Kaydet', 'Save')),
                 ),
               ],
             ),
@@ -4381,7 +4383,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       try {
         final ok = await t.controller?.evaluateJavascript(source: passwordFillJs(e.user, e.pass));
         if (ok == true) {
-          if (t == _tab && mounted) _toast('Kayıtlı giriş dolduruldu${e.user.isEmpty ? '' : ': ${e.user}'}');
+          if (t == _tab && mounted) _toast(tx('Kayıtlı giriş dolduruldu${e.user.isEmpty ? '' : ': ${e.user}'}', "Saved login filled in${e.user.isEmpty ? '' : ': ${e.user}'}"));
           return;
         }
       } catch (_) {
@@ -4391,7 +4393,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   }
 
   Future<void> _showPasswords() async {
-    if (!await DeviceLock.verify('Kayıtlı şifreleri görmek için kimliğini doğrula')) return;
+    if (!await DeviceLock.verify(tx('Kayıtlı şifreleri görmek için kimliğini doğrula', "Verify it's you to see saved passwords"))) return;
     if (!mounted) return;
     showModalBottomSheet(
       context: context,
@@ -4539,12 +4541,12 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(
-        content: Text(closing.length == 1 ? 'Sekme kapatıldı' : '${closing.length} sekme kapatıldı'),
+        content: Text(closing.length == 1 ? tx('Sekme kapatıldı', 'Tab closed') : tx('${closing.length} sekme kapatıldı', '${closing.length} tabs closed')),
         duration: const Duration(seconds: 6),
         action: undo.isEmpty
             ? null
             : SnackBarAction(
-                label: 'Geri al',
+                label: tx('Geri al', 'Undo'),
                 onPressed: () {
                   for (final u in undo) {
                     _addTab(url: u.url, incognito: u.incognito);
@@ -4624,7 +4626,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   void _reopenClosedTab() {
     if (_closedTabs.isEmpty) {
-      _toast('Kapatılan sekme yok');
+      _toast(tx('Kapatılan sekme yok', 'No closed tabs'));
       return;
     }
     final t = _closedTabs.removeLast();
@@ -4765,12 +4767,12 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     try {
       info = await Updater.check();
     } catch (_) {
-      if (manual) _toast('Güncelleme denetlenemedi. İnternet bağlantını kontrol et.');
+      if (manual) _toast(tx('Güncelleme denetlenemedi. İnternet bağlantını kontrol et.', "Couldn't check for updates. Check your internet connection."));
       return;
     }
     if (!mounted) return;
     if (info == null) {
-      if (manual) _toast('Pusula güncel ($appVersion)');
+      if (manual) _toast(tx('Pusula güncel ($appVersion)', 'Pusula is up to date ($appVersion)'));
       return;
     }
     final u = info;
@@ -4778,9 +4780,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(
         duration: const Duration(seconds: 12),
-        content: Text('Pusula ${u.version} hazır'),
+        content: Text(tx('Pusula ${u.version} hazır', 'Pusula ${u.version} is ready')),
         action: SnackBarAction(
-          label: 'Güncelle',
+          label: tx('Güncelle', 'Update'),
           textColor: OAColors.accent,
           onPressed: () => _installUpdate(u),
         ),
@@ -4791,7 +4793,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   Future<void> _installUpdate(UpdateInfo u) async {
     if (!Platform.isWindows) {
-      _toast('Güncelleme indiriliyor…');
+      _toast(tx('Güncelleme indiriliyor…', 'Downloading update…'));
       await _downloads.start(u.assetUrl, suggestedName: u.assetName, openWhenDone: true, keepPrivate: true);
       return;
     }
@@ -4805,7 +4807,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         content: ValueListenableBuilder<double>(
           valueListenable: progress,
           builder: (_, v, __) => Row(children: [
-            Expanded(child: Text('Pusula ${u.version} indiriliyor… %${(v * 100).round()}')),
+            Expanded(child: Text(tx('Pusula ${u.version} indiriliyor… %${(v * 100).round()}', 'Downloading Pusula ${u.version}… ${(v * 100).round()}%'))),
             const SizedBox(width: 12),
             SizedBox(width: 120, child: LinearProgressIndicator(value: v, color: OAColors.accent)),
           ]),
@@ -4816,11 +4818,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     if (f == null || !await runInstaller(f)) {
       _updating = false;
-      _toast('Güncelleme indirilemedi. Daha sonra yeniden dene.');
+      _toast(tx('Güncelleme indirilemedi. Daha sonra yeniden dene.', "The update couldn't be downloaded. Try again later."));
       return;
     }
     // Kurulum uygulamayı kapatıp yeni sürümü kendisi açar; oturum ve ekran süresi önce kaydedilir.
-    _toast('Pusula güncelleniyor, birazdan yeniden açılacak…');
+    _toast(tx('Pusula güncelleniyor, birazdan yeniden açılacak…', 'Pusula is updating and will reopen shortly…'));
     _saveSession();
     await _st.save();
     await Future<void>.delayed(const Duration(milliseconds: 800));
@@ -4834,7 +4836,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   Future<void> _download(String url, {String? name, required TabData from}) async {
     if (!url.startsWith('http')) {
-      _toast('Bu dosya türü indirilemiyor');
+      _toast(tx('Bu dosya türü indirilemiyor', "This file type can't be downloaded"));
       return;
     }
     final headers = <String, String>{};
@@ -4848,8 +4850,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(
-        content: Text('İndiriliyor: ${item.name}'),
-        action: SnackBarAction(label: 'İndirilenler', textColor: OAColors.accent, onPressed: _showDownloads),
+        content: Text(tx('İndiriliyor: ${item.name}', 'Downloading: ${item.name}')),
+        action: SnackBarAction(label: tx('İndirilenler', 'Downloads'), textColor: OAColors.accent, onPressed: _showDownloads),
       ));
   }
 
@@ -4877,7 +4879,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       applicationName: 'Pusula Browser',
       applicationVersion: appVersion,
       applicationIcon: const PusulaMark(size: 72),
-      applicationLegalese: 'OA Labs\'ten · © 2026 Oğuzhan Aydın',
+      applicationLegalese: tx('OA Labs\'ten · © 2026 Oğuzhan Aydın', 'From OA Labs · © 2026 Oğuzhan Aydın'),
     );
   }
 
@@ -5425,7 +5427,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           left: lw - 14,
           top: 8,
           child: Tooltip(
-            message: 'Yan yana görünümü kapat',
+            message: tx('Yan yana görünümü kapat', 'Close side-by-side view'),
             child: Material(
               color: OAColors.surface2,
               shape: CircleBorder(side: BorderSide(color: OAColors.border2)),
@@ -5563,7 +5565,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                   padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
                   child: Center(
                     child: IconButton(
-                      tooltip: 'Yeni sekme (Ctrl+T)',
+                      tooltip: tx('Yeni sekme (Ctrl+T)', 'New tab (Ctrl+T)'),
                       icon: const Icon(Icons.add, size: 20),
                       onPressed: () => _addTab(),
                     ),
@@ -5575,7 +5577,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             }),
           ),
           IconButton(
-            tooltip: 'Dikey sekmeler',
+            tooltip: tx('Dikey sekmeler', 'Vertical tabs'),
             icon: Icon(Icons.view_sidebar_outlined, size: 20),
             onPressed: _toggleVerticalTabs,
           ),
@@ -5596,22 +5598,22 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       child: Row(
         children: [
           IconButton(
-            tooltip: 'Geri',
+            tooltip: tx('Geri', 'Back'),
             icon: Icon(Icons.arrow_back),
             onPressed: _canBack ? _back : null,
           ),
           IconButton(
-            tooltip: 'İleri',
+            tooltip: tx('İleri', 'Forward'),
             icon: Icon(Icons.arrow_forward),
             onPressed: _canForward ? _forward : null,
           ),
           IconButton(
-            tooltip: loading ? 'Durdur' : 'Yenile',
+            tooltip: loading ? tx('Durdur', 'Stop') : tx('Yenile', 'Reload'),
             icon: Icon(loading ? Icons.close : Icons.refresh),
             onPressed: _tab.showStart ? null : _reloadOrStop,
           ),
           IconButton(
-            tooltip: 'Ana sayfa',
+            tooltip: tx('Ana sayfa', 'Home'),
             icon: Icon(Icons.home_outlined),
             onPressed: _goHome,
           ),
@@ -5627,11 +5629,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
               decoration: InputDecoration(
                 isDense: true,
-                hintText: '${_engine.name} ile ara veya adres yaz',
+                hintText: tx('${_engine.name} ile ara veya adres yaz', 'Search with ${_engine.name} or type an address'),
                 prefixIcon: _tab.showStart
                     ? Icon(Icons.search, size: 18, color: OAColors.muted)
                     : IconButton(
-                        tooltip: 'Site bilgileri ve izinler',
+                        tooltip: tx('Site bilgileri ve izinler', 'Site info and permissions'),
                         onPressed: _showSiteInfo,
                         icon: Icon(
                           secure ? Icons.lock_outline : Icons.info_outline,
@@ -5644,12 +5646,12 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             ),
           ),
           IconButton(
-            tooltip: 'Okuma modu',
+            tooltip: tx('Okuma modu', 'Reader mode'),
             icon: const Icon(Icons.chrome_reader_mode_outlined),
             onPressed: _tab.showStart ? null : _toggleReader,
           ),
           IconButton(
-            tooltip: _siteBlocking ? 'Reklam engelleme açık' : 'Reklam engelleme kapalı',
+            tooltip: _siteBlocking ? tx('Reklam engelleme açık', 'Ad blocking on') : tx('Reklam engelleme kapalı', 'Ad blocking off'),
             icon: Icon(
               _siteBlocking ? Icons.shield : Icons.shield_outlined,
               color: _siteBlocking ? OAColors.green : null,
@@ -5657,7 +5659,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             onPressed: _showAdblockSettings,
           ),
           IconButton(
-            tooltip: 'Yer imi',
+            tooltip: tx('Yer imi', 'Bookmark'),
             icon: Icon(
               _isBookmarked ? Icons.star : Icons.star_border,
               color: _isBookmarked ? OAColors.amber : null,
@@ -5665,40 +5667,40 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             onPressed: _tab.showStart ? null : _toggleBookmark,
           ),
           IconButton(
-            tooltip: _account.signedIn ? 'Hesabım: ${_account.user!.name}' : 'Giriş yap',
+            tooltip: _account.signedIn ? tx('Hesabım: ${_account.user!.name}', 'My account: ${_account.user!.name}') : tx('Giriş yap', 'Sign in'),
             icon: OAAvatar(name: _account.user?.name, size: 30),
             onPressed: _openAccount,
           ),
           PopupMenuButton<String>(
-            tooltip: 'Menü',
+            tooltip: tx('Menü', 'Menu'),
             onSelected: _onMenu,
             // Uzun öğeler ("Kapatılan sekmeyi geri aç  Ctrl+Shift+T") iki satıra bölünmesin
             constraints: const BoxConstraints(minWidth: 300, maxWidth: 360),
             itemBuilder: (_) => [
-              _mi('new', Icons.add, 'Yeni sekme', 'Ctrl+T'),
-              _mi('incognito', Icons.visibility_off_outlined, 'Yeni gizli sekme'),
+              _mi('new', Icons.add, tx('Yeni sekme', 'New tab'), 'Ctrl+T'),
+              _mi('incognito', Icons.visibility_off_outlined, tx('Yeni gizli sekme', 'New private tab')),
               const PopupMenuDivider(),
-              _mi('bookmarks', Icons.star_border, 'Yer imleri'),
-              _mi('history', Icons.history, 'Geçmiş'),
-              _mi('screentime', Icons.hourglass_bottom_rounded, 'Ekran süresi'),
+              _mi('bookmarks', Icons.star_border, tx('Yer imleri', 'Bookmarks')),
+              _mi('history', Icons.history, tx('Geçmiş', 'History')),
+              _mi('screentime', Icons.hourglass_bottom_rounded, tx('Ekran süresi', 'Screen time')),
               _mi('downloads', Icons.download_outlined,
-                  _downloads.activeCount > 0 ? 'İndirilenler (${_downloads.activeCount} sürüyor)' : 'İndirilenler', 'Ctrl+J'),
-              _mi('readlist', Icons.bookmark_added_outlined, 'Okuma listesi', _reading.unread > 0 ? '${_reading.unread}' : null),
-              _mi('devices', Icons.devices_outlined, 'Öbür cihazlar'),
+                  _downloads.activeCount > 0 ? tx('İndirilenler (${_downloads.activeCount} sürüyor)', 'Downloads (${_downloads.activeCount} in progress)') : tx('İndirilenler', 'Downloads'), 'Ctrl+J'),
+              _mi('readlist', Icons.bookmark_added_outlined, tx('Okuma listesi', 'Reading list'), _reading.unread > 0 ? '${_reading.unread}' : null),
+              _mi('devices', Icons.devices_outlined, tx('Öbür cihazlar', 'Other devices')),
               _mi('radio', Icons.radio_outlined, 'OA Radyo'),
-              if (_closedTabs.isNotEmpty) _mi('reopen', Icons.restore, 'Kapatılan sekmeyi geri aç', 'Ctrl+Shift+T'),
-              if (_tabs.length > 1) _mi('closeall', Icons.clear_all, 'Bütün sekmeleri kapat', 'Ctrl+Shift+W'),
+              if (_closedTabs.isNotEmpty) _mi('reopen', Icons.restore, tx('Kapatılan sekmeyi geri aç', 'Reopen closed tab'), 'Ctrl+Shift+T'),
+              if (_tabs.length > 1) _mi('closeall', Icons.clear_all, tx('Bütün sekmeleri kapat', 'Close all tabs'), 'Ctrl+Shift+W'),
               if (!_tab.showStart) ...[
                 const PopupMenuDivider(),
                 if (Platform.isWindows)
                   _tab.embed != null
-                      ? _mi('drmoff', Icons.close_fullscreen, 'Korumalı videodan çık')
-                      : _mi('drmembed', Icons.videocam_outlined, 'Video görünmüyorsa düzelt'),
-                _mi('page', Icons.article_outlined, 'Bu sayfa', '›'),
+                      ? _mi('drmoff', Icons.close_fullscreen, tx('Korumalı videodan çık', 'Exit protected video'))
+                      : _mi('drmembed', Icons.videocam_outlined, tx('Video görünmüyorsa düzelt', 'Fix video not showing')),
+                _mi('page', Icons.article_outlined, tx('Bu sayfa', 'This page'), '›'),
               ],
               const PopupMenuDivider(),
-              _mi('commands', Icons.bolt, 'Komut kutusu', 'Ctrl+K'),
-              _mi('settings', Icons.settings_outlined, 'Ayarlar', 'Ctrl+,'),
+              _mi('commands', Icons.bolt, tx('Komut kutusu', 'Command box'), 'Ctrl+K'),
+              _mi('settings', Icons.settings_outlined, tx('Ayarlar', 'Settings'), 'Ctrl+,'),
             ],
           ),
         ],
@@ -5728,30 +5730,30 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       position: RelativeRect.fromLTRB(size.width - 320, 100, 16, 0),
       constraints: const BoxConstraints(minWidth: 300, maxWidth: 360),
       items: [
-        _mi('find', Icons.find_in_page_outlined, 'Sayfada bul', 'Ctrl+F'),
-        _mi('later', Icons.bookmark_add_outlined, 'Sonra oku listesine ekle'),
-        _mi('send', Icons.send_to_mobile_outlined, 'Öbür cihaza gönder'),
-        _mi('kopru', Icons.cast_connected_outlined, 'Telefona gönder', 'Pusula Köprü'),
-        _mi('flow', Icons.swap_horiz_rounded, 'OA Akış'),
-        _mi('qrshare', Icons.qr_code_2, 'QR kod ile telefona aktar'),
-        _mi('pin', Icons.push_pin_outlined, _tab.pinned ? 'Sabitlemeyi kaldır' : 'Sekmeyi sabitle'),
-        if (_quick.length < kMaxQuickLinks) _mi('quick', Icons.add_to_home_screen_outlined, 'Hızlı erişime ekle'),
+        _mi('find', Icons.find_in_page_outlined, tx('Sayfada bul', 'Find on page'), 'Ctrl+F'),
+        _mi('later', Icons.bookmark_add_outlined, tx('Sonra oku listesine ekle', 'Add to reading list')),
+        _mi('send', Icons.send_to_mobile_outlined, tx('Öbür cihaza gönder', 'Send to another device')),
+        _mi('kopru', Icons.cast_connected_outlined, tx('Telefona gönder', 'Send to phone'), 'Pusula Köprü'),
+        _mi('flow', Icons.swap_horiz_rounded, tx('OA Akış', 'OA Flow')),
+        _mi('qrshare', Icons.qr_code_2, tx('QR kod ile telefona aktar', 'Send to phone with a QR code')),
+        _mi('pin', Icons.push_pin_outlined, _tab.pinned ? tx('Sabitlemeyi kaldır', 'Unpin') : tx('Sekmeyi sabitle', 'Pin tab')),
+        if (_quick.length < kMaxQuickLinks) _mi('quick', Icons.add_to_home_screen_outlined, tx('Hızlı erişime ekle', 'Add to quick access')),
         const PopupMenuDivider(),
-        _mi('tts', Icons.record_voice_over_outlined, 'Sesli oku'),
-        if (Platform.isWindows && !_tab.showStart) _mi('drmwin', Icons.open_in_new, 'Videoyu ayrı pencerede aç'),
+        _mi('tts', Icons.record_voice_over_outlined, tx('Sesli oku', 'Read aloud')),
+        if (Platform.isWindows && !_tab.showStart) _mi('drmwin', Icons.open_in_new, tx('Videoyu ayrı pencerede aç', 'Open video in a separate window')),
         if (Platform.isWindows)
           _split == null
-              ? _mi('splitnew', Icons.vertical_split_outlined, 'Yan yana yeni sekme')
-              : _mi('unsplit', Icons.vertical_split, 'Yan yana görünümü kapat'),
-        _mi('reader', Icons.chrome_reader_mode_outlined, 'Okuma modu'),
-        _mi('translate', Icons.translate, 'Türkçeye çevir'),
-        _mi('darksite', Icons.contrast, 'Koyu göster', _isDarkSite(_tab.host) ? 'açık' : 'kapalı'),
-        _mi('zoom', Icons.zoom_in, 'Yakınlaştırma', '%${_zoomOf(_tab.host)}'),
+              ? _mi('splitnew', Icons.vertical_split_outlined, tx('Yan yana yeni sekme', 'New tab side by side'))
+              : _mi('unsplit', Icons.vertical_split, tx('Yan yana görünümü kapat', 'Close side-by-side view')),
+        _mi('reader', Icons.chrome_reader_mode_outlined, tx('Okuma modu', 'Reader mode')),
+        _mi('translate', Icons.translate, tx('Türkçeye çevir', 'Translate to English')),
+        _mi('darksite', Icons.contrast, tx('Koyu göster', 'Show dark'), _isDarkSite(_tab.host) ? tx('açık', 'on') : tx('kapalı', 'off')),
+        _mi('zoom', Icons.zoom_in, tx('Yakınlaştırma', 'Zoom'), '%${_zoomOf(_tab.host)}'),
         const PopupMenuDivider(),
-        _mi('pdf', Icons.picture_as_pdf_outlined, 'PDF olarak kaydet', 'Ctrl+P'),
-        if (Platform.isWindows) _mi('shot', Icons.screenshot_monitor_outlined, 'Tam sayfa ekran görüntüsü'),
-        _mi('pip', Icons.picture_in_picture_alt_outlined, 'Videoyu küçük pencerede izle'),
-        _mi('adblock', Icons.shield_outlined, 'Bu sitede reklam engelleme'),
+        _mi('pdf', Icons.picture_as_pdf_outlined, tx('PDF olarak kaydet', 'Save as PDF'), 'Ctrl+P'),
+        if (Platform.isWindows) _mi('shot', Icons.screenshot_monitor_outlined, tx('Tam sayfa ekran görüntüsü', 'Full-page screenshot')),
+        _mi('pip', Icons.picture_in_picture_alt_outlined, tx('Videoyu küçük pencerede izle', 'Watch video in a small window')),
+        _mi('adblock', Icons.shield_outlined, tx('Bu sitede reklam engelleme', 'Ad blocking on this site')),
       ],
     );
     if (v != null) _onMenu(v);
@@ -5787,7 +5789,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       case 'incognito':
         _addTab(incognito: true);
       case 'bookmarks':
-        _showList('Yer imleri', _bookmarks, onClear: () {
+        _showList(tx('Yer imleri', 'Bookmarks'), _bookmarks, onClear: () {
           setState(() => _bookmarks.clear());
           _save('bookmarks', _bookmarks);
         }, onChanged: () {
@@ -5795,7 +5797,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           _save('bookmarks', _bookmarks);
         });
       case 'history':
-        _showList('Geçmiş', _history, onClear: _clearHistory, onChanged: () => _save('history', _history));
+        _showList(tx('Geçmiş', 'History'), _history, onClear: _clearHistory, onChanged: () => _save('history', _history));
       case 'engine':
         _showSearchSettings();
       case 'home':
@@ -5827,7 +5829,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       case 'about':
         _showAbout();
       case 'sync':
-        _syncNow().then((_) => _toast('Eşitlendi'));
+        _syncNow().then((_) => _toast(tx('Eşitlendi', 'Synced')));
       case 'quick':
         _editQuick(null);
       case 'tabs':
@@ -6093,7 +6095,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  t.showStart ? '${_engine.name} ile ara veya adres yaz' : t.host,
+                  t.showStart ? tx('${_engine.name} ile ara veya adres yaz', 'Search with ${_engine.name} or type an address') : t.host,
                   textAlign: TextAlign.center,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -6108,7 +6110,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                 SizedBox(width: 40)
               else
                 IconButton(
-                  tooltip: loading ? 'Durdur' : 'Yenile',
+                  tooltip: loading ? tx('Durdur', 'Stop') : tx('Yenile', 'Reload'),
                   iconSize: 20,
                   icon: Icon(loading ? Icons.close : Icons.refresh),
                   onPressed: _reloadOrStop,
@@ -6136,11 +6138,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             onSubmitted: _onSubmitted,
             style: TextStyle(fontSize: 16),
             decoration: InputDecoration(
-              hintText: '${_engine.name} ile ara veya adres yaz',
+              hintText: tx('${_engine.name} ile ara veya adres yaz', 'Search with ${_engine.name} or type an address'),
               fillColor: OAColors.surface2,
               prefixIcon: Icon(Icons.search, size: 18, color: OAColors.muted),
               suffixIcon: IconButton(
-                tooltip: 'Temizle',
+                tooltip: tx('Temizle', 'Clear'),
                 icon: Icon(Icons.cancel, size: 18, color: OAColors.faint),
                 onPressed: () {
                   _urlCtl.clear();
@@ -6153,13 +6155,13 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         ),
         if (Platform.isAndroid)
           IconButton(
-            tooltip: 'Sesli ara',
+            tooltip: tx('Sesli ara', 'Voice search'),
             icon: const Icon(Icons.mic_none),
             onPressed: _voiceSearch,
           ),
         if (Platform.isAndroid)
           IconButton(
-            tooltip: 'QR kod okut',
+            tooltip: tx('QR kod okut', 'Scan QR code'),
             icon: const Icon(Icons.qr_code_scanner),
             onPressed: _scanQr,
           ),
@@ -6172,7 +6174,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               _urlCtl.text = _addressText(_tab);
             });
           },
-          child: Text('İptal', style: TextStyle(fontSize: 16)),
+          child: Text(tx('İptal', 'Cancel'), style: TextStyle(fontSize: 16)),
         ),
       ],
     );
@@ -6184,27 +6186,27 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: [
         IconButton(
-          tooltip: 'İleri',
+          tooltip: tx('İleri', 'Forward'),
           icon: const Icon(Icons.arrow_forward_ios, size: 22),
           onPressed: _canForward ? _forward : null,
         ),
         IconButton(
-          tooltip: 'Ara',
+          tooltip: tx('Ara', 'Search'),
           icon: const Icon(Icons.search, size: 26),
           onPressed: _startEditing,
         ),
         IconButton(
-          tooltip: 'Menü',
+          tooltip: tx('Menü', 'Menu'),
           icon: const Icon(Icons.menu, size: 26),
           onPressed: _showMobileMenu,
         ),
         IconButton(
-          tooltip: 'Yer imleri',
+          tooltip: tx('Yer imleri', 'Bookmarks'),
           icon: const Icon(Icons.bookmarks_outlined, size: 24),
           onPressed: () => _onMenu('bookmarks'),
         ),
         IconButton(
-          tooltip: 'Sekmeler',
+          tooltip: tx('Sekmeler', 'Tabs'),
           onPressed: _showTabSwitcher,
           icon: Container(
             width: 24,
@@ -6246,23 +6248,23 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                child: Text('Özelleştir', style: oaDisplay(22)),
+                child: Text(tx('Özelleştir', 'Customize'), style: oaDisplay(22)),
               ),
-              item(Icons.wallpaper_outlined, 'Arka plan', _showWallpaperPicker),
+              item(Icons.wallpaper_outlined, tx('Arka plan', 'Background'), _showWallpaperPicker),
               item(OAColors.isDark ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
-                  'Görünüm: koyu / açık', _showThemeSettings),
-              item(Icons.search, 'Arama motoru: ${_engine.name}', _showSearchSettings),
-              item(Icons.add_box_outlined, 'Hızlı erişime site ekle', () => _editQuick(null)),
-              item(Icons.schedule, 'Saat ve hava durumu: ${_showClock ? 'açık' : 'kapalı'}', _toggleClock),
-              item(Icons.currency_lira, 'Döviz ve altın: ${_showMarkets ? 'açık' : 'kapalı'}', _toggleMarkets),
-              item(Icons.sports_esports_outlined, 'Oyun köşesi: ${_showGames ? 'açık' : 'kapalı'}', _toggleGames),
-              item(Icons.newspaper_outlined, 'Haber akışı: ${_showNews ? 'açık' : 'kapalı'}', _toggleNews),
-              if (_showNews) item(Icons.rss_feed, 'Haber kaynakları', () => showNewsSources(context, _news)),
+                  tx('Görünüm: koyu / açık', 'Appearance: dark / light'), _showThemeSettings),
+              item(Icons.search, tx('Arama motoru: ${_engine.name}', 'Search engine: ${_engine.name}'), _showSearchSettings),
+              item(Icons.add_box_outlined, tx('Hızlı erişime site ekle', 'Add a site to quick access'), () => _editQuick(null)),
+              item(Icons.schedule, tx('Saat ve hava durumu: ${_showClock ? 'açık' : 'kapalı'}', "Clock and weather: ${_showClock ? 'on' : 'off'}"), _toggleClock),
+              item(Icons.currency_lira, tx('Döviz ve altın: ${_showMarkets ? 'açık' : 'kapalı'}', "Currency and gold: ${_showMarkets ? 'on' : 'off'}"), _toggleMarkets),
+              item(Icons.sports_esports_outlined, tx('Oyun köşesi: ${_showGames ? 'açık' : 'kapalı'}', "Game corner: ${_showGames ? 'on' : 'off'}"), _toggleGames),
+              item(Icons.newspaper_outlined, tx('Haber akışı: ${_showNews ? 'açık' : 'kapalı'}', "News feed: ${_showNews ? 'on' : 'off'}"), _toggleNews),
+              if (_showNews) item(Icons.rss_feed, tx('Haber kaynakları', 'News sources'), () => showNewsSources(context, _news)),
               if (_showClock)
                 item(Icons.location_city_outlined,
-                    'Hava durumu şehri: ${_wx.city?.name ?? 'seçilmedi'}', () => pickCity(context, _wx)),
+                    tx('Hava durumu şehri: ${_wx.city?.name ?? 'seçilmedi'}', "Weather city: ${_wx.city?.name ?? 'not set'}"), () => pickCity(context, _wx)),
               if (_hiddenPromos.isNotEmpty)
-                item(Icons.view_carousel_outlined, 'Gizlenen kartları geri getir', () {
+                item(Icons.view_carousel_outlined, tx('Gizlenen kartları geri getir', 'Bring back hidden cards'), () {
                   setState(() => _hiddenPromos.clear());
                   _prefs?.setStringList('promo_hidden', []);
                 }),
@@ -6278,17 +6280,17 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: [
         IconButton(
-          tooltip: 'Geri',
+          tooltip: tx('Geri', 'Back'),
           icon: Icon(Icons.arrow_back_ios_new, size: 22),
           onPressed: _canBack ? _back : null,
         ),
         IconButton(
-          tooltip: 'İleri',
+          tooltip: tx('İleri', 'Forward'),
           icon: Icon(Icons.arrow_forward_ios, size: 22),
           onPressed: _canForward ? _forward : null,
         ),
         IconButton(
-          tooltip: _tab.showStart ? 'Yer imi' : (_isBookmarked ? 'Yer iminden çıkar' : 'Yer imi ekle'),
+          tooltip: _tab.showStart ? tx('Yer imi', 'Bookmark') : (_isBookmarked ? tx('Yer iminden çıkar', 'Remove bookmark') : tx('Yer imi ekle', 'Add bookmark')),
           icon: Icon(
             _isBookmarked ? Icons.star : Icons.star_border,
             size: 26,
@@ -6297,7 +6299,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           onPressed: _tab.showStart ? null : _toggleBookmark,
         ),
         IconButton(
-          tooltip: 'Sekmeler',
+          tooltip: tx('Sekmeler', 'Tabs'),
           onPressed: _showTabSwitcher,
           icon: Container(
             width: 24,
@@ -6315,7 +6317,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           ),
         ),
         IconButton(
-          tooltip: 'Menü',
+          tooltip: tx('Menü', 'Menu'),
           icon: Icon(Icons.more_horiz, size: 26),
           onPressed: _showMobileMenu,
         ),
@@ -6371,12 +6373,12 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               ListTile(
                 leading: OAAvatar(name: _account.user?.name, size: 36),
                 title: Text(
-                  _account.signedIn ? _account.user!.name : 'Giriş yap veya üye ol',
+                  _account.signedIn ? _account.user!.name : tx('Giriş yap veya üye ol', 'Sign in or sign up'),
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
                 subtitle: Text(_account.signedIn
                     ? _account.user!.email
-                    : 'OA Labs hesabın: şifre yok, e-postana kod gelir'),
+                    : tx('OA Labs hesabın: şifre yok, e-postana kod gelir', 'Your OA Labs account: no password, a code is sent to your email')),
                 onTap: () {
                   Navigator.pop(ctx);
                   _openAccount();
@@ -6387,7 +6389,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               if (!_tab.showStart) ...[
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
-                  child: Text('BU SAYFA',
+                  child: Text(tx('BU SAYFA', 'THIS PAGE'),
                       style: TextStyle(color: OAColors.faint, fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 0.8)),
                 ),
                 GridView.count(
@@ -6397,41 +6399,41 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                   childAspectRatio: 0.95,
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   children: [
-                    tool(Icons.find_in_page_outlined, 'Bul', 'find'),
-                    tool(Icons.bookmark_add_outlined, 'Sonra oku', 'later'),
-                    tool(Icons.send_to_mobile_outlined, 'Gönder', 'send'),
-                    tool(Icons.cast_connected_outlined, 'Bilgisayara', 'kopru'),
-                    tool(Icons.swap_horiz_rounded, 'OA Akış', 'flow'),
-                    tool(Icons.chrome_reader_mode_outlined, 'Okuma', 'reader'),
-                    tool(Icons.record_voice_over_outlined, 'Sesli oku', 'tts'),
-                    tool(Icons.translate, 'Çevir', 'translate'),
-                    tool(Icons.contrast, _isDarkSite(_tab.host) ? 'Koyu: açık' : 'Koyu', 'darksite'),
+                    tool(Icons.find_in_page_outlined, tx('Bul', 'Find'), 'find'),
+                    tool(Icons.bookmark_add_outlined, tx('Sonra oku', 'Read later'), 'later'),
+                    tool(Icons.send_to_mobile_outlined, tx('Gönder', 'Send'), 'send'),
+                    tool(Icons.cast_connected_outlined, tx('Bilgisayara', 'To computer'), 'kopru'),
+                    tool(Icons.swap_horiz_rounded, tx('OA Akış', 'OA Flow'), 'flow'),
+                    tool(Icons.chrome_reader_mode_outlined, tx('Okuma', 'Reader'), 'reader'),
+                    tool(Icons.record_voice_over_outlined, tx('Sesli oku', 'Read aloud'), 'tts'),
+                    tool(Icons.translate, tx('Çevir', 'Translate'), 'translate'),
+                    tool(Icons.contrast, _isDarkSite(_tab.host) ? tx('Koyu: açık', 'Dark: on') : tx('Koyu', 'Dark'), 'darksite'),
                     tool(Icons.zoom_in, '%${_zoomOf(_tab.host)}', 'zoom'),
                     tool(Icons.picture_as_pdf_outlined, 'PDF', 'pdf'),
-                    tool(Icons.picture_in_picture_alt_outlined, 'Küçük video', 'pip'),
-                    tool(Icons.add_to_home_screen_outlined, 'Hızlı erişim', 'quick'),
-                    tool(Icons.push_pin_outlined, _tab.pinned ? 'Sabit: açık' : 'Sabitle', 'pin'),
+                    tool(Icons.picture_in_picture_alt_outlined, tx('Küçük video', 'Small video'), 'pip'),
+                    tool(Icons.add_to_home_screen_outlined, tx('Hızlı erişim', 'Quick access'), 'quick'),
+                    tool(Icons.push_pin_outlined, _tab.pinned ? tx('Sabit: açık', 'Pinned') : tx('Sabitle', 'Pin'), 'pin'),
                   ],
                 ),
                 Divider(height: 16),
               ],
-              item(Icons.add, 'Yeni sekme', 'new'),
-              item(Icons.visibility_off_outlined, 'Yeni gizli sekme', 'incognito'),
+              item(Icons.add, tx('Yeni sekme', 'New tab'), 'new'),
+              item(Icons.visibility_off_outlined, tx('Yeni gizli sekme', 'New private tab'), 'incognito'),
               Divider(height: 16),
-              item(Icons.star_border, 'Yer imleri', 'bookmarks'),
-              item(Icons.history, 'Geçmiş', 'history'),
-              item(Icons.hourglass_bottom_rounded, 'Ekran süresi', 'screentime'),
+              item(Icons.star_border, tx('Yer imleri', 'Bookmarks'), 'bookmarks'),
+              item(Icons.history, tx('Geçmiş', 'History'), 'history'),
+              item(Icons.hourglass_bottom_rounded, tx('Ekran süresi', 'Screen time'), 'screentime'),
               item(Icons.download_outlined,
-                  _downloads.activeCount > 0 ? 'İndirilenler (${_downloads.activeCount} sürüyor)' : 'İndirilenler',
+                  _downloads.activeCount > 0 ? tx('İndirilenler (${_downloads.activeCount} sürüyor)', 'Downloads (${_downloads.activeCount} in progress)') : tx('İndirilenler', 'Downloads'),
                   'downloads'),
               item(Icons.bookmark_added_outlined,
-                  _reading.unread > 0 ? 'Okuma listesi (${_reading.unread})' : 'Okuma listesi', 'readlist'),
-              item(Icons.devices_outlined, 'Öbür cihazlar', 'devices'),
+                  _reading.unread > 0 ? tx('Okuma listesi (${_reading.unread})', 'Reading list (${_reading.unread})') : tx('Okuma listesi', 'Reading list'), 'readlist'),
+              item(Icons.devices_outlined, tx('Öbür cihazlar', 'Other devices'), 'devices'),
               item(Icons.radio_outlined, 'OA Radyo', 'radio'),
-              if (Platform.isAndroid) item(Icons.qr_code_scanner, 'QR kod okut', 'qr'),
-              if (_closedTabs.isNotEmpty) item(Icons.restore, 'Kapatılan sekmeyi geri aç', 'reopen'),
+              if (Platform.isAndroid) item(Icons.qr_code_scanner, tx('QR kod okut', 'Scan QR code'), 'qr'),
+              if (_closedTabs.isNotEmpty) item(Icons.restore, tx('Kapatılan sekmeyi geri aç', 'Reopen closed tab'), 'reopen'),
               Divider(height: 16),
-              item(Icons.settings_outlined, 'Ayarlar', 'settings'),
+              item(Icons.settings_outlined, tx('Ayarlar', 'Settings'), 'settings'),
             ],
           ),
         );
@@ -6459,7 +6461,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                     children: [
                       Expanded(
                         child: Text(
-                          _tabs.length == 1 ? '1 sekme' : '${_tabs.length} sekme',
+                          _tabs.length == 1 ? tx('1 sekme', '1 tab') : tx('${_tabs.length} sekme', '${_tabs.length} tabs'),
                           style: oaDisplay(22),
                         ),
                       ),
@@ -6470,11 +6472,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                             _closeAllTabs();
                           },
                           style: TextButton.styleFrom(foregroundColor: OAColors.danger),
-                          child: Text('Tümünü kapat', style: TextStyle(fontSize: 15)),
+                          child: Text(tx('Tümünü kapat', 'Close all'), style: TextStyle(fontSize: 15)),
                         ),
                       TextButton(
                         onPressed: () => Navigator.pop(ctx),
-                        child: Text('Bitti', style: TextStyle(fontSize: 16)),
+                        child: Text(tx('Bitti', 'Done'), style: TextStyle(fontSize: 16)),
                       ),
                     ],
                   ),
@@ -6516,7 +6518,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                 ),
                 Padding(
                   padding: const EdgeInsets.only(bottom: 6),
-                  child: Text('Kapatmak için kartı sola kaydır',
+                  child: Text(tx('Kapatmak için kartı sola kaydır', 'Swipe a card left to close it'),
                       textAlign: TextAlign.center, style: TextStyle(color: OAColors.faint, fontSize: 12.5)),
                 ),
                 Container(
@@ -6534,7 +6536,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                             _addTab(incognito: true);
                           },
                           icon: Icon(Icons.visibility_off_outlined, size: 18),
-                          label: Text('Gizli'),
+                          label: Text(tx('Gizli', 'Private')),
                           style: OutlinedButton.styleFrom(minimumSize: Size(0, 48)),
                         ),
                       ),
@@ -6546,7 +6548,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                             _addTab();
                           },
                           icon: Icon(Icons.add, size: 20),
-                          label: Text('Yeni sekme'),
+                          label: Text(tx('Yeni sekme', 'New tab')),
                           style: FilledButton.styleFrom(minimumSize: Size(0, 48)),
                         ),
                       ),
@@ -6603,7 +6605,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                     ),
                   ),
                   IconButton(
-                    tooltip: 'Sekmeyi kapat',
+                    tooltip: tx('Sekmeyi kapat', 'Close tab'),
                     iconSize: 18,
                     visualDensity: VisualDensity.compact,
                     icon: Icon(Icons.close),
@@ -6644,7 +6646,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                     ),
                     SizedBox(height: 10),
                     Text(
-                      t.showStart ? 'Başlangıç' : t.host,
+                      t.showStart ? tx('Başlangıç', 'Start') : t.host,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(fontSize: 13, color: OAColors.muted),
@@ -6698,7 +6700,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       borderRadius: BorderRadius.circular(10),
       onTap: () {
         Clipboard.setData(ClipboardData(text: a.copy ?? a.text));
-        _toast('Kopyalandı: ${a.copy ?? a.text}');
+        _toast(tx('Kopyalandı: ${a.copy ?? a.text}', 'Copied: ${a.copy ?? a.text}'));
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -6722,7 +6724,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(a.source, style: TextStyle(fontSize: 12, color: OAColors.faint)),
-                Text('Kopyalamak için dokun',
+                Text(tx('Kopyalamak için dokun', 'Tap to copy'),
                     style: TextStyle(fontSize: 11, color: OAColors.faint)),
               ],
             ),
@@ -6734,10 +6736,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   Widget _suggestionRow(Suggestion s, String q, bool selected) {
     final (IconData icon, String right) = switch (s.kind) {
-      SuggestionKind.go => (Icons.arrow_forward, 'Siteye git'),
-      SuggestionKind.search => (Icons.search, '${_engine.name} ile ara'),
+      SuggestionKind.go => (Icons.arrow_forward, tx('Siteye git', 'Go to site')),
+      SuggestionKind.search => (Icons.search, tx('${_engine.name} ile ara', 'Search with ${_engine.name}')),
       SuggestionKind.remote => (Icons.search, ''),
-      SuggestionKind.pastSearch => (Icons.history, 'Önceki arama'),
+      SuggestionKind.pastSearch => (Icons.history, tx('Önceki arama', 'Previous search')),
       SuggestionKind.bookmark => (Icons.star, _shortUrl(s.url)),
       SuggestionKind.page => (Icons.public, _shortUrl(s.url)),
     };
@@ -7024,17 +7026,17 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   String _permName(PermissionResourceType r) {
     if (r == PermissionResourceType.CAMERA) return 'kamera';
     if (r == PermissionResourceType.MICROPHONE) return 'mikrofon';
-    if (r == PermissionResourceType.CAMERA_AND_MICROPHONE) return 'kamera ve mikrofon';
+    if (r == PermissionResourceType.CAMERA_AND_MICROPHONE) return tx('kamera ve mikrofon', 'camera and microphone');
     if (r == PermissionResourceType.GEOLOCATION) return 'konum';
-    if (r == PermissionResourceType.NOTIFICATIONS) return 'bildirim gönderme';
-    if (r == PermissionResourceType.CLIPBOARD_READ) return 'kopyaladıklarını okuma';
-    if (r == PermissionResourceType.MIDI_SYSEX) return 'MIDI cihazları';
-    if (r == PermissionResourceType.FILE_READ_WRITE) return 'dosya okuma/yazma';
-    if (r == PermissionResourceType.LOCAL_FONTS) return 'yüklü yazı tipleri';
-    if (r == PermissionResourceType.WINDOW_MANAGEMENT) return 'pencere yönetimi';
-    if (r == PermissionResourceType.OTHER_SENSORS) return 'cihaz sensörleri';
-    if (r == PermissionResourceType.MULTIPLE_AUTOMATIC_DOWNLOADS) return 'birden çok dosya indirme';
-    if (r == PermissionResourceType.DEVICE_ORIENTATION_AND_MOTION) return 'cihaz hareketi';
+    if (r == PermissionResourceType.NOTIFICATIONS) return tx('bildirim gönderme', 'sending notifications');
+    if (r == PermissionResourceType.CLIPBOARD_READ) return tx('kopyaladıklarını okuma', 'reading what you copy');
+    if (r == PermissionResourceType.MIDI_SYSEX) return tx('MIDI cihazları', 'MIDI devices');
+    if (r == PermissionResourceType.FILE_READ_WRITE) return tx('dosya okuma/yazma', 'reading/writing files');
+    if (r == PermissionResourceType.LOCAL_FONTS) return tx('yüklü yazı tipleri', 'installed fonts');
+    if (r == PermissionResourceType.WINDOW_MANAGEMENT) return tx('pencere yönetimi', 'window management');
+    if (r == PermissionResourceType.OTHER_SENSORS) return tx('cihaz sensörleri', 'device sensors');
+    if (r == PermissionResourceType.MULTIPLE_AUTOMATIC_DOWNLOADS) return tx('birden çok dosya indirme', 'downloading multiple files');
+    if (r == PermissionResourceType.DEVICE_ORIENTATION_AND_MOTION) return tx('cihaz hareketi', 'device motion');
     return r.toString().toLowerCase();
   }
 
@@ -7073,38 +7075,38 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               leading: Icon(secure ? Icons.lock_outline : Icons.lock_open, color: secure ? OAColors.green : OAColors.amber),
               title: Text(host, style: oaDisplay(20)),
               subtitle: Text(secure
-                  ? 'Bağlantı güvenli. Bu siteye gönderdiklerin şifrelenir.'
-                  : 'Bağlantı güvenli değil. Bu sitede şifre ya da kart bilgisi girme.'),
+                  ? tx('Bağlantı güvenli. Bu siteye gönderdiklerin şifrelenir.', 'Connection is secure. What you send to this site is encrypted.')
+                  : tx('Bağlantı güvenli değil. Bu sitede şifre ya da kart bilgisi girme.', "Connection isn't secure. Don't enter passwords or card details on this site.")),
             ),
             const Divider(height: 1),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
-              child: Text('İzinler', style: TextStyle(color: OAColors.amber, fontSize: 12, fontWeight: FontWeight.w600)),
+              child: Text(tx('İzinler', 'Permissions'), style: TextStyle(color: OAColors.amber, fontSize: 12, fontWeight: FontWeight.w600)),
             ),
             if (mine.isEmpty)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-                child: Text('Bu site henüz bir izin istemedi.', style: TextStyle(color: OAColors.muted)),
+                child: Text(tx('Bu site henüz bir izin istemedi.', "This site hasn't asked for any permissions yet."), style: TextStyle(color: OAColors.muted)),
               ),
             for (final e in mine)
               ListTile(
                 dense: true,
                 title: Text(label(e.key.substring(host.length + 1))),
-                subtitle: Text(e.value == true ? 'İzin verildi' : 'Engellendi'),
+                subtitle: Text(e.value == true ? tx('İzin verildi', 'Allowed') : tx('Engellendi', 'Blocked')),
                 trailing: TextButton(
                   onPressed: () {
                     final m = _sitePerms()..remove(e.key);
                     _prefs?.setString('site_perms', jsonEncode(m));
                     setS(() {});
                   },
-                  child: const Text('Sıfırla'),
+                  child: Text(tx('Sıfırla', 'Reset')),
                 ),
               ),
             const Divider(height: 1),
             ListTile(
               leading: const Icon(Icons.cookie_outlined),
-              title: const Text('Bu sitenin çerezlerini sil'),
-              subtitle: const Text('Bu sitedeki oturumların kapanır'),
+              title: Text(tx('Bu sitenin çerezlerini sil', 'Delete cookies for this site')),
+              subtitle: Text(tx('Bu sitedeki oturumların kapanır', "You'll be signed out of this site")),
               onTap: () async {
                 Navigator.pop(ctx);
                 try {
@@ -7115,7 +7117,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                   await cm.deleteCookies(url: WebUri(t.url));
                 } catch (_) {}
                 t.controller?.reload();
-                _toast('$host çerezleri silindi');
+                _toast(tx('$host çerezleri silindi', 'Cookies for $host deleted'));
               },
             ),
           ]),
@@ -7149,12 +7151,12 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         context: context,
         builder: (ctx) => StatefulBuilder(
           builder: (ctx, setD) => AlertDialog(
-            title: Text('${host.isEmpty ? 'Bu site' : host} izin istiyor'),
+            title: Text(tx('${host.isEmpty ? 'Bu site' : host} izin istiyor', "${host.isEmpty ? 'This site' : host} is asking for permission")),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Şunları kullanmak istiyor: ${resources.map(_permName).join(', ')}',
+                Text(tx('Şunları kullanmak istiyor: ${resources.map(_permName).join(', ')}', "It wants to use: ${resources.map(_permName).join(', ')}"),
                     style: TextStyle(color: OAColors.text, fontSize: 16)),
                 if (!t.incognito) ...[
                   const SizedBox(height: 12),
@@ -7162,15 +7164,15 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                     contentPadding: EdgeInsets.zero,
                     value: remember,
                     onChanged: (v) => setD(() => remember = v ?? true),
-                    title: const Text('Bu site için hatırla'),
+                    title: Text(tx('Bu site için hatırla', 'Remember for this site')),
                     controlAffinity: ListTileControlAffinity.leading,
                   ),
                 ],
               ],
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Engelle')),
-              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('İzin ver')),
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tx('Engelle', 'Block'))),
+              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tx('İzin ver', 'Allow'))),
             ],
           ),
         ),
@@ -7210,11 +7212,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               children: [
                 Padding(
                   padding: EdgeInsets.fromLTRB(16, 0, 16, 4),
-                  child: Text('Arama motoru', style: oaDisplay(22)),
+                  child: Text(tx('Arama motoru', 'Search engine'), style: oaDisplay(22)),
                 ),
                 Padding(
                   padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
-                  child: Text('Adres çubuğuna yazdığın aramalar buraya gider.',
+                  child: Text(tx('Adres çubuğuna yazdığın aramalar buraya gider.', 'Searches you type in the address bar go here.'),
                       style: TextStyle(color: OAColors.muted)),
                 ),
                 for (final e in kEngines)
@@ -7253,9 +7255,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                   value: _suggestOn,
                   activeThumbColor: OAColors.amberInk,
                   activeTrackColor: OAColors.amber,
-                  title: Text('Yazarken öneri göster',
+                  title: Text(tx('Yazarken öneri göster', 'Show suggestions while typing'),
                       style: TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: Text('Adres çubuğunda arama önerileri'),
+                  subtitle: Text(tx('Adres çubuğunda arama önerileri', 'Search suggestions in the address bar')),
                   onChanged: (v) {
                     setState(() => _suggestOn = v);
                     setSheet(() {});
@@ -7265,9 +7267,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                 Padding(
                   padding: EdgeInsets.fromLTRB(16, 4, 16, 0),
                   child: Text(
-                    'Öneriler açıkken yazdıkların, sen Enter\'a basmadan da seçtiğin '
+                    tx('Öneriler açıkken yazdıkların, sen Enter\'a basmadan da seçtiğin '
                     'arama motoruna gönderilir. Gizli sekmede arama motorundan öneri '
-                    'alınmaz; yalnız yer imlerin önerilir.',
+                    'alınmaz; yalnız yer imlerin önerilir.', "With suggestions on, what you type is sent to your chosen search engine even before you press Enter. Private tabs don't get suggestions from the search engine; only your bookmarks are suggested."),
                     style: TextStyle(fontSize: 13, color: OAColors.muted, height: 1.5),
                   ),
                 ),
@@ -7294,10 +7296,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       final today = DateTime(now.year, now.month, now.day);
       final day = DateTime(d.year, d.month, d.day);
       final diff = today.difference(day).inDays;
-      if (diff == 0) return 'Bugün';
-      if (diff == 1) return 'Dün';
-      const months = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
-      return '${d.day} ${months[d.month - 1]}${d.year != now.year ? ' ${d.year}' : ''}';
+      if (diff == 0) return tx('Bugün', 'Today');
+      if (diff == 1) return tx('Dün', 'Yesterday');
+      final months = [tx('Ocak', 'January'), tx('Şubat', 'February'), tx('Mart', 'March'), tx('Nisan', 'April'), tx('Mayıs', 'May'), tx('Haziran', 'June'), tx('Temmuz', 'July'), tx('Ağustos', 'August'), tx('Eylül', 'September'), tx('Ekim', 'October'), tx('Kasım', 'November'), tx('Aralık', 'December')];
+      return tx('${d.day} ${months[d.month - 1]}${d.year != now.year ? ' ${d.year}' : ''}', "${months[d.month - 1]} ${d.day}${d.year != now.year ? ', ${d.year}' : ''}");
     }
 
     showModalBottomSheet(
@@ -7328,11 +7330,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                             final ok = await showDialog<bool>(
                               context: ctx,
                               builder: (d) => AlertDialog(
-                                title: Text('$title temizlensin mi?'),
-                                content: Text('${items.length} kayıt silinecek. Bu geri alınamaz.'),
+                                title: Text(tx('$title temizlensin mi?', 'Clear $title?')),
+                                content: Text(tx('${items.length} kayıt silinecek. Bu geri alınamaz.', "${items.length} entries will be deleted. This can't be undone.")),
                                 actions: [
-                                  TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Vazgeç')),
-                                  TextButton(onPressed: () => Navigator.pop(d, true), child: const Text('Temizle')),
+                                  TextButton(onPressed: () => Navigator.pop(d, false), child: Text(tx('Vazgeç', 'Cancel'))),
+                                  TextButton(onPressed: () => Navigator.pop(d, true), child: Text(tx('Temizle', 'Clear'))),
                                 ],
                               ),
                             );
@@ -7340,7 +7342,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                             onClear();
                             if (ctx.mounted) Navigator.pop(ctx);
                           },
-                          child: const Text('Temizle'),
+                          child: Text(tx('Temizle', 'Clear')),
                         ),
                 ),
                 if (items.length > 3)
@@ -7351,7 +7353,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                       onChanged: (v) => setS(() => query = v),
                       decoration: InputDecoration(
                         isDense: true,
-                        hintText: '$title içinde ara',
+                        hintText: tx('$title içinde ara', 'Search $title'),
                         prefixIcon: const Icon(Icons.search, size: 18),
                       ),
                     ),
@@ -7360,7 +7362,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                 Expanded(
                   child: shown.isEmpty
                       ? Center(
-                          child: Text(items.isEmpty ? 'Burada henüz bir şey yok.' : 'Bulunamadı.',
+                          child: Text(items.isEmpty ? tx('Burada henüz bir şey yok.', 'Nothing here yet.') : tx('Bulunamadı.', 'Not found.'),
                               style: TextStyle(color: OAColors.muted)))
                       : ListView.builder(
                           controller: scroll,
@@ -7376,7 +7378,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
                               title: Text(it['title'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis),
                               subtitle: Text(displayUrl(it['url'] ?? ''), maxLines: 1, overflow: TextOverflow.ellipsis),
                               trailing: IconButton(
-                                tooltip: 'Sil',
+                                tooltip: tx('Sil', 'Delete'),
                                 icon: const Icon(Icons.close, size: 16),
                                 onPressed: () {
                                   setS(() => items.remove(it));

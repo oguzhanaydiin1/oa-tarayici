@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:http/http.dart' as http;
 
+import 'i18n.dart';
 /// Adres çubuğunda yazarken çıkan hızlı cevap ("125*18 = 2.250", "100 dolar = 4.300 TL").
 class SmartAnswer {
   const SmartAnswer(this.text, this.source, {this.copy});
@@ -147,7 +148,7 @@ SmartAnswer? _calculator(String q) {
   final v = _Calc.eval(s);
   if (v == null || v.isNaN || v.isInfinite) return null;
   final text = formatTr(v, maxDecimals: 8);
-  return SmartAnswer('= $text', 'Hesap makinesi', copy: text);
+  return SmartAnswer('= $text', tx('Hesap makinesi', 'Calculator'), copy: text);
 }
 
 // ------------------------------------------------------------------ Birim çevirisi
@@ -171,10 +172,10 @@ const _units = <String, _Unit>{
   'mil': _Unit('mil', 'uzunluk', 1609.344),
   'mile': _Unit('mil', 'uzunluk', 1609.344),
   'mi': _Unit('mil', 'uzunluk', 1609.344),
-  'inç': _Unit('inç', 'uzunluk', 0.0254),
-  'inc': _Unit('inç', 'uzunluk', 0.0254),
-  'inch': _Unit('inç', 'uzunluk', 0.0254),
-  'in': _Unit('inç', 'uzunluk', 0.0254),
+  'inç': _Unit(tx('inç', 'in'), 'uzunluk', 0.0254),
+  'inc': _Unit(tx('inç', 'in'), 'uzunluk', 0.0254),
+  'inch': _Unit(tx('inç', 'in'), 'uzunluk', 0.0254),
+  'in': _Unit(tx('inç', 'in'), 'uzunluk', 0.0254),
   'ft': _Unit('ft', 'uzunluk', 0.3048),
   'feet': _Unit('ft', 'uzunluk', 0.3048),
   'fit': _Unit('ft', 'uzunluk', 0.3048),
@@ -239,7 +240,7 @@ SmartAnswer? _unitConvert(String q) {
   if (to == null || to.kind != from.kind || to.name == from.name) return null;
   final r = _convert(v, from, to);
   final text = formatTr(r, maxDecimals: r.abs() < 10 ? 3 : 2);
-  return SmartAnswer('${formatTr(v)} ${from.name} = $text ${to.name}', 'Birim çevirisi', copy: text);
+  return SmartAnswer('${formatTr(v)} ${from.name} = $text ${to.name}', tx('Birim çevirisi', 'Unit conversion'), copy: text);
 }
 
 // ------------------------------------------------------------------ Döviz
@@ -327,7 +328,7 @@ SmartAnswer? _currency(String q) {
   final d = Rates.date;
   final dateTr = d != null && d.length == 10 ? '${d.substring(8)}.${d.substring(5, 7)}.${d.substring(0, 4)}' : '';
   return SmartAnswer('${formatTr(amount)} ${sym(from)} = $text ${sym(to)}',
-      'Döviz · ECB${dateTr.isEmpty ? '' : ' $dateTr'}', copy: text);
+      tx('Döviz · ECB${dateTr.isEmpty ? '' : ' $dateTr'}', "Currency · ECB${dateTr.isEmpty ? '' : ' $dateTr'}"), copy: text);
 }
 
 /// Yazılan için hızlı cevap varsa döndürür. Döviz kuru gerekiyorsa ve henüz inmemişse
