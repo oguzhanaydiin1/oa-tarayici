@@ -257,7 +257,7 @@ class _FlowSheetState extends State<FlowSheet> {
               onSelected: (v) {
                 if (v == 'clear') widget.onClear();
               },
-              itemBuilder: (_) => const [PopupMenuItem(value: 'clear', child: Text(tx('Bu cihazdaki akış geçmişini temizle', 'Clear flow history on this device')))],
+              itemBuilder: (_) => [PopupMenuItem(value: 'clear', child: Text(tx('Bu cihazdaki akış geçmişini temizle', 'Clear flow history on this device')))],
             ),
             IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
           ]),

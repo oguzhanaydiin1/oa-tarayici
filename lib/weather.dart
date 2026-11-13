@@ -13,7 +13,7 @@ import 'i18n.dart';
 // Başlangıç sayfasındaki saat, tarih ve hava durumu.
 // Hava verisi: Open-Meteo (ücretsiz, anahtar gerektirmez). Şehir cihazda saklanır.
 
-const _days = [tx('Pazartesi', 'Monday'), tx('Salı', 'Tuesday'), tx('Çarşamba', 'Wednesday'), tx('Perşembe', 'Thursday'), tx('Cuma', 'Friday'), tx('Cumartesi', 'Saturday'), tx('Pazar', 'Sunday')];
+final _days = [tx('Pazartesi', 'Monday'), tx('Salı', 'Tuesday'), tx('Çarşamba', 'Wednesday'), tx('Perşembe', 'Thursday'), tx('Cuma', 'Friday'), tx('Cumartesi', 'Saturday'), tx('Pazar', 'Sunday')];
 final _daysShort = [tx('Pzt', 'Mon'), tx('Sal', 'Tue'), tx('Çar', 'Wed'), tx('Per', 'Thu'), tx('Cum', 'Fri'), tx('Cmt', 'Sat'), tx('Paz', 'Sun')];
 final _months = [tx('Ocak', 'January'), tx('Şubat', 'February'), tx('Mart', 'March'), tx('Nisan', 'April'), tx('Mayıs', 'May'), tx('Haziran', 'June'), tx('Temmuz', 'July'), tx('Ağustos', 'August'), tx('Eylül', 'September'), tx('Ekim', 'October'), tx('Kasım', 'November'), tx('Aralık', 'December')];
 

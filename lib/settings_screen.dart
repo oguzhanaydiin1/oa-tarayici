@@ -218,7 +218,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 return _row(Icons.contrast, tx('Uygulama teması', 'App theme'),
                     trailing: SegmentedButton<ThemeMode>(
                       showSelectedIcon: false,
-                      segments: const [
+                      segments: [
                         ButtonSegment(value: ThemeMode.system, label: Text(tx('Sistem', 'System'))),
                         ButtonSegment(value: ThemeMode.dark, label: Text(tx('Koyu', 'Dark'))),
                         ButtonSegment(value: ThemeMode.light, label: Text(tx('Açık', 'Light'))),
@@ -414,7 +414,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     trailing: DropdownButton<int>(
                       value: p._sleepMinutes,
                       underline: const SizedBox.shrink(),
-                      items: const [
+                      items: [
                         DropdownMenuItem(value: 15, child: Text(tx('15 dk sonra', 'After 15 min'))),
                         DropdownMenuItem(value: 30, child: Text(tx('30 dk sonra', 'After 30 min'))),
                         DropdownMenuItem(value: 60, child: Text(tx('1 saat sonra', 'After 1 hour'))),

@@ -423,7 +423,7 @@ class _StartPageState extends State<StartPage> {
         context: context,
         position: RelativeRect.fromRect(
             globalPos & const Size(1, 1), Offset.zero & overlay.size),
-        items: const [
+        items: [
           PopupMenuItem(value: QuickAction.openNewTab, child: Text(tx('Yeni sekmede aç', 'Open in new tab'))),
           PopupMenuItem(value: QuickAction.edit, child: Text(tx('Düzenle', 'Edit'))),
           PopupMenuItem(value: QuickAction.remove, child: Text(tx('Kaldır', 'Remove'))),

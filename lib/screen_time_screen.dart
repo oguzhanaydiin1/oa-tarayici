@@ -10,7 +10,7 @@ import 'start_page.dart' show SiteIcon;
 import 'i18n.dart';
 // Ekran süresi ekranı: bugün / bu hafta, siteler, site ayrıntısı, sınırlar ve ayarlar.
 
-const _gunler = [tx('Pzt', 'Mon'), tx('Sal', 'Tue'), tx('Çar', 'Wed'), tx('Per', 'Thu'), tx('Cum', 'Fri'), tx('Cmt', 'Sat'), tx('Paz', 'Sun')];
+final _gunler = [tx('Pzt', 'Mon'), tx('Sal', 'Tue'), tx('Çar', 'Wed'), tx('Per', 'Thu'), tx('Cum', 'Fri'), tx('Cmt', 'Sat'), tx('Paz', 'Sun')];
 
 /// Basit çubuk grafik. [highlight]: amber gösterilecek çubuk.
 Widget barChart(List<int> values, List<String> labels, {int? highlight, double height = 120, int? goalSeconds}) {
@@ -361,7 +361,7 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Wrap(spacing: 8, runSpacing: 8, children: [
                     SegmentedButton<bool>(
-                      segments: const [
+                      segments: [
                         ButtonSegment(value: false, label: Text(tx('Bugün', 'Today'))),
                         ButtonSegment(value: true, label: Text(tx('Bu hafta', 'This week'))),
                       ],
@@ -370,7 +370,7 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
                     ),
                     if (hasRemote)
                       SegmentedButton<bool>(
-                        segments: const [
+                        segments: [
                           ButtonSegment(value: false, label: Text(tx('Bu cihaz', 'This device'))),
                           ButtonSegment(value: true, label: Text(tx('Tüm cihazlar', 'All devices'))),
                         ],

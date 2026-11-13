@@ -161,7 +161,7 @@ class _Unit {
   final double offset;
 }
 
-const _units = <String, _Unit>{
+final _units = <String, _Unit>{
   'km': _Unit('km', 'uzunluk', 1000),
   'kilometre': _Unit('km', 'uzunluk', 1000),
   'm': _Unit('m', 'uzunluk', 1),

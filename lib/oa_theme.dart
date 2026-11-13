@@ -178,7 +178,7 @@ OAPalette withAccent(OAPalette p, OAAccent a) {
 }
 
 /// Hazır temalar: vurgu rengi + başlangıç sayfası arka planı.
-const kThemePresets = <(String, String, String)>[
+final kThemePresets = <(String, String, String)>[
   ('OA', 'turuncu', 'glow'),
   (tx('Gece', 'Night'), 'mor', 'glow'),
   (tx('Okyanus', 'Ocean'), 'mavi', 'rings'),
