@@ -39,7 +39,7 @@ class OAUser {
 }
 
 /// Sunucunun hata kodları için sitedeki metinlerin aynısı.
-const _errors = <String, String>{
+final _errors = <String, String>{
   'eposta': tx('Bu e-posta adresi geçerli görünmüyor.', "This email address doesn't look valid."),
   'ad': tx('Adını ve soyadını yaz.', 'Enter your first and last name.'),
   'onay': tx('Üye olmak için aydınlatma metnini onaylaman gerekiyor.', 'To sign up, you need to accept the privacy notice.'),
