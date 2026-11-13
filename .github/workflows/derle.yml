@@ -90,6 +90,19 @@ jobs:
             Pusula-Kurulum.exe
             Pusula-Windows.zip
 
+      # main dışındaki bir dalda elle derlenince: yalnız zip, "deneme-<dal>" adlı ön sürüm
+      # (güncelleyici ve site bunu kullanmaz; denemeden sonra silinir).
+      - name: Deneme sürümü
+        if: github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: deneme-${{ github.ref_name }}
+          name: Deneme (${{ github.ref_name }})
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+          make_latest: false
+          files: Pusula-Windows.zip
+
       - name: Sürüme ekle
         if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
