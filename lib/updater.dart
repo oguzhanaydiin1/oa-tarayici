@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
+import 'i18n.dart';
+
 /// Derlenirken verilen sürüm (CI: --dart-define=APP_VERSION=0.6.0).
 const appVersion = String.fromEnvironment('APP_VERSION', defaultValue: '0.0.0');
 
@@ -59,7 +61,7 @@ class Updater {
             wanted,
             rel['html_url']?.toString() ?? '',
             // Sürüm notunun altındaki "---" sonrası (site bağlantısı) uygulamada gösterilmez.
-            (rel['body']?.toString() ?? '').split('\n---\n').first.trim(),
+            _notesFor((rel['body']?.toString() ?? '').split('\n---\n').first.trim()),
           );
         }
       }
@@ -116,4 +118,12 @@ Future<bool> runInstaller(File setup) async {
   } catch (_) {
     return false;
   }
+}
+
+/// Sürüm notu önce Türkçe, boş bir satırdan sonra İngilizce maddeler içerir;
+/// uygulamanın diline uyan kısmı gösterilir.
+String _notesFor(String body) {
+  final parts = body.split(RegExp(r'\n\s*\n')).where((p) => p.trim().isNotEmpty).toList();
+  if (parts.length < 2) return body;
+  return L.en ? parts.sublist(1).join('\n\n').trim() : parts.first.trim();
 }
