@@ -15,6 +15,12 @@ Biçim (başlık tam olarak `## ` ve sürüm numarası olmalı):
 
 En yeni sürüm en üstte olsun.
 
+
+## 0.21.1
+• Ayarlar → Hakkında: OA Radyo'daki gibi "Uygulama hakkında" kartı; dönen OA Labs mührü, sürüm, sistem ve altyapı bilgisi. Açık ve koyu temada temanın renkleriyle görünür.
+
+• Settings → About: an "About the app" card like OA Radio's, with the rotating OA Labs seal, version, system and build info. It follows the light and dark theme.
+
 ## 0.21.0
 • İngilizce dil desteği: cihazın dili Türkçe değilse Pusula İngilizce açılır. Ayarlar → Görünüm → Dil'den Türkçe, English ya da Otomatik seçebilirsin.
 • İngilizcede sayılar (1,234.5), tarihler, hava durumu ve sesli okuma da İngilizce; başlangıç sayfasında İngilizce haber kaynakları gelir.

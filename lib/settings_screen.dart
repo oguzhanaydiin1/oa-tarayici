@@ -620,6 +620,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           (
             null,
             [
+              _Item(tx('Uygulama hakkında', 'About the app'), tx('oa labs atölye mühür sürüm sistem', 'oa labs workshop seal version system'), () => const _AboutCard()),
               _Item('Pusula Browser', tx('sürüm hakkında oa tarayıcı', 'version about oa browser'), () => _row(Icons.info_outline, 'Pusula Browser', sub: tx('Sürüm $appVersion · OA Labs', 'Version $appVersion · OA Labs'))),
               _Item(tx('Güncellemeleri denetle', 'Check for updates'), '', () => _row(Icons.system_update_outlined, tx('Güncellemeleri denetle', 'Check for updates'), onTap: () => p._checkUpdate(manual: true))),
               _Item('oalabs.dev/tarayici', 'site', () {
@@ -868,4 +869,65 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ..._sectionBody(section.id),
     ]);
   }
+}
+
+
+/// "Uygulama hakkında" kartı (OA Radyo ile aynı): dönen OA Labs mührü, sürüm, sistem, altyapı.
+/// Renkler temadan gelir; açık ve koyu temada doğru görünür.
+class _AboutCard extends StatelessWidget {
+  const _AboutCard();
+
+  static String get _system {
+    final name = switch (Platform.operatingSystem) {
+      'windows' => 'Windows',
+      'android' => 'Android',
+      'macos' => 'macOS',
+      'linux' => 'Linux',
+      final o => o,
+    };
+    return '$name · ${Platform.operatingSystemVersion.replaceAll('"', '')}';
+  }
+
+  static String get _dart => RegExp(r'^(\S+)').firstMatch(Platform.version)?.group(1) ?? '';
+
+  Widget _info(String k, String v) => Container(
+        padding: const EdgeInsets.symmetric(vertical: 9),
+        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: OAColors.line))),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          SizedBox(width: 84, child: Text(k, style: TextStyle(color: OAColors.faint, fontSize: 13))),
+          Expanded(
+            child: SelectableText(v,
+                style: TextStyle(color: OAColors.text, fontSize: 13, fontWeight: FontWeight.w600, fontFamily: 'Consolas', fontFamilyFallback: const ['monospace'])),
+          ),
+        ]),
+      );
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            OALabsSeal(
+              size: 88,
+              color: OAColors.text,
+              accent: OAColors.accent,
+              text: tx('OA LABS · ATÖLYE · 2026 · OA LABS · ATÖLYE · 2026 · ', 'OA LABS · WORKSHOP · 2026 · OA LABS · WORKSHOP · 2026 · '),
+            ),
+            const SizedBox(width: 18),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(tx('Uygulama hakkında', 'About the app'), style: TextStyle(color: OAColors.text, fontSize: 16, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 2),
+                Text(tx('OA Labs atölyesinde özenle yapıldı.', 'Carefully made at the OA Labs workshop.'), style: TextStyle(color: OAColors.muted, fontSize: 14)),
+              ]),
+            ),
+          ]),
+          const SizedBox(height: 10),
+          _info(tx('Sürüm', 'Version'), appVersion),
+          _info(tx('Sistem', 'System'), _system),
+          _info(tx('Altyapı', 'Built with'), 'Flutter · Dart $_dart'),
+          const SizedBox(height: 12),
+          Text('© ${DateTime.now().year} Oğuzhan Aydın', style: TextStyle(color: OAColors.muted, fontSize: 13)),
+        ]),
+      );
 }
