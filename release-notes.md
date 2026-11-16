@@ -16,6 +16,11 @@ Biçim (başlık tam olarak `## ` ve sürüm numarası olmalı):
 En yeni sürüm en üstte olsun.
 
 
+## 0.21.2
+• Ayarlar → Hakkında: "Bir kahve ısmarla". OA Labs uygulamaları ücretsiz ve reklamsız; isteyen buradan destek olabilir (Buy Me a Coffee yeni sekmede açılır).
+
+• Settings → About: "Buy us a coffee". OA Labs apps are free and ad-free; you can support us here (Buy Me a Coffee opens in a new tab).
+
 ## 0.21.1
 • Ayarlar → Hakkında: OA Radyo'daki gibi "Uygulama hakkında" kartı; dönen OA Labs mührü, sürüm, sistem ve altyapı bilgisi. Açık ve koyu temada temanın renkleriyle görünür.
 
