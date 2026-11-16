@@ -622,6 +622,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
             [
               _Item(tx('Uygulama hakkında', 'About the app'), tx('oa labs atölye mühür sürüm sistem', 'oa labs workshop seal version system'), () => const _AboutCard()),
               _Item('Pusula Browser', tx('sürüm hakkında oa tarayıcı', 'version about oa browser'), () => _row(Icons.info_outline, 'Pusula Browser', sub: tx('Sürüm $appVersion · OA Labs', 'Version $appVersion · OA Labs'))),
+              _Item(tx('Bir kahve ısmarla', 'Buy us a coffee'), tx('destek bağış buy me a coffee', 'support donate buy me a coffee'), () {
+                return _row(Icons.coffee_outlined, tx('Bir kahve ısmarla', 'Buy us a coffee'),
+                    sub: tx('OA Labs uygulamaları ücretsiz ve reklamsız; beğendiysen devam etmemize yardım edebilirsin', 'OA Labs apps are free and ad-free; if you like them, you can help us keep going'),
+                    onTap: () {
+                  Navigator.pop(context);
+                  p._addTab(url: 'https://buymeacoffee.com/oalabs');
+                });
+              }),
               _Item(tx('Güncellemeleri denetle', 'Check for updates'), '', () => _row(Icons.system_update_outlined, tx('Güncellemeleri denetle', 'Check for updates'), onTap: () => p._checkUpdate(manual: true))),
               _Item('oalabs.dev/tarayici', 'site', () {
                 return _row(Icons.public, 'oalabs.dev/tarayici', onTap: () {
